@@ -1,40 +1,60 @@
 ---
-description: The engineering mindset of the Forkumentos team — governs how to think before writing any code
+description: Enforces the Forkumentos implementation philosophy — simplicity, YAGNI, reuse, and minimalism
 globs: "**/*"
 ---
 
 ## Purpose
-This rule encodes the *mindset* behind every other decision in this repository.
-Rules without a rationale get violated when conditions differ slightly from their examples.
-This file exists so that rationale is never lost.
+This rule governs how the Forkumentos engineering team makes software decisions. It prevents over-engineering, premature optimization, speculative code, and bloated dependencies, keeping the repository clean and maintainable over years.
 
 ## Scope
-Every task, in every file, in every layer.
+Every coding task, refactoring session, library selection, or structural code design.
 
 ## Core Principles
-- Forkumentos is a professional desktop tool. Its users are technical professionals who value correctness and reliability over novelty.
-- Build only what the current iteration explicitly requires. A future use case is not a justification for a present abstraction.
-- A new abstraction requires two concrete existing call sites — not one hypothetical future use.
-- Clever solutions are not welcome without a measurable reason. The obvious solution is preferred.
-- The definition of "done": compiles, `flutter analyze` is clean, `flutter test` passes, no dead code exists.
+- **YAGNI (You Aren't Gonna Need It)**: Do not solve future or speculative problems. Implement only what the current task explicitly requires.
+- **Prefer Reuse Over Creation**: Search the codebase for existing helpers, utilities, and components before writing a new one.
+- **Prefer Composition**: Compose small, focused classes and components rather than building large, complex inheritance hierarchies.
+- **Minimize Dependencies**: Avoid introducing third-party packages for tasks that can be solved in a few lines of clean Dart.
+- **Simplicity Over Cleverness**: Code should be boring and easy to read. Readable code is always preferred over highly optimized but complex code.
+- **Small, Focused Implementations**: Keep files and classes single-purpose. An abstraction is only justified when it has two or more concrete use cases.
 
 ## DO
-- Ask "what problem does this solve right now?" before introducing any new class, layer, or pattern.
-- Prefer a direct implementation that works over an elegant abstraction that is premature.
-- Surface design decisions to the user when they have lasting consequences.
-- Treat every file you touch as an opportunity to leave it slightly better than you found it — but only within the task scope.
+- Ask "what problem does this solve right now?" before adding any class or helper.
+- Verify if a package in `pubspec.yaml` already has a utility to solve the current problem.
+- Prioritize code deletion over code addition when refactoring.
+- Keep the number of modified files as small as possible per task.
 
 ## DON'T
-- Introduce an abstraction because it "might be useful later."
-- Solve a problem by adding complexity when removing code would also solve it.
-- Treat a working prototype as a foundation to build on without validation.
+- Write interface classes with only one concrete implementation.
+- Introduce helper modules or utility functions "just in case" they are needed later.
+- Add third-party packages to solve basic utility operations.
 
 ## NEVER
-- Implement a feature that was not explicitly requested, even if it seems obviously needed.
-- Leave the codebase in a state where it does not compile or analyze cleanly.
+- Implement unrequested features or abstract scenarios under the guise of extensibility.
+- Optimize code prematurely before a performance issue has been measured.
+
+## GOOD Examples
+```dart
+// Simple, direct implementation of a transformation using Dart stdlib
+final transformed = rows.map((row) => row.trim()).toList();
+```
+
+## BAD Examples
+```dart
+// Over-engineered abstraction for a simple operation
+abstract class RowTransformer {
+  String transform(String input);
+}
+class TrimTransformer implements RowTransformer {
+  @override
+  String transform(String input) => input.trim();
+}
+// Using this abstraction where a simple mapping would suffice is prohibited.
+```
 
 ## Decision Rules
-When uncertain whether to introduce something new: ask whether deleting it would break any existing behavior. If no, do not introduce it.
+1. Is the proposed class or helper only used in one place? → Inline it.
+2. Does the task require a new package? → Review standard library first. If < 50 lines of code can solve it, write it inline instead of adding a dependency.
+3. Is a refactoring changing behavior? → Separate behavior changes from cleanup into different tasks.
 
 ## Conflict Resolution
-This rule defers to PROJECT_SPEC.md on product intent and to ARCHITECTURE.md on structural decisions. It takes precedence over all other Cursor rules when they conflict with each other without a clear winner.
+This rule takes precedence over all other Cursor rules when determining the level of complexity allowed in an implementation. Minimal, readable, and reusable code always wins.

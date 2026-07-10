@@ -1,0 +1,62 @@
+---
+description: Enforces the Forkumentos desktop workbench UI design and interaction philosophy
+globs: "lib/features/**/presentation/**/*.dart, lib/shared/widgets/**/*.dart"
+---
+
+## Purpose
+This rule governs the visual design, user experience, and interaction standards for the Forkumentos Desktop application. It ensures the interface is optimized for professional document mapping, maintaining high information density, responsive desktop ergonomics, and clear usability standards.
+
+## Scope
+Any presentation layer UI widget, layout component, screen, dialog, panel, or copy element.
+
+## Core Principles
+- **Desktop-First Ergonomics**: Designed for large screens, resizable panels, and mouse/keyboard efficiency. Mobile paradigms (bottom sheets, drawer menus, swipe gestures) are prohibited.
+- **Keyboard-First Interaction**: Every primary action must have a dedicated keyboard shortcut and be reachable via keyboard navigation.
+- **Information Density & Working Area**: Maximize the workspace. Surrounding panels should be thin, resizable, and collapsible. Avoid minimal, empty-looking screens.
+- **Non-Blocking Operations**: Long tasks (parsing, exporting) must execute in the background, leaving the UI interactive and displaying clear loading progress.
+- **Nielsen Heuristics**: Adhere to consistency, error prevention, user control/freedom, and visibility of system status (clear empty states, inline error messages).
+- **Conversational & Active Voice**: Use clear, specific, active verbs for buttons and instructions (e.g., "Import Mapping Source" instead of "Submit").
+- **Minimal Visual Noise**: Use clean spacing and thin dividers (0.5dp) rather than heavy borders, cards, or unnecessary decorative icons.
+
+## DO
+- Use resizable, collapsible panels for configurations (mappings, settings) to maximize the active table/preview area.
+- Group interactive actions in menus or toolbars with keyboard shortcut hints in tooltips.
+- Design clear empty states that invite action (e.g., "No datasource imported yet. Drag and drop a file or click to browse").
+- Show a deterministic progress indicator inline when operations take longer than 200ms.
+- Write copy in active voice, sentence case, and name actions after what the user controls (e.g., "Change Column Name").
+
+## DON'T
+- Block the entire screen with a loading spinner when a background process is active.
+- Use default snackbars for field-level validation errors — show error messages inline near the source of the issue.
+- Auto-save or execute destructive operations without a clear visual history or explicit user confirmation.
+- Use vague labels like "OK," "Cancel," or "Submit" for primary actions.
+
+## NEVER
+- Expose a destructive action (file overwrite, deletion) that can trigger accidentally without a confirmation dialog.
+- Build a layout that breaks, clips, or overflows when the window is resized down to the minimum dimensions.
+
+## GOOD Examples
+```dart
+// Active, specific button with keyboard shortcut hint
+TextButton(
+  onPressed: handleImport,
+  child: const Text('Import Document (Ctrl+I)'),
+)
+```
+
+## BAD Examples
+```dart
+// Passive, generic button with no shortcuts
+ElevatedButton(
+  onPressed: handleImport,
+  child: const Text('OK'),
+)
+```
+
+## Decision Rules
+Does the action delete or modify files? → Present a confirmation dialog describing the impact.
+Is a background task running? → Show inline progress. Do not freeze the active panels.
+Is a field value invalid? → Render inline helper text, do not wait for form submission to show errors.
+
+## Conflict Resolution
+This rule defers to `performance.mdc` when there is a conflict between visual update frequency and thread execution. It takes precedence over general Material 3 default styling.
