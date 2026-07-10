@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:forkumentos/core/theme/app_theme.dart';
+import 'package:forkumentos/routing/app_router.dart';
 
 /// The root Widget of the application.
 class App extends StatelessWidget {
@@ -8,12 +9,10 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Forkumentos',
       theme: AppTheme.dark,
-      home: const Scaffold(
-        body: Center(child: Text('Forkumentos Bootstrap Ready')),
-      ),
+      routerConfig: appRouter,
     );
   }
 }
