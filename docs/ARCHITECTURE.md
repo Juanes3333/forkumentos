@@ -97,6 +97,8 @@ The `shared/` directory bridges features without coupling them.
 - Contains global models (e.g., `UserPreferences`).
 - Contains shared state providers (e.g., the currently active project) that multiple features must react to.
 
+**Documented Exception:** `shared/providers/active_project_provider.dart` may depend on the `Project` domain model and `ProjectRepository` from `features/project/domain` and `features/project/data`. This is the single, narrow exception to the "`shared/` depends on `core/` only" rule, justified because exactly one active project must be coordinated globally across features. No other `shared/` provider may depend on a feature.
+
 ---
 
 ## 7. Core Layer
