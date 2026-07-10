@@ -1,14 +1,58 @@
 ---
-description: Unit, widget, and integration testing guidelines and test directory structure rules
-globs: test/**/*.dart
+description: What "tested" means in Forkumentos and the testing strategy for each architectural layer
+globs: "test/**/*.dart"
 ---
 
-# Testing Rules
+## Purpose
+This rule does not explain how to write tests. It defines what Forkumentos considers "tested" and establishes the testing contract for each layer.
+Without this definition, tests exist but provide no confidence — they pass while covering nothing meaningful.
 
-- **Directory Layout**: Maintain tests in their dedicated folders:
-  - `test/unit/` for unit tests and business logic providers.
-  - `test/widget/` for widget rendering and UI interactions.
-  - `test/integration/` for full-app integration testing.
-- **Coverage**: Ensure critical paths (mapping logic, data transformations) have adequate unit test coverage.
-- **Mocks**: Use mock providers or structured data fixtures to avoid external dependencies during widget tests.
-- **Warnings**: Test files must compile with zero compiler warnings or analyzer lints.
+## Scope
+Any new test file, any new feature, and the `code_review.mdc` checklist at task completion.
+
+## Core Principles
+- A test that asserts nothing is worse than no test — it creates false confidence.
+- The testing boundary for each layer is different. The wrong test in the wrong layer tests nothing useful.
+- Tests must not depend on the Windows file system, real file paths, or network access.
+- A provider override in a widget test must be injected at the `ProviderScope` level — not by modifying global state.
+- Tests in `test/unit/` must not import any Flutter package (`package:flutter/...`).
+
+## Testing Boundaries by Layer
+- `core/`: Pure unit tests. No mocks required. Input → output, always deterministic.
+- `features/*/domain/`: Unit tests with mock or fake repository implementations. No Flutter.
+- `features/*/data/`: Unit tests against in-memory or fake datasource implementations. No real disk access.
+- `features/*/presentation/`: Widget tests with Riverpod provider overrides. No real services.
+- `test/integration/`: Full user flows across multiple providers and widgets. Reserved for critical paths.
+
+## DO
+- Test the behavior of a class, not its implementation. If renaming a private method breaks a test, the test is wrong.
+- Use `fake` implementations (full implementations with in-memory state) over `mock` objects for repositories.
+- Override providers at `ProviderScope` in widget tests:
+  ```dart
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [templateRepositoryProvider.overrideWithValue(FakeTemplateRepository())],
+      child: const App(),
+    ),
+  );
+  ```
+
+## DON'T
+- Assert on widget text that comes from implementation details rather than user-visible behavior.
+- Write a test that always passes regardless of code changes — verify the assertion is actually sensitive.
+- Create test helpers that are more complex than the code they are testing.
+
+## NEVER
+- Import `dart:io` or use real file paths in unit or widget tests.
+- Leave a test file with zero `expect()` calls.
+
+## Decision Rules
+Which test type is needed for a new class?
+- Pure function or algorithm → Unit test in `test/unit/`.
+- Repository or service with I/O → Unit test with fake in `test/unit/`.
+- Riverpod notifier with provider dependencies → Unit test with provider overrides (no widget tree).
+- Widget that reads a provider → Widget test with `ProviderScope` override in `test/widget/`.
+- Multi-screen user flow → Integration test in `test/integration/`.
+
+## Conflict Resolution
+This rule is self-contained. `task_scope.mdc` defines when testing is required to complete a task. This rule defines how tests are structured.

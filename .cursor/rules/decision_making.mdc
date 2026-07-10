@@ -1,0 +1,50 @@
+---
+description: How the Forkumentos team resolves implementation ambiguity — the decision framework when no other rule provides a clear answer
+globs: "**/*"
+---
+
+## Purpose
+Cursor will face implementation decisions not covered by any single rule. Without a decision framework, the agent defaults to generic best practices that may contradict team philosophy.
+This rule defines how to reason under ambiguity — not what the answer is, but how to find it.
+
+## Scope
+Any moment during implementation where two valid approaches exist and no other rule disambiguates.
+
+## Core Principles
+- Preference hierarchy for design choices: existing team convention > simplicity > extensibility.
+- If a decision changes the public interface of a module (its providers, repository contracts, or exported models), stop and surface it to the user.
+- The solution that requires changing fewer files is preferred when outcomes are equivalent.
+- Copy-pasting code to solve a problem is always wrong — find where the shared abstraction belongs instead.
+- Inconsistency in the codebase is a cost. Matching existing patterns is preferred over introducing better ones without team discussion.
+
+## DO
+- Look at two or three existing similar implementations in the codebase before creating a new pattern.
+- When two approaches are equivalent, choose the one a new developer would understand without explanation.
+- Surface decisions that will become hard to reverse after implementation begins.
+
+## DON'T
+- Introduce a new pattern without first checking whether an existing one already handles the case.
+- Make irreversible structural decisions (e.g., database schema, provider naming, model shape) without user confirmation.
+- Resolve ambiguity silently — ambiguity that is resolved silently creates invisible debt.
+
+## NEVER
+- Implement two competing approaches and leave both in the codebase, intending to "decide later."
+- Treat a missing specification as permission to design freely.
+
+## GOOD Example
+Ambiguity: "Should this repository method return a `List<Template>` or a `Stream<List<Template>>`?"
+Decision process: Check if other repositories in the codebase return `Stream` or `Future`. Match the existing convention. Report the choice made.
+
+## BAD Example
+Ambiguity: "Should this repository method return a `List<Template>` or a `Stream<List<Template>>`?"
+Wrong response: Implement both, add a flag parameter `useStream: bool`, leave both in the codebase.
+
+## Decision Rules
+1. Does existing code in the same layer solve this pattern? → Match it.
+2. Does ARCHITECTURE.md address this structural question? → Follow it.
+3. Does the decision affect a public interface? → Stop and ask the user.
+4. Is the decision reversible with < 10 lines of change? → Make it, note it in the summary.
+5. None of the above? → Ask before implementing.
+
+## Conflict Resolution
+This rule is subordinate to all specific rules. It only activates when no specific rule covers the decision at hand. It defers to ARCHITECTURE.md on structural questions and to PROJECT_SPEC.md on product questions.

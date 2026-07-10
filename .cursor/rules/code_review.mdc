@@ -1,0 +1,47 @@
+---
+description: Mandatory self-review checklist that Cursor runs before declaring any task complete
+globs: "**/*"
+---
+
+## Purpose
+Cursor does not have a human reviewer. This rule acts as the final gate before any task is considered done.
+It prevents the most common error categories from reaching the repository and establishes a consistent definition of "ready to commit."
+
+## Scope
+The final step of every task, before any commit and before reporting completion.
+
+## Core Principles
+- A task is not complete until every checklist item below passes — not when the implementation feels done.
+- Issues discovered during self-review are part of the current task scope to fix, not a separate task.
+- The checklist is ordered by severity. A failure at any item stops the review and triggers a fix.
+
+## Checklist (in order)
+1. Does `flutter analyze` return zero issues?
+2. Does `flutter test` pass with all tests green?
+3. Are there any unused imports, variables, or files introduced by this task?
+4. Does any new class violate the boundary rules in `architecture_boundaries.mdc`?
+5. Does any new abstraction have fewer than two concrete call sites in the current codebase?
+6. Does the code introduce any hardcoded path string, magic number, or untranslated user-facing string?
+7. Is every new public API (provider, repository interface, model field) intentionally shaped — or is it accidentally shaped by the implementation detail?
+8. Is the Git working tree clean and the commit message conforming to Conventional Commits?
+
+## DO
+- Run the full checklist in order after every task, not just the items that seem relevant.
+- Fix analyzer issues before checking test results — a passing test that hides a lint error is not passing.
+- Report any checklist item that cannot be resolved within the current task scope.
+
+## DON'T
+- Skip checklist items because the task was "simple."
+- Commit with a dirty working tree under the assumption that "the rest will be fixed later."
+- Mark a task complete if item 5 reveals a new abstraction with only one call site — remove it or justify it explicitly.
+
+## NEVER
+- Commit code that fails `flutter analyze`.
+- Leave the repository in a state where an existing test was broken by the current task.
+
+## Decision Rules
+If a checklist item fails and the fix is within task scope: fix it, re-run from item 1.
+If a checklist item fails and the fix requires work outside task scope: stop, report to user, do not commit.
+
+## Conflict Resolution
+This rule takes precedence over `task_scope.mdc` only at completion time. The self-review may reveal issues that extend the task slightly — that extension is always justified.

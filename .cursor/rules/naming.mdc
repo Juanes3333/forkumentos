@@ -1,11 +1,60 @@
 ---
-description: Code symbol naming conventions, PascalCase, camelCase, and snake_case rules
-globs: lib/**/*.dart, assets/**/*
+description: Naming conventions specific to Forkumentos — how identifiers, files, and assets are named in this codebase
+globs: "lib/**/*.dart, test/**/*.dart, assets/**/*"
 ---
 
-# Naming Conventions
+## Purpose
+In a codebase maintained by multiple agents and developers across years, naming is a discoverability and communication tool.
+This rule encodes Forkumentos-specific naming decisions, not generic Dart conventions. Dart conventions are assumed knowledge.
 
-- **PascalCase**: Use for classes, enums, extensions, mixins, and typedefs (e.g., `class DocumentMapper`, `enum MappingType`).
-- **camelCase**: Use for variables, function names, properties, and parameters (e.g., `final mappingResult = ...`, `void fetchDocument()`).
-- **snake_case**: Use for directory names, file names, import aliases, and asset files (e.g., `lib/features/mapping/`, `main_logo.png`).
-- **Descriptive Names**: Avoid short, cryptic abbreviations. Use clear, descriptive names for all classes and functions.
+## Scope
+Any new identifier: file names, class names, provider names, method names, parameters, enum cases, asset filenames.
+
+## Core Principles
+- A name is correct when, given the name alone, a developer can locate the file and understand its purpose without searching.
+- Abbreviations are prohibited unless the abbreviation is universally known and shorter is unambiguously clearer (e.g., `id` is acceptable; `mgr`, `cfg`, `svc` are not).
+- Model classes are named after their domain concept without technological suffixes: `Project`, not `ProjectModel` or `ProjectEntity`.
+- Feature-scoped classes carry the feature name as a prefix only when disambiguation is necessary: `MappingColumn` (not just `Column`), but `Template` (not `DocumentTemplate`) unless `Template` is ambiguous at the call site.
+- Riverpod providers are named `[concept][Layer]Provider`: `mappingStateProvider`, `activeProjectProvider`, `templateListProvider`.
+
+## DO
+- Name files after their primary exported class, in `snake_case`: `mapping_column.dart` exports `MappingColumn`.
+- Name test files after the file under test with a `_test` suffix: `mapping_column_test.dart`.
+- Use `PascalCase` for classes, enums, typedefs, extensions.
+- Use `camelCase` for variables, methods, parameters, and provider identifiers.
+- Use `snake_case` for file names, folder names, and all asset filenames.
+
+## DON'T
+- Name a class `Manager`, `Handler`, `Helper`, or `Util` — these names describe nothing about the domain.
+- Use the word `data` as a class name or variable name without a domain qualifier (`sourceData` is acceptable; `data` alone is not).
+- Suffix providers with `Notifier` when they are accessed from the UI — the provider is accessed, not the notifier.
+
+## NEVER
+- Give two classes in the same domain layer names that differ only by suffix (e.g., `TemplateModel` and `Template` coexisting).
+- Name a file after a pattern (`base_repository.dart`) when it contains a domain concept (`template_repository.dart`).
+
+## GOOD Example
+```dart
+// Provider name: concept + layer + Provider
+final activeProjectProvider = StateNotifierProvider<ActiveProjectNotifier, Project?>(...);
+
+// Class name: domain concept, no suffix
+class MappingColumn { ... }
+```
+
+## BAD Example
+```dart
+// Vague provider name
+final stateProvider = ...;
+
+// Technological suffix on a model
+class ProjectModel { ... }
+```
+
+## Decision Rules
+Is there already a class with a similar name in the same layer? → Disambiguate with a feature prefix.
+Is the name a verb? → It is a method. Classes are nouns or noun phrases.
+Does the name describe the technology rather than the domain? → Rename it.
+
+## Conflict Resolution
+This rule is self-contained. No other rule overrides naming decisions. ARCHITECTURE.md folder names take precedence over file naming conventions when they conflict.

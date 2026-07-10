@@ -1,0 +1,59 @@
+---
+description: Engineering decisions for the Export module — multi-format, long-running operations implemented as Commands
+globs: "lib/features/export/**/*.dart, lib/core/commands/**/*.dart, test/**/*export*.dart"
+---
+
+## Purpose
+Export is a complex, potentially long-running operation that involves file system access, format-specific logic, and user-facing progress.
+Its engineering decisions span the Command Pattern, I/O constraints, and progress reporting — none of which belong in any other single rule.
+This rule ensures export operations are implemented consistently as the system grows to support multiple output formats.
+
+## Scope
+Any file inside `lib/features/export/` and any Command class in `lib/core/commands/` that performs an export operation.
+
+## Core Principles
+- Every export operation is implemented as a `Command` in `lib/core/commands/` — never as a method on a notifier or a free function.
+- Every export `Command` is cancellable. Users must be able to abort an in-progress export at any point.
+- Export format logic is isolated per format. A CSV export and a JSON export are separate `Command` subclasses — they share a base, they do not share logic through conditionals.
+- The export feature does not own the data it exports. It reads from the active project state and mapping result — it never mutates them.
+- File path selection (save dialog) happens before the export `Command` is constructed — the command receives a resolved path, not a dialog trigger.
+
+## DO
+- Implement each new export format as a distinct `Command` subclass with a single `execute()` method.
+- Report progress as a typed stream of `ExportProgress` events — percentage, current step label, bytes written.
+- Validate the target file path before beginning the export. Surface path errors before any data is processed.
+- Emit a distinct completion event with the final output file path so the UI can offer to open it.
+
+## DON'T
+- Implement export logic as a switch statement branching on format type inside a single class.
+- Begin writing to the output file before validating the entire mapping result is complete and conflict-free.
+- Block the main thread during any step of the export pipeline.
+
+## NEVER
+- Overwrite an existing file without presenting the user with a confirmation dialog.
+- Leave a partial output file on disk if the export was cancelled or failed — clean up on failure.
+
+## GOOD Example
+User exports to CSV:
+1. File picker resolves the output path.
+2. `CsvExportCommand(path: resolvedPath, result: mappingResult)` is constructed.
+3. Command is passed to an executor that reports progress via a stream.
+4. On cancellation: partial file is deleted, completion event with `cancelled: true` is emitted.
+
+## BAD Example
+```dart
+// Export logic inside a notifier method — incorrect
+class ExportNotifier extends AsyncNotifier<void> {
+  Future<void> exportToCsv(String path) async {
+    // Writing file, parsing, formatting — all mixed here
+  }
+}
+```
+
+## Decision Rules
+New export format requested? → Create a new `Command` subclass. Do not modify existing export commands.
+Export fails mid-way? → Clean up partial output, emit typed error event, do not rethrow raw exceptions.
+User requests cancellation? → Cancel at the next safe checkpoint, clean up, emit cancellation event.
+
+## Conflict Resolution
+`performance.mdc` governs async I/O constraints — they apply fully to all export commands. `architecture_boundaries.mdc` governs where command classes live. This rule adds export-specific constraints on top of both.

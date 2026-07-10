@@ -1,0 +1,49 @@
+---
+description: Engineering decisions specific to the Mapping module — the core feature of Forkumentos
+globs: "lib/features/mapping/**/*.dart, test/**/*mapping*.dart"
+---
+
+## Purpose
+Mapping is the primary feature of Forkumentos. It will become the largest and most complex module.
+This rule captures engineering decisions for the mapping domain so future agents do not reinvent or contradict decisions already made.
+It begins sparse and grows alongside the module.
+
+## Scope
+Any file inside `lib/features/mapping/` and any test that exercises mapping behavior.
+
+## Core Principles
+- The conceptual model of a mapping operation is: **source column → transformation → target field**. Every abstraction in this module maps to one of these three concepts or to their relationships.
+- A mapping operation is stateless in its definition but stateful in its execution. The definition (what maps to what) is a model; the execution result is a separate state.
+- Conflicts in mapping (e.g., two source columns mapping to the same target field) are surfaced as warnings visible to the user — they are never silently resolved by the system.
+- Mapping preview is computed from the mapping definition — it is always a derived state, never stored independently.
+- The mapping domain does not own persistence. It provides its model; `features/project/` owns the save lifecycle.
+
+## DO
+- Represent a mapping definition as an immutable model (Freezed) in `features/mapping/domain/`.
+- Distinguish clearly between `MappingDefinition` (what the user configured) and `MappingResult` (the outcome of applying it).
+- Surface conflicts as a typed collection on the result: `List<MappingConflict>`, never as thrown exceptions.
+
+## DON'T
+- Compute mapping results inside a widget's `build()` method.
+- Persist mapping state directly from the mapping notifier — delegate to the project save mechanism.
+- Mix transformation logic with column selection logic in the same notifier.
+
+## NEVER
+- Silently drop a source column that cannot be mapped. Always surface it as an unresolved mapping.
+- Allow the mapping state to become inconsistent with the active project state.
+
+## GOOD Example
+A user maps two source columns to the same target field.
+Correct response: `MappingResult.conflicts` contains a `DuplicateTargetConflict`. The UI shows a warning indicator. The mapping remains usable.
+
+## BAD Example
+A user maps two source columns to the same target field.
+Wrong response: The second mapping silently overwrites the first. No conflict is reported.
+
+## Decision Rules
+Is a new concept part of the mapping definition (what the user configures)? → `domain/` as an immutable model.
+Is it the result of executing a mapping? → `domain/` as a separate result model.
+Is it a UI-specific concern (selected row, scroll position)? → Presentation layer provider, never the domain model.
+
+## Conflict Resolution
+`architecture_boundaries.mdc` governs import rules. `state_management.mdc` governs provider structure. This rule adds mapping-specific constraints on top of both — it takes precedence for decisions within this module.

@@ -1,0 +1,50 @@
+---
+description: UI design philosophy for Forkumentos — a professional desktop tool, not a consumer mobile app
+globs: "lib/**/*.dart"
+---
+
+## Purpose
+Forkumentos is a professional desktop tool for technical users. UI decisions correct for a consumer mobile app (full-screen loaders, bottom sheets, swipe gestures, minimal information density) are wrong here.
+This rule encodes the desktop-first interaction philosophy.
+
+## Scope
+Any widget, screen, layout, dialog, interactive component, error state, or loading state.
+
+## Core Principles
+- Professional users want to see more information, not less. Prefer information density over progressive disclosure.
+- The keyboard is a first-class input device. Every primary action must be reachable without a mouse.
+- Destructive operations always require explicit confirmation. They never execute on a single click or keypress.
+- Loading states never remove existing content from view — they overlay it or appear alongside it with a clear indicator.
+- Error states are presented inline, adjacent to the failed element, not as global snackbars unless the operation was globally initiated.
+
+## DO
+- Show deterministic progress (percentage or step count) for operations longer than 200ms.
+- Provide keyboard shortcuts for all primary actions and surface them in tooltips.
+- Keep dialogs for decisions that require user input. Use inline validation for form fields.
+- Design every screen to be resizable down to the minimum window size without breaking layout.
+- Show stale data with a staleness indicator rather than blocking the UI on recomputation.
+
+## DON'T
+- Use full-screen loading overlays that remove the user's context.
+- Show a spinner without a label describing what is being loaded.
+- Dismiss a dialog on backdrop click when the dialog contains unsaved user input.
+- Use bottom sheets — this is a desktop application, not a mobile one.
+
+## NEVER
+- Execute a file write, deletion, or overwrite operation without showing the user what will happen and receiving confirmation.
+- Leave a user action without feedback (visual, textual, or keyboard) within 100ms of the action being triggered.
+
+## GOOD Example
+File import in progress: show a progress bar with "Importing 1,240 rows… (62%)" inside the panel where the result will appear, leaving the rest of the UI usable.
+
+## BAD Example
+File import in progress: show a centered full-screen spinner with no label, blocking all other interaction until complete.
+
+## Decision Rules
+Does the operation take longer than 200ms? → Show deterministic progress.
+Does the operation delete or overwrite data? → Require explicit confirmation with a description of what will be lost.
+Is the error local to one field or panel? → Show it inline.
+Is the error caused by a globally initiated operation? → Show a dismissible notification in the status area.
+
+## Conflict Resolution
+This rule is overridden by explicit user prompt instructions on specific UI behavior. Module rules (`preview.mdc`, `mapping.mdc`) may add more specific UI constraints for their context — those take precedence over this rule for that module.

@@ -1,0 +1,55 @@
+---
+description: Engineering decisions for the Project module — the root domain concept that all other features operate within
+globs: "lib/features/project/**/*.dart, test/**/*project*.dart"
+---
+
+## Purpose
+A "Project" is the top-level unit of user work in Forkumentos. Every other feature operates within the context of an active project.
+Project lifecycle decisions (creation, loading, saving, closing) have cascading effects on all other modules.
+This rule captures those decisions so they are never made accidentally during feature implementation.
+
+## Scope
+Any file inside `lib/features/project/` and any code that reads from or writes to the active project state.
+
+## Core Principles
+- There is always exactly one active project, or none. The application never operates in an ambiguous partial-project state.
+- Loading a project is atomic: the application transitions from "no project" to "project fully loaded" — never to an intermediate state that other features can observe.
+- Closing a project is also atomic: all feature states that depend on the active project must be cleared before the close operation is considered complete.
+- The active project state is the source of truth for all feature-level data. Features never store their own copy of project-level data.
+- Autosave is triggered by mutations to the active project state, not by timers alone. Timers are a fallback, not the primary mechanism.
+
+## DO
+- Represent the active project state as a single `AsyncValue<Project?>` in `activeProjectProvider`.
+- Clear all feature-dependent states when `activeProjectProvider` transitions to `null`.
+- Validate the project file structure before transitioning to the loaded state — never load a corrupt project partially.
+- Log every project lifecycle event (open, save, close, autosave) through `core/logging/`.
+
+## DON'T
+- Allow feature notifiers to hold project data that is not sourced from `activeProjectProvider`.
+- Trigger an autosave during a project load operation.
+- Show the main application UI until `activeProjectProvider` has emitted a non-loading `AsyncValue`.
+
+## NEVER
+- Allow the user to open a second project while a save is in progress for the current one.
+- Lose unsaved changes silently when closing or loading a new project — always prompt for confirmation.
+
+## GOOD Example
+User opens a project file:
+1. `activeProjectProvider` transitions to `AsyncLoading`.
+2. Project file is read, validated, and parsed completely off the main thread.
+3. On success: `activeProjectProvider` transitions to `AsyncData(project)`. All features re-initialize from this new state.
+4. On failure: `activeProjectProvider` transitions to `AsyncError`. UI shows the error. No partial state is left.
+
+## BAD Example
+User opens a project file:
+1. `activeProjectProvider` transitions to `AsyncData(partialProject)` as fields are parsed.
+2. The mapping feature begins initializing from the partial project state while loading is still in progress.
+
+## Decision Rules
+Any feature needs project-level data? → Watch `activeProjectProvider`. Never store a local copy.
+Project close requested with unsaved changes? → Prompt user. Do not close until confirmed or changes saved.
+Project file is corrupt? → Transition to `AsyncError`. Do not attempt partial load.
+Two saves requested concurrently? → Queue them. Do not run concurrent save operations on the same project.
+
+## Conflict Resolution
+This rule defines the lifecycle contract that all other module rules implicitly depend on. When a module rule conflicts with a project lifecycle constraint, this rule takes precedence. `architecture_boundaries.mdc` governs import structure; this rule governs state lifecycle.

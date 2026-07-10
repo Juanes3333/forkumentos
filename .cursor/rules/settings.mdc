@@ -1,0 +1,60 @@
+---
+description: Engineering decisions for the Settings module — the only feature all other features are permitted to read
+globs: "lib/features/settings/**/*.dart, lib/shared/providers/**/*.dart, test/**/*settings*.dart"
+---
+
+## Purpose
+Settings governs application-wide behavior and is the only feature that all other features are permitted to read from.
+That asymmetric relationship creates unique engineering constraints. Incorrect settings implementation causes cross-feature regressions.
+This rule encodes the contract of the settings system.
+
+## Scope
+Any file inside `lib/features/settings/` and any provider in `lib/shared/providers/` that exposes a setting value.
+
+## Core Principles
+- Settings are consumed by other features exclusively through shared providers in `lib/shared/providers/` — features never import from `lib/features/settings/` directly.
+- Adding a new setting is an atomic operation: the setting schema, the persistence implementation, the shared provider, and the UI to modify it are all implemented together in the same commit.
+- Settings are read-only from the perspective of all features except `settings/`. Only the settings feature may trigger a write to a setting.
+- Settings must be persisted immediately on change — they are never held in memory and flushed later.
+- Default values for all settings must be defined in one location, not scattered across call sites.
+
+## DO
+- Expose settings values through typed, named providers: `defaultDelimiterProvider`, `autosaveIntervalProvider`.
+- Define all default values in a single `SettingsDefaults` class in `features/settings/domain/`.
+- Validate settings values at write time — do not persist invalid values and silently fall back to defaults at read time.
+
+## DON'T
+- Import `lib/features/settings/` from any other feature. Use only the shared providers.
+- Add a new setting without implementing its UI at the same time.
+- Store a setting value as a global constant — settings must be user-configurable at runtime.
+
+## NEVER
+- Allow another feature to write to a setting directly — all writes go through the settings notifier.
+- Remove a setting that is in use across features without migrating all consumers first.
+
+## GOOD Example
+```dart
+// Correct: other features read settings via shared provider
+// lib/shared/providers/settings_providers.dart
+final defaultDelimiterProvider = Provider<String>((ref) {
+  return ref.watch(settingsNotifierProvider).defaultDelimiter;
+});
+
+// Consumed in mapping feature
+final delimiter = ref.watch(defaultDelimiterProvider);
+```
+
+## BAD Example
+```dart
+// Wrong: direct feature-to-feature import
+import 'package:forkumentos/features/settings/domain/app_settings.dart';
+final delimiter = AppSettings.instance.defaultDelimiter;
+```
+
+## Decision Rules
+New application preference needed? → Add to schema, implement persistence, add shared provider, add UI — all atomically.
+Feature needs to read a setting? → Use the shared provider in `lib/shared/providers/`. Never import `features/settings/` directly.
+Feature needs to write a setting? → Surface this as an architectural question — only the settings feature writes settings.
+
+## Conflict Resolution
+`architecture_boundaries.mdc` normally prohibits cross-feature dependencies. This rule codifies the one deliberate exception: settings values are shared through providers, not through direct imports. `architecture_boundaries.mdc` governs the mechanism; this rule governs the contract.

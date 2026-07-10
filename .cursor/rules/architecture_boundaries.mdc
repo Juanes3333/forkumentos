@@ -1,0 +1,57 @@
+---
+description: Enforces the architectural boundary rules during implementation — where new code belongs and which imports are permitted
+globs: "lib/**/*.dart"
+---
+
+## Purpose
+ARCHITECTURE.md describes what the boundaries are. This rule enforces them during code generation.
+It prevents the silent degradation that happens when boundary rules exist as documentation but not as active constraints.
+
+## Scope
+Any file creation, import statement, or code movement inside `lib/`.
+
+## Core Principles
+- The dependency direction is strictly: `app` → `routing` → `features` → `shared` → `core`.
+- No lateral imports between features. `features/mapping/` cannot import from `features/export/`.
+- `core` is completely independent — zero imports from `shared`, `features`, or `app`.
+- Cross-feature communication is routed through `shared/` providers or `routing/`.
+- A class that serves two or more features belongs in `shared/`, not duplicated inside each feature.
+
+## DO
+- Place domain-specific logic in `features/[feature]/domain/`.
+- Place infrastructure (file I/O, storage, logging) in `core/`.
+- Route cross-feature state through a provider in `lib/shared/providers/`.
+- When uncertain where something belongs, apply the flowchart in Decision Rules.
+
+## DON'T
+- Import `features/mapping/` from `features/export/` — use a shared model instead.
+- Put business logic in `lib/app/` — it belongs in a feature's domain layer.
+- Import `lib/shared/` from `lib/core/` — core has no knowledge of shared.
+
+## NEVER
+- Create a circular dependency between any two directories.
+- Place a class in `core/` that references a specific feature concept (e.g., `MappingService` in `core/services/`).
+
+## GOOD Example
+```dart
+// features/export/domain/export_job.dart
+// Depends on a shared model — correct lateral communication
+import 'package:forkumentos/shared/models/project.dart';
+```
+
+## BAD Example
+```dart
+// features/export/domain/export_service.dart
+// Direct lateral import — architectural violation
+import 'package:forkumentos/features/mapping/domain/mapping_result.dart';
+```
+
+## Decision Rules
+Where does a new class go?
+1. Does it encode logic specific to one feature? → `features/[feature]/domain/` or `data/`
+2. Is it used by two or more features? → `shared/models/` or `shared/providers/`
+3. Is it infrastructure with no business meaning? → `core/`
+4. If none fit without a boundary violation → surface the design decision to the user.
+
+## Conflict Resolution
+This rule defers to ARCHITECTURE.md. If ARCHITECTURE.md explicitly places something outside these rules, ARCHITECTURE.md wins. This rule takes precedence over all module-specific rules (`mapping.mdc`, `export.mdc`, etc.).

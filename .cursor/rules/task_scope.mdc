@@ -1,0 +1,50 @@
+---
+description: Defines what is inside and outside the scope of any given task — governs when to stop, when to ask, and what not to touch
+globs: "**/*"
+---
+
+## Purpose
+AI agents fail in two modes: stopping too early or doing too much. This rule defines correct task boundaries for Forkumentos so that neither failure mode reaches the repository.
+
+## Scope
+Every task, before starting and before declaring completion.
+
+## Core Principles
+- A task ends when it compiles, analyzes clean, and tests pass — not when the agent judges the feature to be "complete."
+- Discovering missing infrastructure during a task does not authorize creating it. Report it instead.
+- A task with "refactor X" does not authorize changing the observable behavior of X.
+- Creating files or folders beyond what the task explicitly requires needs user approval before proceeding.
+- The repository must be in a valid, committable state at the end of every task.
+
+## DO
+- Complete exactly what was requested, verify it, then stop.
+- Report missing infrastructure as a follow-up task, not as an implicit extension of the current one.
+- Ask before making decisions that will affect more than two files outside the stated scope.
+- Treat "while I'm here" additions as a separate task requiring explicit approval.
+
+## DON'T
+- Refactor adjacent code that was not part of the task, even if it looks problematic.
+- Add new providers, models, or services "for later" during a task that doesn't require them.
+- Silently expand scope because the implementation reveals the task was underspecified.
+
+## NEVER
+- Commit a task that leaves `flutter analyze` with unresolved issues.
+- Leave the project in a partially implemented state (e.g., an interface without an implementation) without explicit acknowledgment.
+- Create a new abstraction because the current task "will probably need it."
+
+## GOOD Example
+Task: "Add keyboard shortcut Ctrl+S to trigger project save."
+Correct scope: add the shortcut binding in the appropriate widget, connect it to the existing save provider method. Done.
+
+## BAD Example
+Task: "Add keyboard shortcut Ctrl+S to trigger project save."
+Out of scope: refactoring the entire shortcut system, adding Ctrl+Z, creating a `ShortcutManager` class for future use.
+
+## Decision Rules
+When implementation reveals that a prerequisite is missing:
+1. Can the task be completed without it? → Complete the task and report the missing piece separately.
+2. Is the missing piece trivial (< 5 lines, one file)? → Create it and note it in the completion summary.
+3. Is it non-trivial? → Stop, report to the user, do not proceed.
+
+## Conflict Resolution
+This rule takes precedence over User Prompt when the prompt implies scope expansion beyond what was stated. Report the conflict before proceeding.

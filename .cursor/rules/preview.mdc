@@ -1,0 +1,47 @@
+---
+description: Engineering decisions for the Preview sub-feature — rendering intermediate mapping results without blocking the user
+globs: "lib/features/mapping/presentation/preview/**/*.dart, test/**/*preview*.dart"
+---
+
+## Purpose
+Preview has a unique constraint: it shows the user a live result of an incomplete or in-progress mapping.
+Its engineering decisions differ from general UI philosophy because it must be non-blocking by design — never preventing the user from continuing to configure the mapping.
+This rule captures that contract.
+
+## Scope
+Any file inside `lib/features/mapping/presentation/preview/`.
+
+## Core Principles
+- Preview is always non-blocking. It never prevents the user from saving, exiting, or modifying the mapping configuration.
+- Preview shows the result of the *last successfully computed* mapping — it never shows a partial or intermediate computation result.
+- Stale preview data is acceptable and expected. A staleness indicator is always shown when the preview does not reflect the current mapping state.
+- Preview is a read-only consumer of `MappingResult`. It never triggers a mapping computation — it watches a provider that is responsible for computing it.
+- Preview computation is initiated by the mapping state change, not by a user action.
+
+## DO
+- Display the last known `MappingResult` immediately, with a staleness badge if the current mapping state is newer.
+- Show a lightweight progress indicator when a new mapping result is being computed in the background.
+- Allow the user to scroll and interact with the preview table while recomputation is in progress.
+
+## DON'T
+- Block the preview panel while waiting for a mapping computation to complete.
+- Show an empty state while recomputing — always show the previous result.
+- Trigger a new mapping computation from inside a preview widget's event handler.
+
+## NEVER
+- Show preview data that mixes results from two different mapping definitions.
+- Expose a "compute preview" button — preview is automatic and continuous.
+
+## GOOD Example
+User changes a transformation rule. The preview immediately shows a "Recalculating…" badge over the existing result. The previous result remains visible and scrollable. When computation finishes, the badge disappears and the result updates.
+
+## BAD Example
+User changes a transformation rule. The preview panel shows a spinner and clears all existing data until the new computation completes.
+
+## Decision Rules
+Is the mapping state newer than the displayed result? → Show staleness indicator. Do not clear the preview.
+Is a computation in progress? → Show progress indicator alongside existing data, not instead of it.
+Did computation fail? → Show the error inline in the preview panel, keep the last successful result visible.
+
+## Conflict Resolution
+`ui_philosophy.mdc` governs general loading states. This rule overrides it specifically for preview: preview always keeps existing data visible, even when `ui_philosophy.mdc` would recommend showing a loading overlay.

@@ -1,12 +1,58 @@
 ---
-description: State management with Riverpod, provider scoping, and reactivity rules
-globs: lib/**/*.dart
+description: How the Forkumentos team uses state management — team decisions, not framework documentation
+globs: "lib/**/*.dart"
 ---
 
-# State Management Rules
+## Purpose
+This rule does not teach Riverpod. It encodes how *this team* decided to use Riverpod.
+Those are different things. A framework tutorial tells you what is possible. This rule tells you what is correct for Forkumentos.
 
-- **Framework**: Use **Riverpod** (v2+) exclusively for global and shared state management.
-- **Provider Scoping**: Keep providers small and single-purpose. Use `NotifierProvider` or `AsyncNotifierProvider` for mutable state.
-- **Watching Providers**: Use `ref.watch` in build methods to reactively rebuild widgets when state changes.
-- **Reading Providers**: Use `ref.read` in callbacks (e.g., button click) to perform one-off actions or dispatch commands.
-- **Dispose Caches**: Use `.autoDispose` on providers that should clear their state when no longer in use by the UI.
+## Scope
+Any provider, notifier, consumer widget, or state-dependent logic across all features and shared layers.
+
+## Core Principles
+- Local widget state (`setState`) is only permitted for purely presentational state with zero business meaning (hover, animation controller tick, local scroll position).
+- Every business operation is a method on a `Notifier` or `AsyncNotifier` — never a free function called from a widget.
+- The UI layer pattern-matches state. It does not query state imperatively or call provider methods inside `build()`.
+- One provider per feature concern — not one provider per feature (mapping can have `mappingStateProvider`, `columnSelectionProvider`, and `transformationProvider` independently).
+- Providers never depend on `BuildContext`.
+
+## DO
+- Use `ref.watch` in `build()` to reactively rebuild when state changes.
+- Use `ref.read` in callbacks (button press, keyboard shortcut) to trigger one-off actions.
+- Scope providers with `.autoDispose` when their state should not survive the widget being removed from the tree.
+- Keep `AsyncNotifier.build()` responsible for loading initial state and nothing else.
+
+## DON'T
+- Call `ref.read(someProvider.notifier).method()` inside a `build()` method.
+- Store derived state inside a notifier when it can be computed via a `Provider` that watches the source.
+- Create a provider that is responsible for more than one feature concern — split it instead.
+
+## NEVER
+- Access a feature provider directly from another feature's notifier. Route through a shared provider.
+- Use `ChangeNotifier` or `ValueNotifier` for state that has business meaning.
+
+## GOOD Example
+```dart
+// Correct: derived state as a separate provider
+final selectedColumnCountProvider = Provider<int>((ref) {
+  return ref.watch(columnSelectionProvider).selected.length;
+});
+```
+
+## BAD Example
+```dart
+// Wrong: derived state stored inside the notifier
+class ColumnSelectionNotifier extends Notifier<ColumnSelectionState> {
+  int get selectedCount => state.selected.length; // Don't — this belongs in a derived provider
+}
+```
+
+## Decision Rules
+Is the state purely visual (hover, animation)? → Local widget state is acceptable.
+Is the state shared between two widgets in the same screen? → Local state passed via constructor.
+Is the state shared between two screens or features? → Shared Riverpod provider in `lib/shared/providers/`.
+Does computing it require watching another provider? → Derived `Provider`, not a field on a notifier.
+
+## Conflict Resolution
+This rule defers to ARCHITECTURE.md on where providers are physically located. Module rules (`mapping.mdc`, etc.) may specify additional constraints on state granularity for their specific feature — those override this rule for that module.

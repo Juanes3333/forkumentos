@@ -1,11 +1,58 @@
 ---
-description: Code performance, widget rebuild optimizations, and memory management rules
-globs: lib/**/*.dart
+description: Performance constraints specific to a desktop document-processing tool — not generic Flutter optimization advice
+globs: "lib/**/*.dart"
 ---
 
-# Performance Rules
+## Purpose
+Performance for a desktop document-processing tool has different constraints than a mobile app.
+Forkumentos processes files that can contain thousands of rows, multiple datasources, and complex transformation chains.
+This rule defines performance decisions specific to those constraints — not generic optimization tips.
 
-- **Const Constructors**: Always use `const` constructors for widgets and classes whenever possible to reduce rebuild overhead.
-- **Rebuild Reduction**: Avoid using raw `setState` in high-level widgets. Keep widget build methods small and locally scoped.
-- **Heavy Computations**: Never perform synchronous heavy computations inside build methods. Delegate them to isolates or asynchronous providers.
-- **Image Assets**: Optimize images (SVG or compressed PNG) to prevent memory spikes on desktop.
+## Scope
+Any code that processes collections, reads or writes files, computes derived data, or renders lists with variable item counts.
+
+## Core Principles
+- Synchronous file I/O is never permitted on the main thread, regardless of estimated file size.
+- Large collections (document rows, template fields, datasource records) are processed lazily or paginated — never loaded entirely into widget tree state at once.
+- Expensive computed values are derived via providers that watch the source state — they are never recalculated inside `build()` methods.
+- Memory must be explicitly considered when processing datasource files over 10MB. If memory growth is unbounded during processing, the approach is incorrect.
+- `const` widgets are used everywhere structurally possible — but their primary justification is correctness and expressiveness, not micro-optimization.
+
+## DO
+- Use `Isolate` or `compute()` for CPU-heavy transformations (e.g., applying a transformation chain to 50,000 rows).
+- Use `ListView.builder` or `TableView` for any list whose item count exceeds 100 items.
+- Cancel in-flight async operations when the provider is disposed (use `ref.onDispose` to cancel).
+- Stream file reads line-by-line when the total file size is unknown at load time.
+
+## DON'T
+- Read an entire CSV or JSON file into a `String` before parsing if the file can be large.
+- Rebuild a full list widget when only one item changes — use targeted provider watches.
+- Store a computed collection (filtered list, sorted result) as a field on a notifier — use a derived provider instead.
+
+## NEVER
+- Block the main thread with synchronous disk access, even for "small" configuration files.
+- Load a full datasource file into memory inside a widget's `initState`.
+
+## GOOD Example
+```dart
+// Derived sorted list — never stored in notifier state
+final sortedTemplateListProvider = Provider<List<Template>>((ref) {
+  final templates = ref.watch(templateListProvider);
+  return [...templates]..sort((a, b) => a.name.compareTo(b.name));
+});
+```
+
+## BAD Example
+```dart
+// Synchronous file read — never acceptable on main thread
+final content = File(path).readAsStringSync();
+```
+
+## Decision Rules
+Will this operation touch the file system? → Make it async, run off main thread.
+Will this operation produce a derived collection? → Make it a `Provider`, not a notifier field.
+Does the list have more than 100 items? → Use a virtualized list widget.
+Is memory growth bounded? → If not, stop and redesign the approach.
+
+## Conflict Resolution
+This rule takes precedence over `ui_philosophy.mdc` when there is a conflict between user feedback immediacy and performance correctness. A correct slow response with progress indication is preferred over a fast response that blocks the thread.
