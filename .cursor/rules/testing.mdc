@@ -1,0 +1,14 @@
+---
+description: Unit, widget, and integration testing guidelines and test directory structure rules
+globs: test/**/*.dart
+---
+
+# Testing Rules
+
+- **Directory Layout**: Maintain tests in their dedicated folders:
+  - `test/unit/` for unit tests and business logic providers.
+  - `test/widget/` for widget rendering and UI interactions.
+  - `test/integration/` for full-app integration testing.
+- **Coverage**: Ensure critical paths (mapping logic, data transformations) have adequate unit test coverage.
+- **Mocks**: Use mock providers or structured data fixtures to avoid external dependencies during widget tests.
+- **Warnings**: Test files must compile with zero compiler warnings or analyzer lints.

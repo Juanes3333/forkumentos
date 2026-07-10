@@ -1,0 +1,11 @@
+---
+description: Code performance, widget rebuild optimizations, and memory management rules
+globs: lib/**/*.dart
+---
+
+# Performance Rules
+
+- **Const Constructors**: Always use `const` constructors for widgets and classes whenever possible to reduce rebuild overhead.
+- **Rebuild Reduction**: Avoid using raw `setState` in high-level widgets. Keep widget build methods small and locally scoped.
+- **Heavy Computations**: Never perform synchronous heavy computations inside build methods. Delegate them to isolates or asynchronous providers.
+- **Image Assets**: Optimize images (SVG or compressed PNG) to prevent memory spikes on desktop.

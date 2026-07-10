@@ -1,0 +1,11 @@
+---
+description: Library dependencies management, pubspec.yaml guidelines, and packages constraints
+globs: pubspec.yaml
+---
+
+# Dependencies Rules
+
+- **Alphabetical Sorting**: All dependencies under `dependencies:` and `dev_dependencies:` in `pubspec.yaml` must be sorted alphabetically (from A to Z), excluding platform SDK dependencies.
+- **Minimal Dependencies**: Only install packages that are immediately useful and approved for the current module.
+- **Constraints**: Keep version constraints clean and resolve any dependency conflicts immediately.
+- **No Direct Imports**: Do not import package libraries that are not declared inside `pubspec.yaml`.

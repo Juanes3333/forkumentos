@@ -1,0 +1,12 @@
+---
+description: State management with Riverpod, provider scoping, and reactivity rules
+globs: lib/**/*.dart
+---
+
+# State Management Rules
+
+- **Framework**: Use **Riverpod** (v2+) exclusively for global and shared state management.
+- **Provider Scoping**: Keep providers small and single-purpose. Use `NotifierProvider` or `AsyncNotifierProvider` for mutable state.
+- **Watching Providers**: Use `ref.watch` in build methods to reactively rebuild widgets when state changes.
+- **Reading Providers**: Use `ref.read` in callbacks (e.g., button click) to perform one-off actions or dispatch commands.
+- **Dispose Caches**: Use `.autoDispose` on providers that should clear their state when no longer in use by the UI.

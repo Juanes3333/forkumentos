@@ -1,0 +1,11 @@
+---
+description: Code symbol naming conventions, PascalCase, camelCase, and snake_case rules
+globs: lib/**/*.dart, assets/**/*
+---
+
+# Naming Conventions
+
+- **PascalCase**: Use for classes, enums, extensions, mixins, and typedefs (e.g., `class DocumentMapper`, `enum MappingType`).
+- **camelCase**: Use for variables, function names, properties, and parameters (e.g., `final mappingResult = ...`, `void fetchDocument()`).
+- **snake_case**: Use for directory names, file names, import aliases, and asset files (e.g., `lib/features/mapping/`, `main_logo.png`).
+- **Descriptive Names**: Avoid short, cryptic abbreviations. Use clear, descriptive names for all classes and functions.
