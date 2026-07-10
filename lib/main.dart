@@ -1,18 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/app/app.dart';
+import 'package:forkumentos/app/bootstrap.dart';
 
-void main() {
-  runApp(const ProviderScope(child: MyApp()));
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: 'Forkumentos',
-      home: Scaffold(body: Center(child: Text('Forkumentos Bootstrap Ready'))),
-    );
-  }
+void main() async {
+  await bootstrap();
+  runApp(const ProviderScope(child: App()));
 }
