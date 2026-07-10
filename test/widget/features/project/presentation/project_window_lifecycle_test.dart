@@ -8,6 +8,7 @@ import 'package:forkumentos/core/window/window_service_providers.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
+import 'package:forkumentos/features/project/presentation/confirm_close_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/project_window_lifecycle.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
@@ -92,46 +93,93 @@ void main() {
     },
   );
 
-  testWidgets(
-    'pide confirmación al cerrar con cambios sin guardar y respeta la '
-    'cancelación',
-    (WidgetTester tester) async {
-      final windowService = FakeWindowService();
-      final container = _buildContainer(windowService);
-      addTearDown(container.dispose);
+  testWidgets('pide confirmación al cerrar con cambios y respeta cancelar', (
+    WidgetTester tester,
+  ) async {
+    final windowService = FakeWindowService();
+    final container = _buildContainer(windowService);
+    addTearDown(container.dispose);
 
-      await container
-          .read(activeProjectProvider.notifier)
-          .createProject(name: 'Proyecto Demo');
+    await container
+        .read(activeProjectProvider.notifier)
+        .createProject(name: 'Proyecto Demo');
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            home: ProjectWindowLifecycle(child: SizedBox()),
-          ),
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: ProjectWindowLifecycle(child: SizedBox()),
         ),
-      );
+      ),
+    );
 
-      unawaited(windowService.registeredCloseListener!());
-      await tester.pumpAndSettle();
+    unawaited(windowService.registeredCloseListener!());
+    await tester.pumpAndSettle();
 
-      expect(find.text('Proyecto sin guardar'), findsOneWidget);
+    expect(find.text('Proyecto sin guardar'), findsOneWidget);
 
-      await tester.tap(find.text('Cancelar'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
 
-      expect(windowService.destroyed, isFalse);
+    expect(windowService.destroyed, isFalse);
+  });
 
-      unawaited(windowService.registeredCloseListener!());
-      await tester.pumpAndSettle();
+  testWidgets('permite cerrar sin guardar desde el diálogo de cierre', (
+    WidgetTester tester,
+  ) async {
+    final windowService = FakeWindowService();
+    final container = _buildContainer(windowService);
+    addTearDown(container.dispose);
 
-      await tester.tap(find.text('Continuar'));
-      await tester.pumpAndSettle();
+    await container
+        .read(activeProjectProvider.notifier)
+        .createProject(name: 'Proyecto Demo');
 
-      expect(windowService.destroyed, isTrue);
-    },
-  );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: ProjectWindowLifecycle(child: SizedBox()),
+        ),
+      ),
+    );
+
+    unawaited(windowService.registeredCloseListener!());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cerrar sin guardar'));
+    await tester.pumpAndSettle();
+
+    expect(windowService.destroyed, isTrue);
+  });
+
+  testWidgets('confirmCloseProject devuelve guardar y cerrar', (
+    WidgetTester tester,
+  ) async {
+    late CloseProjectChoice choice;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return TextButton(
+              onPressed: () async {
+                choice = await confirmCloseProject(context);
+              },
+              child: const Text('abrir'),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Guardar y cerrar'));
+    await tester.pumpAndSettle();
+
+    expect(choice, CloseProjectChoice.saveAndClose);
+  });
 }
 
 ProviderContainer _buildContainer(FakeWindowService windowService) {
@@ -164,6 +212,7 @@ final class _FakeProjectRepository implements ProjectRepository {
     return project.copyWith(
       filePath: filePath,
       updatedAt: DateTime.now().toUtc(),
+      isDirty: false,
     );
   }
 }

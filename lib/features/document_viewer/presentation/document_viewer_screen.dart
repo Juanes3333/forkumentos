@@ -21,6 +21,7 @@ final class DocumentViewerScreen extends ConsumerStatefulWidget {
     required this.isSourceLoading,
     this.sourceErrorMessage,
     this.showToolbar = true,
+    this.documentOverride,
     this.viewerOverlay,
     this.focusPageIndex,
     this.focusToken = 0,
@@ -31,6 +32,7 @@ final class DocumentViewerScreen extends ConsumerStatefulWidget {
   final bool isSourceLoading;
   final String? sourceErrorMessage;
   final bool showToolbar;
+  final AsyncValue<Document?>? documentOverride;
   final DocumentViewerOverlay? viewerOverlay;
   final int? focusPageIndex;
   final int focusToken;
@@ -91,8 +93,17 @@ final class _DocumentViewerScreenState
 
   @override
   Widget build(BuildContext context) {
+    final AsyncValue<Document?> documentState;
+    if (widget.documentOverride != null) {
+      documentState = widget.documentOverride!;
+    } else if (widget.documentPath == null) {
+      documentState = const AsyncData<Document?>(null);
+    } else {
+      documentState = ref.watch(documentContentProvider(widget.documentPath!));
+    }
+
     final sourceErrorMessage = widget.sourceErrorMessage;
-    if (sourceErrorMessage != null) {
+    if (sourceErrorMessage != null && widget.documentOverride == null) {
       return _CenteredStatus(
         title: 'No se pudo preparar la vista del documento.',
         description: sourceErrorMessage,
@@ -108,7 +119,7 @@ final class _DocumentViewerScreenState
     }
 
     final documentPath = widget.documentPath;
-    if (documentPath == null) {
+    if (documentPath == null && widget.documentOverride == null) {
       return const _CenteredStatus(
         title: 'Todavía no importaste una plantilla DOCX para este proyecto.',
         description:
@@ -116,8 +127,6 @@ final class _DocumentViewerScreenState
             'para visualizar su contenido aquí.',
       );
     }
-
-    final documentState = ref.watch(documentContentProvider(documentPath));
 
     if (documentState.isLoading && documentState.valueOrNull == null) {
       return const _CenteredStatus(
@@ -184,7 +193,9 @@ final class _DocumentViewerScreenState
                 _scheduleScaleUpdate(effectiveScale);
 
                 final widestPageWidth = document.pages
-                    .map((page) => page.widthPoints * effectiveScale)
+                    .map(
+                      (DocumentPage page) => page.widthPoints * effectiveScale,
+                    )
                     .fold<double>(0, math.max);
                 final contentWidth = math.max(
                   constraints.maxWidth,
@@ -728,7 +739,7 @@ final class _DocumentBlockWidget extends StatelessWidget {
         highlights:
             viewerOverlay?.highlightBuilder(_pathForParagraph()) ??
             const <ParagraphHighlightSegment>[],
-        onTextSelected: viewerOverlay?.onTextSelected,
+        onSelectionChanged: viewerOverlay?.onSelectionChanged,
       ),
       DocumentTableBlock(:final table) => Padding(
         padding: EdgeInsets.only(bottom: emptyParagraphHeight * 0.25),

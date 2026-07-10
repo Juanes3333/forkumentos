@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/storage/storage_providers.dart';
+import 'package:forkumentos/core/window/window_service_providers.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
-import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
 import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
+import 'package:forkumentos/routing/workbench/workbench_screen.dart';
+import 'package:forkumentos/routing/workbench/workbench_tab.dart';
+import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
 import '../../../../support/fakes.dart';
@@ -75,28 +78,30 @@ void main() {
     expect(find.text('/tmp/reciente.forkumentos.json'), findsOneWidget);
   });
 
-  testWidgets('ProjectWorkbenchScreen muestra toolbar y nombre activo', (
+  testWidgets('Workbench inspector muestra solo información de preview', (
     WidgetTester tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     final container = _buildContainer();
     addTearDown(container.dispose);
     await container
         .read(activeProjectProvider.notifier)
         .createProject(name: 'Proyecto UI');
+    container.read(workbenchTabProvider.notifier).selectTab(WorkbenchTab.file);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: ProjectWorkbenchScreen()),
+        child: const MaterialApp(home: WorkbenchScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Guardar'), findsOneWidget);
-    expect(find.text('Abrir proyecto'), findsOneWidget);
-    expect(find.text('Cerrar proyecto'), findsOneWidget);
-    expect(find.text('Proyecto UI'), findsOneWidget);
-    expect(find.text('Proyecto activo'), findsOneWidget);
+    expect(find.text('Inspector · Preview'), findsOneWidget);
+    expect(find.text('Fila activa'), findsOneWidget);
+    expect(find.text('Campo activo'), findsOneWidget);
   });
 }
 
@@ -106,6 +111,7 @@ ProviderContainer _buildContainer() {
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(FakeProjectRepository()),
       keyValueStorageProvider.overrideWithValue(FakeKeyValueStorage()),
+      windowServiceProvider.overrideWithValue(FakeWindowService()),
     ],
   );
 }

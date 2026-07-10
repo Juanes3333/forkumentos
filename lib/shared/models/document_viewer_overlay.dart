@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/widgets/mapping_aware_paragraph.dart';
 
@@ -7,11 +8,11 @@ typedef ParagraphHighlightBuilder =
 final class DocumentViewerOverlay {
   const DocumentViewerOverlay({
     required this.highlightBuilder,
-    required this.onTextSelected,
+    required this.onSelectionChanged,
   });
 
   final ParagraphHighlightBuilder highlightBuilder;
-  final void Function(DocumentTextSelection selection) onTextSelected;
+  final void Function(DocumentTextSelection? selection) onSelectionChanged;
 }
 
 final class DocumentTextSelection {
@@ -20,10 +21,12 @@ final class DocumentTextSelection {
     required this.startOffset,
     required this.endOffset,
     required this.selectedText,
+    this.anchor,
   });
 
   final DocumentTextPath path;
   final int startOffset;
   final int endOffset;
   final String selectedText;
+  final Offset? anchor;
 }

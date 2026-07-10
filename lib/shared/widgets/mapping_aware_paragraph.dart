@@ -26,7 +26,7 @@ final class MappingAwareParagraph extends StatefulWidget {
     required this.textStyle,
     required this.emptyParagraphHeight,
     required this.highlights,
-    this.onTextSelected,
+    this.onSelectionChanged,
     super.key,
   });
 
@@ -35,7 +35,7 @@ final class MappingAwareParagraph extends StatefulWidget {
   final TextStyle textStyle;
   final double emptyParagraphHeight;
   final List<ParagraphHighlightSegment> highlights;
-  final ValueChanged<DocumentTextSelection>? onTextSelected;
+  final ValueChanged<DocumentTextSelection?>? onSelectionChanged;
 
   @override
   State<MappingAwareParagraph> createState() => _MappingAwareParagraphState();
@@ -49,7 +49,7 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
       return SizedBox(height: widget.emptyParagraphHeight);
     }
 
-    if (widget.onTextSelected == null) {
+    if (widget.onSelectionChanged == null) {
       return RichText(
         text: TextSpan(
           style: widget.textStyle.copyWith(color: Colors.black),
@@ -65,6 +65,7 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
       ),
       onSelectionChanged: (selection, _) {
         if (!selection.isValid || selection.isCollapsed) {
+          widget.onSelectionChanged?.call(null);
           return;
         }
 
@@ -73,15 +74,28 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
           selection.end,
         );
         if (selectedText.trim().isEmpty) {
+          widget.onSelectionChanged?.call(null);
           return;
         }
 
-        widget.onTextSelected?.call(
+        final renderBox = context.findRenderObject() as RenderBox?;
+        final globalAnchor = renderBox == null
+            ? const Offset(120, 80)
+            : renderBox.localToGlobal(
+                Offset(
+                  renderBox.size.width *
+                      (selection.extentOffset / plainText.length).clamp(0, 1),
+                  0,
+                ),
+              );
+
+        widget.onSelectionChanged?.call(
           DocumentTextSelection(
             path: widget.path,
             startOffset: selection.start,
             endOffset: selection.end,
             selectedText: selectedText,
+            anchor: globalAnchor,
           ),
         );
       },

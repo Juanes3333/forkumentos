@@ -22,107 +22,103 @@ final class ReviewPanel extends ConsumerWidget {
     final navigation = ref.read(mappingNavigationProvider.notifier);
 
     return Material(
-      child: SizedBox(
-        width: 300,
-        child: ListView(
-          padding: const EdgeInsets.all(12),
-          children: <Widget>[
-            Text(
-              'Revisión de mapeo',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: 8),
-            _SummaryCard(snapshot: snapshot),
-            const SizedBox(height: 12),
-            _StatisticsSection(statistics: statistics),
-            const SizedBox(height: 12),
-            _ExportReadinessSection(
-              isReady: snapshot.isExportReady,
-              onExport: snapshot.isExportReady ? onExport : null,
-            ),
-            const SizedBox(height: 12),
-            _IssueSection(
-              title: 'Campos sin asignar',
-              count: snapshot.missingFieldHeaders.length,
-              emptyMessage: 'Todos los campos tienen al menos una asignación.',
-              children: <Widget>[
-                for (var index = 0; index < headers.length; index++)
-                  if (snapshot.validation.missingFieldIndexes.contains(index))
-                    _NavigationTile(
-                      label: headers[index],
-                      subtitle: 'Campo pendiente',
-                      onTap: () => navigation.navigateTo(
-                        DatasourceFieldNavigationTarget(index),
-                      ),
-                    ),
-              ],
-            ),
-            _IssueSection(
-              title: 'Asignaciones duplicadas',
-              count: snapshot.duplicateAssignments.length,
-              emptyMessage: 'No hay identificadores duplicados.',
-              children: <Widget>[
-                for (final assignment in snapshot.duplicateAssignments)
-                  _AssignmentNavigationTile(
-                    assignment: assignment,
-                    headers: headers,
-                    onTap: () => navigation.navigateTo(
-                      AssignmentNavigationTarget(assignment.id),
-                    ),
-                  ),
-              ],
-            ),
-            _IssueSection(
-              title: 'Asignaciones inválidas',
-              count: snapshot.invalidAssignments.length,
-              emptyMessage:
-                  'Todas las asignaciones coinciden con el documento.',
-              children: <Widget>[
-                for (final assignment in snapshot.invalidAssignments)
-                  _AssignmentNavigationTile(
-                    assignment: assignment,
-                    headers: headers,
-                    onTap: () => navigation.navigateTo(
-                      AssignmentNavigationTarget(assignment.id),
-                    ),
-                  ),
-              ],
-            ),
-            _IssueSection(
-              title: 'Solapamientos',
-              count: snapshot.overlappingAssignmentPairs.length,
-              emptyMessage: 'No hay asignaciones solapadas.',
-              children: <Widget>[
-                for (final pair in snapshot.overlappingAssignmentPairs)
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: <Widget>[
+          Text(
+            'Revisión de mapeo',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          _SummaryCard(snapshot: snapshot),
+          const SizedBox(height: 12),
+          _StatisticsSection(statistics: statistics),
+          const SizedBox(height: 12),
+          _ExportReadinessSection(
+            isReady: snapshot.isExportReady,
+            onExport: snapshot.isExportReady ? onExport : null,
+          ),
+          const SizedBox(height: 12),
+          _IssueSection(
+            title: 'Campos sin asignar',
+            count: snapshot.missingFieldHeaders.length,
+            emptyMessage: 'Todos los campos tienen al menos una asignación.',
+            children: <Widget>[
+              for (var index = 0; index < headers.length; index++)
+                if (snapshot.validation.missingFieldIndexes.contains(index))
                   _NavigationTile(
-                    label: _overlapLabel(pair.first, pair.second),
-                    subtitle: 'Conflicto entre asignaciones',
+                    label: headers[index],
+                    subtitle: 'Campo pendiente',
                     onTap: () => navigation.navigateTo(
-                      AssignmentNavigationTarget(pair.first.id),
+                      DatasourceFieldNavigationTarget(index),
                     ),
                   ),
-              ],
-            ),
-            _IssueSection(
-              title: 'Textos del documento',
-              count: snapshot.documentPlaceholders.length,
-              emptyMessage: 'No hay texto visible en el documento.',
-              children: <Widget>[
-                for (final placeholder in snapshot.documentPlaceholders)
-                  _NavigationTile(
-                    label: _truncate(placeholder.text, 48),
-                    subtitle: 'Página ${placeholder.path.pageIndex + 1}',
-                    onTap: () => navigation.navigateTo(
-                      DocumentPlaceholderNavigationTarget(
-                        path: placeholder.path,
-                        previewText: placeholder.text,
-                      ),
+            ],
+          ),
+          _IssueSection(
+            title: 'Asignaciones duplicadas',
+            count: snapshot.duplicateAssignments.length,
+            emptyMessage: 'No hay identificadores duplicados.',
+            children: <Widget>[
+              for (final assignment in snapshot.duplicateAssignments)
+                _AssignmentNavigationTile(
+                  assignment: assignment,
+                  headers: headers,
+                  onTap: () => navigation.navigateTo(
+                    AssignmentNavigationTarget(assignment.id),
+                  ),
+                ),
+            ],
+          ),
+          _IssueSection(
+            title: 'Asignaciones inválidas',
+            count: snapshot.invalidAssignments.length,
+            emptyMessage: 'Todas las asignaciones coinciden con el documento.',
+            children: <Widget>[
+              for (final assignment in snapshot.invalidAssignments)
+                _AssignmentNavigationTile(
+                  assignment: assignment,
+                  headers: headers,
+                  onTap: () => navigation.navigateTo(
+                    AssignmentNavigationTarget(assignment.id),
+                  ),
+                ),
+            ],
+          ),
+          _IssueSection(
+            title: 'Solapamientos',
+            count: snapshot.overlappingAssignmentPairs.length,
+            emptyMessage: 'No hay asignaciones solapadas.',
+            children: <Widget>[
+              for (final pair in snapshot.overlappingAssignmentPairs)
+                _NavigationTile(
+                  label: _overlapLabel(pair.first, pair.second),
+                  subtitle: 'Conflicto entre asignaciones',
+                  onTap: () => navigation.navigateTo(
+                    AssignmentNavigationTarget(pair.first.id),
+                  ),
+                ),
+            ],
+          ),
+          _IssueSection(
+            title: 'Textos del documento',
+            count: snapshot.documentPlaceholders.length,
+            emptyMessage: 'No hay texto visible en el documento.',
+            children: <Widget>[
+              for (final placeholder in snapshot.documentPlaceholders)
+                _NavigationTile(
+                  label: _truncate(placeholder.text, 48),
+                  subtitle: 'Página ${placeholder.path.pageIndex + 1}',
+                  onTap: () => navigation.navigateTo(
+                    DocumentPlaceholderNavigationTarget(
+                      path: placeholder.path,
+                      previewText: placeholder.text,
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }

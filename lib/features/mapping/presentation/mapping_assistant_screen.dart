@@ -178,7 +178,13 @@ final class _MappingAssistantScreenState
                                     activeFieldIndex:
                                         mappingState.currentFieldIndex,
                                   ),
-                              onTextSelected: _handleTextSelected,
+                              onSelectionChanged: (selection) {
+                                if (selection == null) {
+                                  _clearPendingSelection();
+                                  return;
+                                }
+                                _handleTextSelected(selection);
+                              },
                             ),
                     ),
                   ),

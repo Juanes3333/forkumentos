@@ -5,26 +5,23 @@ import 'package:forkumentos/app/app.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/window/window_service_providers.dart';
 import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
-import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
-import 'package:forkumentos/features/datasource/presentation/datasource_management_screen.dart';
 import 'package:forkumentos/features/document_viewer/data/document_repository_provider.dart';
-import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
-import 'package:forkumentos/features/mapping/presentation/mapping_assistant_screen.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
-import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
 import 'package:forkumentos/features/template/data/template_repository_provider.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
-import 'package:forkumentos/features/template/presentation/template_management_screen.dart';
-import 'package:forkumentos/routing/app_router.dart';
+import 'package:forkumentos/routing/workbench/workbench_inspector.dart';
+import 'package:forkumentos/routing/workbench/workbench_tab.dart';
+import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
+import 'package:forkumentos/routing/workbench/workbench_workspace.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
 import '../../support/fakes.dart';
 
 void main() {
-  testWidgets('ruta raíz muestra welcome cuando no hay proyecto activo', (
+  testWidgets('workbench muestra bienvenida sin proyecto activo', (
     WidgetTester tester,
   ) async {
     final container = _buildContainer();
@@ -36,232 +33,96 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
-    expect(find.byType(ProjectWorkbenchScreen), findsNothing);
+    expect(find.byType(WorkbenchInspector), findsNothing);
+    expect(find.text('Archivo'), findsOneWidget);
   });
 
-  testWidgets('ruta raíz redirige a workbench cuando hay proyecto activo', (
+  testWidgets('workbench muestra workspace e inspector con proyecto', (
     WidgetTester tester,
   ) async {
     final container = _buildContainer();
     addTearDown(container.dispose);
     await container
         .read(activeProjectProvider.notifier)
-        .createProject(name: 'Proyecto Router');
+        .createProject(name: 'Proyecto Workbench');
 
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: const App()),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(ProjectWorkbenchScreen), findsOneWidget);
+    expect(find.byType(WorkbenchWorkspace), findsOneWidget);
+    expect(find.byType(WorkbenchInspector), findsOneWidget);
     expect(find.byType(ProjectWelcomeScreen), findsNothing);
   });
 
-  testWidgets('ruta de plantilla requiere proyecto activo', (
+  testWidgets('cambiar pestaña del ribbon mantiene el inspector de preview', (
     WidgetTester tester,
   ) async {
-    final withoutProjectContainer = _buildContainer();
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: withoutProjectContainer,
-        child: const App(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    withoutProjectContainer.read(appRouterProvider).go('/project/template');
-    await tester.pumpAndSettle();
-
-    expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
-    expect(find.byType(TemplateManagementScreen), findsNothing);
-
-    final withProjectContainer = _buildContainer();
-    await withProjectContainer
+    final container = _buildContainer();
+    addTearDown(container.dispose);
+    await container
         .read(activeProjectProvider.notifier)
-        .createProject(name: 'Proyecto Router');
+        .createProject(name: 'Proyecto Workbench');
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: withProjectContainer,
-        child: const App(),
-      ),
+      UncontrolledProviderScope(container: container, child: const App()),
     );
     await tester.pumpAndSettle();
 
-    withProjectContainer.read(appRouterProvider).go('/project/template');
+    await tester.tap(find.text('Plantilla'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(TemplateManagementScreen), findsOneWidget);
+    expect(find.text('Inspector · Preview'), findsOneWidget);
+    expect(find.text('Fila activa'), findsOneWidget);
+    expect(container.read(workbenchTabProvider), WorkbenchTab.template);
   });
 
-  testWidgets('ruta de datasource requiere proyecto activo', (
+  testWidgets('documento permanece visible al cambiar pestañas', (
     WidgetTester tester,
   ) async {
-    final withoutProjectContainer = _buildContainer();
-    addTearDown(withoutProjectContainer.dispose);
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: withoutProjectContainer,
-        child: const App(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    withoutProjectContainer.read(appRouterProvider).go('/project/datasource');
-    await tester.pumpAndSettle();
-
-    expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
-    expect(find.byType(DatasourceManagementScreen), findsNothing);
-
-    final withProjectContainer = _buildContainer();
-    addTearDown(withProjectContainer.dispose);
-    await withProjectContainer
+    final container = _buildContainer();
+    addTearDown(container.dispose);
+    await container
         .read(activeProjectProvider.notifier)
-        .createProject(name: 'Proyecto Router');
+        .createProject(name: 'Proyecto Workbench');
+    await container
+        .read(activeTemplateProvider.notifier)
+        .importTemplate(filePath: '/tmp/plantilla.docx');
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: withProjectContainer,
-        child: const App(),
-      ),
+      UncontrolledProviderScope(container: container, child: const App()),
     );
-    await tester.pumpAndSettle();
-
-    withProjectContainer.read(appRouterProvider).go('/project/datasource');
-    await tester.pumpAndSettle();
-
-    expect(find.byType(DatasourceManagementScreen), findsOneWidget);
-  });
-
-  testWidgets(
-    'ruta de documento requiere proyecto activo y refleja plantilla',
-    (WidgetTester tester) async {
-      final withoutProjectContainer = _buildContainer();
-      addTearDown(withoutProjectContainer.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: withoutProjectContainer,
-          child: const App(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      withoutProjectContainer.read(appRouterProvider).go('/project/document');
-      await tester.pumpAndSettle();
-
-      expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
-      expect(find.byType(DocumentViewerScreen), findsNothing);
-
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-      await tester.pump();
-      withoutProjectContainer.dispose();
-      await tester.pump();
-
-      final withProjectContainer = _buildContainer();
-      addTearDown(withProjectContainer.dispose);
-      await withProjectContainer
-          .read(activeProjectProvider.notifier)
-          .createProject(name: 'Proyecto Router');
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: withProjectContainer,
-          child: const App(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      withProjectContainer.read(appRouterProvider).go('/project/document');
-      await tester.pumpAndSettle();
-
-      expect(find.byType(DocumentViewerScreen), findsOneWidget);
-      expect(
-        find.text(
-          'Todavía no importaste una plantilla DOCX para este proyecto.',
-        ),
-        findsOneWidget,
-      );
-
-      await withProjectContainer
-          .read(activeTemplateProvider.notifier)
-          .importTemplate(filePath: '/tmp/plantilla.docx');
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('Documento de ejemplo', findRichText: true),
-        findsOneWidget,
-      );
-
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-      await tester.pump();
-      withProjectContainer.dispose();
-      await tester.pump();
-    },
-  );
-
-  testWidgets('ruta de mapping requiere proyecto activo y refleja datasource', (
-    WidgetTester tester,
-  ) async {
-    final withoutProjectContainer = _buildContainer();
-    addTearDown(withoutProjectContainer.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: withoutProjectContainer,
-        child: const App(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    withoutProjectContainer.read(appRouterProvider).go('/project/mapping');
-    await tester.pumpAndSettle();
-
-    expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
-    expect(find.byType(MappingAssistantScreen), findsNothing);
-
-    final withProjectContainer = _buildContainer();
-    addTearDown(withProjectContainer.dispose);
-    await withProjectContainer
-        .read(activeProjectProvider.notifier)
-        .createProject(name: 'Proyecto Router');
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: withProjectContainer,
-        child: const App(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    withProjectContainer.read(appRouterProvider).go('/project/mapping');
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MappingAssistantScreen), findsOneWidget);
-    expect(
-      find.text('Importa una plantilla y una fuente de datos para mapear.'),
-      findsOneWidget,
-    );
-
-    await withProjectContainer
-        .read(activeDatasourceProvider.notifier)
-        .importDatasource(filePath: '/tmp/datos.csv');
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Importa una plantilla y una fuente de datos para mapear.'),
+      find.text('Documento de ejemplo', findRichText: true),
       findsOneWidget,
     );
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    await tester.pump();
-    withProjectContainer.dispose();
-    await tester.pump();
+    await tester.tap(find.text('Datos'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(workbenchTabProvider), WorkbenchTab.datasource);
+    expect(find.text('Inspector · Preview'), findsOneWidget);
+    expect(
+      find.text('Documento de ejemplo', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Mapeo'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Documento de ejemplo', findRichText: true),
+      findsOneWidget,
+    );
   });
 }
 

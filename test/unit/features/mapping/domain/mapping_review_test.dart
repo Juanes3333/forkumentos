@@ -9,9 +9,7 @@ void main() {
     test('marca export listo cuando no hay problemas', () {
       const secondPath = DocumentTextPath(
         pageIndex: 0,
-        steps: <DocumentPathStep>[
-          DocumentPathStep.rootBlock(blockIndex: 1),
-        ],
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 1)],
       );
       final snapshot = buildMappingReviewSnapshot(
         assignments: <FieldAssignment>[
