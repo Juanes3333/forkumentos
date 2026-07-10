@@ -1,0 +1,766 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/document_viewer/domain/document.dart';
+import 'package:forkumentos/features/document_viewer/presentation/document_content_provider.dart';
+
+const _zoomSteps = <double>[0.5, 0.75, 1, 1.25, 1.5, 2];
+const _defaultZoomStepIndex = 2;
+const _pageSpacing = 24.0;
+const _viewportPadding = 24.0;
+
+enum _ZoomMode { manual, fitWidth, fitPage }
+
+final class DocumentViewerScreen extends ConsumerStatefulWidget {
+  const DocumentViewerScreen({
+    required this.documentPath,
+    required this.isSourceLoading,
+    this.sourceErrorMessage,
+    super.key,
+  });
+
+  final String? documentPath;
+  final bool isSourceLoading;
+  final String? sourceErrorMessage;
+
+  @override
+  ConsumerState<DocumentViewerScreen> createState() =>
+      _DocumentViewerScreenState();
+}
+
+final class _DocumentViewerScreenState
+    extends ConsumerState<DocumentViewerScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _scrollViewportKey = GlobalKey();
+
+  List<GlobalKey> _pageKeys = <GlobalKey>[];
+  int _currentPageIndex = 0;
+  _ZoomMode _zoomMode = _ZoomMode.manual;
+  int _manualZoomStepIndex = _defaultZoomStepIndex;
+  double _lastKnownScale = _zoomSteps[_defaultZoomStepIndex];
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant DocumentViewerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.documentPath == widget.documentPath) {
+      return;
+    }
+
+    _currentPageIndex = 0;
+    _zoomMode = _ZoomMode.manual;
+    _manualZoomStepIndex = _defaultZoomStepIndex;
+    _lastKnownScale = _zoomSteps[_defaultZoomStepIndex];
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceErrorMessage = widget.sourceErrorMessage;
+    if (sourceErrorMessage != null) {
+      return _CenteredStatus(
+        title: 'No se pudo preparar la vista del documento.',
+        description: sourceErrorMessage,
+        isError: true,
+      );
+    }
+
+    if (widget.isSourceLoading) {
+      return const _CenteredStatus(
+        title: 'Cargando documento...',
+        showProgress: true,
+      );
+    }
+
+    final documentPath = widget.documentPath;
+    if (documentPath == null) {
+      return const _CenteredStatus(
+        title: 'Todavía no importaste una plantilla DOCX para este proyecto.',
+        description:
+            'Importa una plantilla en la vista de plantilla del proyecto '
+            'para visualizar su contenido aquí.',
+      );
+    }
+
+    final documentState = ref.watch(documentContentProvider(documentPath));
+
+    if (documentState.isLoading && documentState.valueOrNull == null) {
+      return const _CenteredStatus(
+        title: 'Cargando documento...',
+        showProgress: true,
+      );
+    }
+
+    if (documentState.hasError && documentState.valueOrNull == null) {
+      return _CenteredStatus(
+        title: 'No se pudo cargar el documento.',
+        description: _resolveDocumentErrorMessage(documentState.error),
+        isError: true,
+      );
+    }
+
+    final document = documentState.valueOrNull;
+    if (document == null) {
+      return const _CenteredStatus(
+        title: 'No se pudo cargar el documento.',
+        description: 'Inténtalo nuevamente desde la vista de plantilla.',
+        isError: true,
+      );
+    }
+
+    _ensurePageKeys(document.pages.length);
+
+    final pageCount = document.pages.length;
+    final currentPageNumber = pageCount == 0 ? 0 : _currentPageIndex + 1;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          _DocumentToolbar(
+            currentPageNumber: currentPageNumber,
+            pageCount: pageCount,
+            zoomPercentage: (_lastKnownScale * 100).round(),
+            canGoToPreviousPage: _currentPageIndex > 0,
+            canGoToNextPage: _currentPageIndex < pageCount - 1,
+            isFitWidthSelected: _zoomMode == _ZoomMode.fitWidth,
+            isFitPageSelected: _zoomMode == _ZoomMode.fitPage,
+            onPreviousPage: () => _goToPage(_currentPageIndex - 1),
+            onNextPage: () => _goToPage(_currentPageIndex + 1),
+            onZoomOut: _zoomOut,
+            onZoomIn: _zoomIn,
+            onFitWidth: _selectFitWidth,
+            onFitPage: _selectFitPage,
+          ),
+          if (document.omissions.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            _InlineInfo(message: _buildOmissionsMessage(document.omissions)),
+          ],
+          const SizedBox(height: 8),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final effectiveScale = _resolveEffectiveScale(
+                  document: document,
+                  viewportConstraints: constraints,
+                );
+                _scheduleScaleUpdate(effectiveScale);
+
+                final widestPageWidth = document.pages
+                    .map((page) => page.widthPoints * effectiveScale)
+                    .fold<double>(0, math.max);
+                final contentWidth = math.max(
+                  constraints.maxWidth,
+                  widestPageWidth + (_viewportPadding * 2),
+                );
+
+                return ColoredBox(
+                  key: _scrollViewportKey,
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: contentWidth,
+                      child: Scrollbar(
+                        controller: _scrollController,
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: _viewportPadding,
+                              vertical: _viewportPadding,
+                            ),
+                            child: Column(
+                              children: <Widget>[
+                                for (
+                                  var index = 0;
+                                  index < document.pages.length;
+                                  index++
+                                ) ...<Widget>[
+                                  Align(
+                                    key: _pageKeys[index],
+                                    alignment: Alignment.topCenter,
+                                    child: _DocumentPageSheet(
+                                      page: document.pages[index],
+                                      scale: effectiveScale,
+                                    ),
+                                  ),
+                                  if (index < document.pages.length - 1)
+                                    const SizedBox(height: _pageSpacing),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _scheduleScaleUpdate(double scale) {
+    if ((scale - _lastKnownScale).abs() < 0.001) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastKnownScale = scale;
+      });
+    });
+  }
+
+  void _ensurePageKeys(int pageCount) {
+    if (_pageKeys.length == pageCount) {
+      return;
+    }
+
+    _pageKeys = List<GlobalKey>.generate(pageCount, (_) => GlobalKey());
+    if (_currentPageIndex >= pageCount) {
+      _currentPageIndex = pageCount == 0 ? 0 : pageCount - 1;
+    }
+  }
+
+  void _onScroll() {
+    final viewportContext = _scrollViewportKey.currentContext;
+    if (viewportContext == null || _pageKeys.isEmpty) {
+      return;
+    }
+
+    final viewportRenderObject = viewportContext.findRenderObject();
+    if (viewportRenderObject is! RenderBox) {
+      return;
+    }
+
+    final viewportTop = viewportRenderObject.localToGlobal(Offset.zero).dy;
+    var closestIndex = _currentPageIndex;
+    var closestDistance = double.infinity;
+
+    for (var index = 0; index < _pageKeys.length; index++) {
+      final pageContext = _pageKeys[index].currentContext;
+      if (pageContext == null) {
+        continue;
+      }
+
+      final pageRenderObject = pageContext.findRenderObject();
+      if (pageRenderObject is! RenderBox) {
+        continue;
+      }
+
+      final pageTop = pageRenderObject.localToGlobal(Offset.zero).dy;
+      final distance = (pageTop - viewportTop).abs();
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    }
+
+    if (closestIndex == _currentPageIndex || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _currentPageIndex = closestIndex;
+    });
+  }
+
+  Future<void> _goToPage(int targetIndex) async {
+    if (targetIndex < 0 || targetIndex >= _pageKeys.length) {
+      return;
+    }
+
+    final pageContext = _pageKeys[targetIndex].currentContext;
+    if (pageContext == null) {
+      return;
+    }
+
+    await Scrollable.ensureVisible(
+      pageContext,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeInOut,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _currentPageIndex = targetIndex;
+    });
+  }
+
+  void _selectFitWidth() {
+    if (_zoomMode == _ZoomMode.fitWidth) {
+      return;
+    }
+
+    _updateZoomPreservingPosition(() {
+      _zoomMode = _ZoomMode.fitWidth;
+    });
+  }
+
+  void _selectFitPage() {
+    if (_zoomMode == _ZoomMode.fitPage) {
+      return;
+    }
+
+    _updateZoomPreservingPosition(() {
+      _zoomMode = _ZoomMode.fitPage;
+    });
+  }
+
+  void _zoomIn() {
+    final baseStepIndex = _zoomMode == _ZoomMode.manual
+        ? _manualZoomStepIndex
+        : _nearestZoomStepIndex(_lastKnownScale);
+    final nextStepIndex = math.min(baseStepIndex + 1, _zoomSteps.length - 1);
+
+    _updateZoomPreservingPosition(() {
+      _zoomMode = _ZoomMode.manual;
+      _manualZoomStepIndex = nextStepIndex;
+    });
+  }
+
+  void _zoomOut() {
+    final baseStepIndex = _zoomMode == _ZoomMode.manual
+        ? _manualZoomStepIndex
+        : _nearestZoomStepIndex(_lastKnownScale);
+    final nextStepIndex = math.max(baseStepIndex - 1, 0);
+
+    _updateZoomPreservingPosition(() {
+      _zoomMode = _ZoomMode.manual;
+      _manualZoomStepIndex = nextStepIndex;
+    });
+  }
+
+  int _nearestZoomStepIndex(double scale) {
+    var selectedIndex = 0;
+    var selectedDistance = double.infinity;
+
+    for (var index = 0; index < _zoomSteps.length; index++) {
+      final distance = (_zoomSteps[index] - scale).abs();
+      if (distance < selectedDistance) {
+        selectedDistance = distance;
+        selectedIndex = index;
+      }
+    }
+
+    return selectedIndex;
+  }
+
+  void _updateZoomPreservingPosition(VoidCallback updateZoom) {
+    final previousFraction = _captureScrollFraction();
+
+    setState(updateZoom);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _restoreScrollFraction(previousFraction);
+    });
+  }
+
+  double _captureScrollFraction() {
+    if (!_scrollController.hasClients) {
+      return 0;
+    }
+
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    if (maxExtent <= 0) {
+      return 0;
+    }
+
+    final fraction = _scrollController.offset / maxExtent;
+    return fraction.clamp(0, 1).toDouble();
+  }
+
+  void _restoreScrollFraction(double fraction) {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final clampedFraction = fraction.clamp(0, 1).toDouble();
+    final targetOffset = (maxExtent * clampedFraction).clamp(0, maxExtent);
+    _scrollController.jumpTo(targetOffset.toDouble());
+  }
+
+  double _resolveEffectiveScale({
+    required Document document,
+    required BoxConstraints viewportConstraints,
+  }) {
+    if (document.pages.isEmpty) {
+      return _zoomSteps[_manualZoomStepIndex];
+    }
+
+    if (_zoomMode == _ZoomMode.manual) {
+      return _zoomSteps[_manualZoomStepIndex];
+    }
+
+    final availableWidth = _atLeastOne(
+      viewportConstraints.maxWidth - (_viewportPadding * 2),
+    );
+
+    if (_zoomMode == _ZoomMode.fitWidth) {
+      final widestPage = document.pages
+          .map((page) => page.widthPoints)
+          .fold<double>(0, math.max);
+      final fitScale = availableWidth / _atLeastOne(widestPage);
+      return fitScale.clamp(_zoomSteps.first, _zoomSteps.last);
+    }
+
+    final currentPageIndex = _currentPageIndex.clamp(
+      0,
+      document.pages.length - 1,
+    );
+    final currentPage = document.pages[currentPageIndex];
+    final availableHeight = _atLeastOne(
+      viewportConstraints.maxHeight - (_viewportPadding * 2),
+    );
+    final widthScale = availableWidth / _atLeastOne(currentPage.widthPoints);
+    final heightScale = availableHeight / _atLeastOne(currentPage.heightPoints);
+    final fitScale = math.min(widthScale, heightScale);
+    return fitScale.clamp(_zoomSteps.first, _zoomSteps.last);
+  }
+
+  double _atLeastOne(double value) {
+    if (value < 1) {
+      return 1;
+    }
+    return value;
+  }
+}
+
+String _resolveDocumentErrorMessage(Object? error) {
+  if (error is DocumentViewerException) {
+    return error.message;
+  }
+  return 'No se pudo cargar la vista del documento.';
+}
+
+String _buildOmissionsMessage(Set<DocumentOmission> omissions) {
+  final labels = <String>[
+    for (final omission
+        in omissions.toList()..sort((a, b) => a.index - b.index))
+      switch (omission) {
+        DocumentOmission.table => 'tablas',
+        DocumentOmission.image => 'imágenes',
+        DocumentOmission.headerFooter => 'encabezados o pies de página',
+        DocumentOmission.footnote => 'notas al pie',
+      },
+  ];
+
+  if (labels.isEmpty) {
+    return '';
+  }
+
+  final listedLabels = labels.length == 1
+      ? labels.first
+      : '${labels.sublist(0, labels.length - 1).join(', ')} y ${labels.last}';
+  return 'Este documento contiene '
+      '$listedLabels que no se muestran en esta vista previa.';
+}
+
+final class _DocumentToolbar extends StatelessWidget {
+  const _DocumentToolbar({
+    required this.currentPageNumber,
+    required this.pageCount,
+    required this.zoomPercentage,
+    required this.canGoToPreviousPage,
+    required this.canGoToNextPage,
+    required this.isFitWidthSelected,
+    required this.isFitPageSelected,
+    required this.onPreviousPage,
+    required this.onNextPage,
+    required this.onZoomOut,
+    required this.onZoomIn,
+    required this.onFitWidth,
+    required this.onFitPage,
+  });
+
+  final int currentPageNumber;
+  final int pageCount;
+  final int zoomPercentage;
+  final bool canGoToPreviousPage;
+  final bool canGoToNextPage;
+  final bool isFitWidthSelected;
+  final bool isFitPageSelected;
+  final VoidCallback onPreviousPage;
+  final VoidCallback onNextPage;
+  final VoidCallback onZoomOut;
+  final VoidCallback onZoomIn;
+  final VoidCallback onFitWidth;
+  final VoidCallback onFitPage;
+
+  @override
+  Widget build(BuildContext context) {
+    final toggleButtons = ToggleButtons(
+      isSelected: <bool>[isFitWidthSelected, isFitPageSelected],
+      onPressed: (index) {
+        if (index == 0) {
+          onFitWidth();
+          return;
+        }
+        onFitPage();
+      },
+      children: const <Widget>[
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: Text('Ajustar ancho'),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: Text('Ajustar página'),
+        ),
+      ],
+    );
+
+    return Material(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  tooltip: 'Página anterior',
+                  onPressed: canGoToPreviousPage ? onPreviousPage : null,
+                  icon: const Icon(Icons.navigate_before),
+                ),
+                IconButton(
+                  tooltip: 'Página siguiente',
+                  onPressed: canGoToNextPage ? onNextPage : null,
+                  icon: const Icon(Icons.navigate_next),
+                ),
+                const SizedBox(width: 8),
+                Text('Página $currentPageNumber de $pageCount'),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  tooltip: 'Alejar',
+                  onPressed: onZoomOut,
+                  icon: const Icon(Icons.zoom_out),
+                ),
+                SizedBox(
+                  width: 56,
+                  child: Center(child: Text('$zoomPercentage%')),
+                ),
+                IconButton(
+                  tooltip: 'Acercar',
+                  onPressed: onZoomIn,
+                  icon: const Icon(Icons.zoom_in),
+                ),
+                const SizedBox(width: 12),
+                toggleButtons,
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _DocumentPageSheet extends StatelessWidget {
+  const _DocumentPageSheet({required this.page, required this.scale});
+
+  final DocumentPage page;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final bodyStyle =
+        Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+    final scaledBodyStyle = bodyStyle.copyWith(
+      fontSize: (bodyStyle.fontSize ?? 14) * scale,
+    );
+    final scaledLineHeight =
+        (scaledBodyStyle.fontSize ?? 14) * (scaledBodyStyle.height ?? 1.3);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: ConstrainedBox(
+        // Solo se fija el ancho de la hoja; el alto es un mínimo, no un
+        // máximo. Como la paginación no reproduce el reflow real de Word
+        // (ver nota en docx_document_repository.dart), una página sin
+        // marcadores explícitos puede contener más contenido del que cabe
+        // en el alto nominal: se permite crecer en vez de recortar.
+        constraints: BoxConstraints(
+          minWidth: page.widthPoints * scale,
+          maxWidth: page.widthPoints * scale,
+          minHeight: page.heightPoints * scale,
+        ),
+        child: Padding(
+          padding: EdgeInsets.only(
+            top: page.margins.topPoints * scale,
+            right: page.margins.rightPoints * scale,
+            bottom: page.margins.bottomPoints * scale,
+            left: page.margins.leftPoints * scale,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              for (final paragraph in page.paragraphs)
+                paragraph.runs.isEmpty
+                    ? SizedBox(height: scaledLineHeight)
+                    : RichText(
+                        text: TextSpan(
+                          style: scaledBodyStyle.copyWith(color: Colors.black),
+                          children: <InlineSpan>[
+                            for (final run in paragraph.runs)
+                              TextSpan(
+                                text: run.text,
+                                style: TextStyle(
+                                  fontWeight: run.isBold
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  fontStyle: run.isItalic
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
+                                  decoration: run.isUnderlined
+                                      ? TextDecoration.underline
+                                      : TextDecoration.none,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+final class _InlineInfo extends StatelessWidget {
+  const _InlineInfo({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              Icons.info_outline,
+              size: 18,
+              color: colorScheme.onPrimaryContainer,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _CenteredStatus extends StatelessWidget {
+  const _CenteredStatus({
+    required this.title,
+    this.description,
+    this.showProgress = false,
+    this.isError = false,
+  });
+
+  final String title;
+  final String? description;
+  final bool showProgress;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final cardColor = isError ? colorScheme.errorContainer : null;
+    final titleColor = isError ? colorScheme.onErrorContainer : null;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Card(
+          color: cardColor,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: titleColor),
+                ),
+                if (description != null) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    description!,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: titleColor),
+                  ),
+                ],
+                if (showProgress) ...<Widget>[
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(minHeight: 2),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

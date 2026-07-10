@@ -3,6 +3,8 @@ import 'package:forkumentos/core/storage/key_value_storage.dart';
 import 'package:forkumentos/core/window/window_service.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/domain/datasource_repository.dart';
+import 'package:forkumentos/features/document_viewer/domain/document.dart';
+import 'package:forkumentos/features/document_viewer/domain/document_repository.dart';
 import 'package:forkumentos/features/template/domain/template.dart';
 import 'package:forkumentos/features/template/domain/template_repository.dart';
 
@@ -148,6 +150,49 @@ final class FakeDatasourceRepository implements DatasourceRepository {
       previewRow: const <String?>['Ana', 'ana@example.com'],
       rowCount: 1,
       emptyColumnIndexes: const <int>[],
+    );
+  }
+}
+
+final class FakeDocumentRepository implements DocumentRepository {
+  FakeDocumentRepository({this.loadHandler});
+
+  Future<Document> Function(String filePath)? loadHandler;
+
+  @override
+  Future<Document> load(String filePath) async {
+    final handler = loadHandler;
+    if (handler != null) {
+      return handler(filePath);
+    }
+
+    return const Document(
+      pages: <DocumentPage>[
+        DocumentPage(
+          number: 1,
+          widthPoints: 612,
+          heightPoints: 792,
+          margins: DocumentMargins(
+            topPoints: 72,
+            rightPoints: 72,
+            bottomPoints: 72,
+            leftPoints: 72,
+          ),
+          paragraphs: <DocumentParagraph>[
+            DocumentParagraph(
+              runs: <DocumentRun>[
+                DocumentRun(
+                  text: 'Documento de ejemplo',
+                  isBold: false,
+                  isItalic: false,
+                  isUnderlined: false,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+      omissions: <DocumentOmission>{},
     );
   }
 }

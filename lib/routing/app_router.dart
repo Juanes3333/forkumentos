@@ -1,8 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/datasource/presentation/datasource_management_screen.dart';
+import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
+import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
 import 'package:forkumentos/features/template/presentation/template_management_screen.dart';
 import 'package:forkumentos/routing/app_shell.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
@@ -45,6 +47,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               return const DatasourceManagementScreen();
             },
           ),
+          GoRoute(
+            path: '/project/document',
+            builder: (BuildContext context, GoRouterState state) {
+              return const _DocumentViewerRoute();
+            },
+          ),
         ],
       ),
     ],
@@ -68,3 +76,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.onDispose(router.dispose);
   return router;
 });
+
+final class _DocumentViewerRoute extends ConsumerWidget {
+  const _DocumentViewerRoute();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final templateState = ref.watch(activeTemplateProvider);
+    return DocumentViewerScreen(
+      documentPath: templateState.valueOrNull?.sourcePath,
+      isSourceLoading: templateState.isLoading,
+      sourceErrorMessage: _resolveTemplateErrorMessage(templateState.error),
+    );
+  }
+}
+
+String? _resolveTemplateErrorMessage(Object? error) {
+  if (error == null) {
+    return null;
+  }
+
+  if (error is TemplateLifecycleException) {
+    return error.message;
+  }
+
+  return 'No se pudo cargar la plantilla activa.';
+}

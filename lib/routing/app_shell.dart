@@ -20,6 +20,7 @@ final class AppShell extends ConsumerWidget {
     final matchedLocation = GoRouterState.of(context).matchedLocation;
     final isTemplateRoute = matchedLocation == '/project/template';
     final isDatasourceRoute = matchedLocation == '/project/datasource';
+    final isDocumentRoute = matchedLocation == '/project/document';
     final statusText = activeProject == null
         ? 'Sin proyecto activo'
         : 'Proyecto activo: ${activeProject.name}';
@@ -78,6 +79,27 @@ final class AppShell extends ConsumerWidget {
                                     isDatasourceRoute
                                         ? Icons.work_outline
                                         : Icons.table_chart_outlined,
+                                  ),
+                                  color: AppColors.foregroundPrimary,
+                                ),
+                              ),
+                            if (hasActiveProject)
+                              Tooltip(
+                                message: isDocumentRoute
+                                    ? 'Volver al proyecto'
+                                    : 'Ver documento',
+                                child: IconButton(
+                                  onPressed: () {
+                                    context.go(
+                                      isDocumentRoute
+                                          ? '/project'
+                                          : '/project/document',
+                                    );
+                                  },
+                                  icon: Icon(
+                                    isDocumentRoute
+                                        ? Icons.work_outline
+                                        : Icons.visibility_outlined,
                                   ),
                                   color: AppColors.foregroundPrimary,
                                 ),
