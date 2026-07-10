@@ -1,5 +1,6 @@
 import 'package:forkumentos/core/logging/logging_service.dart';
 import 'package:forkumentos/core/storage/key_value_storage.dart';
+import 'package:forkumentos/core/window/window_service.dart';
 
 final class FakeLoggingService implements LoggingService {
   final List<String> entries = <String>[];
@@ -68,5 +69,32 @@ final class FakeKeyValueStorage implements KeyValueStorage {
   @override
   Future<void> clear() async {
     _values.clear();
+  }
+}
+
+final class FakeWindowService implements WindowService {
+  String? lastTitle;
+  bool preventCloseActive = false;
+  Future<void> Function()? registeredCloseListener;
+  bool destroyed = false;
+
+  @override
+  Future<void> setTitle(String title) async {
+    lastTitle = title;
+  }
+
+  @override
+  Future<void> setPreventClose(bool value) async {
+    preventCloseActive = value;
+  }
+
+  @override
+  void addCloseListener(Future<void> Function() onCloseRequested) {
+    registeredCloseListener = onCloseRequested;
+  }
+
+  @override
+  Future<void> destroy() async {
+    destroyed = true;
   }
 }

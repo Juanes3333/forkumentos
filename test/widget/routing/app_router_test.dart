@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/app/app.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
+import 'package:forkumentos/core/window/window_service_providers.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
@@ -51,6 +52,7 @@ ProviderContainer _buildContainer() {
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(_FakeProjectRepository()),
+      windowServiceProvider.overrideWithValue(FakeWindowService()),
     ],
   );
 }

@@ -44,6 +44,7 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
         name: normalizedName,
         createdAt: now,
         updatedAt: now,
+        isDirty: true,
       );
 
       _logger.info('Proyecto creado: ${project.name}', module: 'Project');
@@ -86,7 +87,7 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
           filePath: resolvedFilePath,
         );
         _projectOnErrorDismiss = null;
-        state = AsyncData(savedProject);
+        state = AsyncData(savedProject.copyWith(isDirty: false));
         _logger.info(
           'Proyecto guardado: ${savedProject.name}',
           module: 'Project',
@@ -115,7 +116,7 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
         _logger.info('Abriendo proyecto desde $filePath', module: 'Project');
         final project = await _repository.load(filePath);
         _projectOnErrorDismiss = null;
-        state = AsyncData(project);
+        state = AsyncData(project.copyWith(isDirty: false));
         _logger.info('Proyecto abierto: ${project.name}', module: 'Project');
       } catch (error, stackTrace) {
         _logger.error(
@@ -137,6 +138,17 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
       _projectOnErrorDismiss = null;
       state = const AsyncData(null);
       _logger.info('Proyecto cerrado', module: 'Project');
+    });
+  }
+
+  Future<void> markProjectDirty() {
+    return _enqueueOperation(() async {
+      final currentProject = state.valueOrNull;
+      if (currentProject == null) {
+        return;
+      }
+
+      state = AsyncData(currentProject.copyWith(isDirty: true));
     });
   }
 

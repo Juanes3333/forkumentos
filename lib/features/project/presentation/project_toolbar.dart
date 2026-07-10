@@ -21,7 +21,7 @@ final class ProjectToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusText = project.filePath == null
+    final statusText = project.isDirty
         ? 'Proyecto sin guardar'
         : 'Proyecto guardado';
 

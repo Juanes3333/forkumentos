@@ -27,6 +27,8 @@ mixin _$Project {
   DateTime get updatedAt => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
   String? get filePath => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  bool get isDirty => throw _privateConstructorUsedError;
 
   /// Serializes this Project to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -48,6 +50,7 @@ abstract class $ProjectCopyWith<$Res> {
     DateTime createdAt,
     DateTime updatedAt,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
+    @JsonKey(includeFromJson: false, includeToJson: false) bool isDirty,
   });
 }
 
@@ -71,6 +74,7 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? filePath = freezed,
+    Object? isDirty = null,
   }) {
     return _then(
       _value.copyWith(
@@ -94,6 +98,10 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
                 ? _value.filePath
                 : filePath // ignore: cast_nullable_to_non_nullable
                       as String?,
+            isDirty: null == isDirty
+                ? _value.isDirty
+                : isDirty // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -114,6 +122,7 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
     DateTime createdAt,
     DateTime updatedAt,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
+    @JsonKey(includeFromJson: false, includeToJson: false) bool isDirty,
   });
 }
 
@@ -136,6 +145,7 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? createdAt = null,
     Object? updatedAt = null,
     Object? filePath = freezed,
+    Object? isDirty = null,
   }) {
     return _then(
       _$ProjectImpl(
@@ -159,6 +169,10 @@ class __$$ProjectImplCopyWithImpl<$Res>
             ? _value.filePath
             : filePath // ignore: cast_nullable_to_non_nullable
                   as String?,
+        isDirty: null == isDirty
+            ? _value.isDirty
+            : isDirty // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -173,6 +187,7 @@ class _$ProjectImpl implements _Project {
     required this.createdAt,
     required this.updatedAt,
     @JsonKey(includeFromJson: false, includeToJson: false) this.filePath,
+    @JsonKey(includeFromJson: false, includeToJson: false) this.isDirty = false,
   });
 
   factory _$ProjectImpl.fromJson(Map<String, dynamic> json) =>
@@ -189,10 +204,13 @@ class _$ProjectImpl implements _Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final String? filePath;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final bool isDirty;
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, filePath: $filePath)';
+    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, filePath: $filePath, isDirty: $isDirty)';
   }
 
   @override
@@ -207,13 +225,21 @@ class _$ProjectImpl implements _Project {
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt) &&
             (identical(other.filePath, filePath) ||
-                other.filePath == filePath));
+                other.filePath == filePath) &&
+            (identical(other.isDirty, isDirty) || other.isDirty == isDirty));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, name, createdAt, updatedAt, filePath);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    name,
+    createdAt,
+    updatedAt,
+    filePath,
+    isDirty,
+  );
 
   /// Create a copy of Project
   /// with the given fields replaced by the non-null parameter values.
@@ -237,6 +263,7 @@ abstract class _Project implements Project {
     required final DateTime updatedAt,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final String? filePath,
+    @JsonKey(includeFromJson: false, includeToJson: false) final bool isDirty,
   }) = _$ProjectImpl;
 
   factory _Project.fromJson(Map<String, dynamic> json) = _$ProjectImpl.fromJson;
@@ -252,6 +279,9 @@ abstract class _Project implements Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   String? get filePath;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  bool get isDirty;
 
   /// Create a copy of Project
   /// with the given fields replaced by the non-null parameter values.

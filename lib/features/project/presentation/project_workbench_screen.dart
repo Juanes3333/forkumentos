@@ -2,7 +2,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
+import 'package:forkumentos/features/project/presentation/confirm_discard_project_changes_dialog.dart';
 import 'package:forkumentos/features/project/presentation/project_toolbar.dart';
+import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
 const _projectFileExtension = '.forkumentos.json';
@@ -46,11 +48,11 @@ final class ProjectWorkbenchScreen extends ConsumerWidget {
       children: <Widget>[
         ProjectToolbar(
           project: project,
-          onSave: () => _handleSave(context, notifier, project),
+          onSave: () => _handleSave(context, ref, notifier, project),
           onSaveAs: project.filePath == null
               ? null
-              : () => _handleSaveAs(context, notifier, project),
-          onOpen: () => _handleOpen(context, notifier, project),
+              : () => _handleSaveAs(context, ref, notifier, project),
+          onOpen: () => _handleOpen(context, ref, notifier, project),
           onClose: () => _handleClose(context, notifier, project),
           isBusy: activeProjectState.isLoading,
         ),
@@ -82,7 +84,7 @@ final class ProjectWorkbenchScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      project.filePath == null
+                      project.isDirty
                           ? 'Estado: Sin guardar'
                           : 'Estado: Guardado',
                       style: Theme.of(context).textTheme.bodyMedium,
@@ -104,19 +106,22 @@ final class ProjectWorkbenchScreen extends ConsumerWidget {
 
   Future<void> _handleSave(
     BuildContext context,
+    WidgetRef ref,
     ActiveProjectNotifier notifier,
     Project project,
   ) async {
     if (project.filePath != null) {
       await notifier.saveProject();
+      await _recordIfSaved(ref);
       return;
     }
 
-    await _handleSaveAs(context, notifier, project);
+    await _handleSaveAs(context, ref, notifier, project);
   }
 
   Future<void> _handleSaveAs(
     BuildContext context,
+    WidgetRef ref,
     ActiveProjectNotifier notifier,
     Project project,
   ) async {
@@ -132,15 +137,17 @@ final class ProjectWorkbenchScreen extends ConsumerWidget {
 
     final normalizedPath = _normalizeProjectFilePath(rawPath);
     await notifier.saveProject(filePath: normalizedPath);
+    await _recordIfSaved(ref);
   }
 
   Future<void> _handleOpen(
     BuildContext context,
+    WidgetRef ref,
     ActiveProjectNotifier notifier,
     Project project,
   ) async {
-    if (project.filePath == null) {
-      final shouldContinue = await _confirmUnsavedProjectReplacement(context);
+    if (project.isDirty) {
+      final shouldContinue = await confirmDiscardProjectChanges(context);
       if (!shouldContinue) {
         return;
       }
@@ -165,6 +172,7 @@ final class ProjectWorkbenchScreen extends ConsumerWidget {
     }
 
     await notifier.loadProject(filePath: filePath);
+    await _recordIfSaved(ref);
   }
 
   Future<void> _handleClose(
@@ -172,8 +180,8 @@ final class ProjectWorkbenchScreen extends ConsumerWidget {
     ActiveProjectNotifier notifier,
     Project project,
   ) async {
-    if (project.filePath == null) {
-      final shouldContinue = await _confirmUnsavedProjectReplacement(context);
+    if (project.isDirty) {
+      final shouldContinue = await confirmDiscardProjectChanges(context);
       if (!shouldContinue) {
         return;
       }
@@ -181,6 +189,18 @@ final class ProjectWorkbenchScreen extends ConsumerWidget {
 
     await notifier.closeProject();
   }
+}
+
+Future<void> _recordIfSaved(WidgetRef ref) async {
+  final state = ref.read(activeProjectProvider);
+  final project = state.valueOrNull;
+  if (state.hasError || project == null || project.filePath == null) {
+    return;
+  }
+
+  await ref
+      .read(recentProjectsProvider.notifier)
+      .record(filePath: project.filePath!, name: project.name);
 }
 
 String _normalizeProjectFilePath(String filePath) {
@@ -221,33 +241,6 @@ Future<void> _showUnsupportedFileDialog(BuildContext context) {
       );
     },
   );
-}
-
-Future<bool> _confirmUnsavedProjectReplacement(BuildContext context) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: const Text('Proyecto sin guardar'),
-        content: const Text(
-          'El proyecto actual no está guardado. '
-          'Esta acción descartará sus datos no guardados.',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Continuar'),
-          ),
-        ],
-      );
-    },
-  );
-
-  return confirmed ?? false;
 }
 
 final class _InlineError extends StatelessWidget {

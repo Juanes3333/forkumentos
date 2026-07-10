@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
+import 'package:forkumentos/core/storage/storage_providers.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
+import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
 import '../../../../support/fakes.dart';
@@ -28,6 +30,49 @@ void main() {
     expect(find.text('Crear proyecto'), findsNWidgets(1));
     expect(find.text('Abrir proyecto'), findsNWidgets(1));
     expect(find.text('Inicia un proyecto'), findsOneWidget);
+  });
+
+  testWidgets(
+    'ProjectWelcomeScreen muestra estado vacío sin proyectos recientes',
+    (WidgetTester tester) async {
+      final container = _buildContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: ProjectWelcomeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sin proyectos recientes todavía.'), findsOneWidget);
+    },
+  );
+
+  testWidgets('ProjectWelcomeScreen renderiza proyectos recientes', (
+    WidgetTester tester,
+  ) async {
+    final container = _buildContainer();
+    addTearDown(container.dispose);
+    await container.read(recentProjectsProvider.future);
+    await container
+        .read(recentProjectsProvider.notifier)
+        .record(
+          filePath: '/tmp/reciente.forkumentos.json',
+          name: 'Proyecto Reciente',
+        );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: ProjectWelcomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Proyecto Reciente'), findsOneWidget);
+    expect(find.text('/tmp/reciente.forkumentos.json'), findsOneWidget);
   });
 
   testWidgets('ProjectWorkbenchScreen muestra toolbar y nombre activo', (
@@ -60,6 +105,7 @@ ProviderContainer _buildContainer() {
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(FakeProjectRepository()),
+      keyValueStorageProvider.overrideWithValue(FakeKeyValueStorage()),
     ],
   );
 }

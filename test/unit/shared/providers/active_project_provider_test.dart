@@ -26,6 +26,7 @@ void main() {
     expect(project?.id, isNotEmpty);
     expect(project?.createdAt.isUtc, isTrue);
     expect(project?.updatedAt.isUtc, isTrue);
+    expect(project?.isDirty, isTrue);
   });
 
   test('saveProject persiste y actualiza ruta de proyecto', () async {
@@ -42,6 +43,7 @@ void main() {
     final project = container.read(activeProjectProvider).valueOrNull;
     expect(project, isNotNull);
     expect(project?.filePath, '/tmp/proyecto_guardable.forkumentos.json');
+    expect(project?.isDirty, isFalse);
   });
 
   test('loadProject transiciona loading y luego data', () async {
@@ -80,6 +82,33 @@ void main() {
     final state = container.read(activeProjectProvider);
     expect(state.hasValue, isTrue);
     expect(state.valueOrNull?.name, 'Proyecto Cargado');
+    expect(state.valueOrNull?.isDirty, isFalse);
+  });
+
+  test('markProjectDirty marca el proyecto activo como sin guardar', () async {
+    final fakeRepository = FakeProjectRepository();
+    final container = _createContainer(fakeRepository);
+    addTearDown(container.dispose);
+
+    final notifier = container.read(activeProjectProvider.notifier);
+    await notifier.createProject(name: 'Proyecto Marcable');
+    await notifier.saveProject(filePath: '/tmp/marcable.forkumentos.json');
+    expect(container.read(activeProjectProvider).valueOrNull?.isDirty, isFalse);
+
+    await notifier.markProjectDirty();
+
+    expect(container.read(activeProjectProvider).valueOrNull?.isDirty, isTrue);
+  });
+
+  test('markProjectDirty no hace nada sin proyecto activo', () async {
+    final fakeRepository = FakeProjectRepository();
+    final container = _createContainer(fakeRepository);
+    addTearDown(container.dispose);
+
+    final notifier = container.read(activeProjectProvider.notifier);
+    await notifier.markProjectDirty();
+
+    expect(container.read(activeProjectProvider).valueOrNull, isNull);
   });
 
   test(

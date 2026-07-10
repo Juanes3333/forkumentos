@@ -21,4 +21,20 @@ void main() {
     expect(restored.updatedAt, project.updatedAt);
     expect(restored.filePath, isNull);
   });
+
+  test('serializa y deserializa sin persistir isDirty', () {
+    final project = Project(
+      id: 'project-1',
+      name: 'Proyecto Demo',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026, 1, 2),
+      isDirty: true,
+    );
+
+    final json = project.toJson();
+    expect(json.containsKey('isDirty'), isFalse);
+
+    final restored = Project.fromJson(json);
+    expect(restored.isDirty, isFalse);
+  });
 }

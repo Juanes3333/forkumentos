@@ -13,6 +13,9 @@ class Project with _$Project {
     required DateTime createdAt,
     required DateTime updatedAt,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
+    @Default(false)
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    bool isDirty,
   }) = _Project;
 
   factory Project.fromJson(Map<String, dynamic> json) =>
