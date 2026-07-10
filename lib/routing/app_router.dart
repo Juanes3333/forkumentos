@@ -4,6 +4,9 @@ import 'package:forkumentos/features/datasource/presentation/active_datasource_p
 import 'package:forkumentos/features/datasource/presentation/datasource_management_screen.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_assistant_screen.dart';
+import 'package:forkumentos/features/mapping/presentation/mapping_workflow_mode.dart';
+import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
+import 'package:forkumentos/features/mapping/presentation/review_mode_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
@@ -119,17 +122,44 @@ final class _MappingAssistantRoute extends ConsumerWidget {
     final templateState = ref.watch(activeTemplateProvider);
     final datasourceState = ref.watch(activeDatasourceProvider);
     final datasource = datasourceState.valueOrNull;
+    final workflowMode = ref.watch(mappingWorkflowProvider).mode;
 
     final sourceError =
         _resolveTemplateErrorMessage(templateState.error) ??
         _resolveDatasourceErrorMessage(datasourceState.error);
 
-    return MappingAssistantScreen(
+    final sharedProps = (
       documentPath: templateState.valueOrNull?.sourcePath,
       headers: datasource?.headers ?? const <String>[],
       previewRow: datasource?.previewRow ?? const <String?>[],
       isSourceLoading: templateState.isLoading || datasourceState.isLoading,
       sourceErrorMessage: sourceError,
+    );
+
+    if (workflowMode == MappingWorkflowMode.review) {
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        child: ReviewModeScreen(
+          key: const ValueKey<String>('review-mode-route'),
+          documentPath: sharedProps.documentPath,
+          headers: sharedProps.headers,
+          previewRow: sharedProps.previewRow,
+          isSourceLoading: sharedProps.isSourceLoading,
+          sourceErrorMessage: sharedProps.sourceErrorMessage,
+        ),
+      );
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      child: MappingAssistantScreen(
+        key: const ValueKey<String>('mapping-mode-route'),
+        documentPath: sharedProps.documentPath,
+        headers: sharedProps.headers,
+        previewRow: sharedProps.previewRow,
+        isSourceLoading: sharedProps.isSourceLoading,
+        sourceErrorMessage: sharedProps.sourceErrorMessage,
+      ),
     );
   }
 }

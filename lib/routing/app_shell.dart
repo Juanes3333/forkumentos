@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
+import 'package:forkumentos/features/mapping/presentation/mapping_workflow_mode.dart';
+import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
+import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/presentation/project_window_lifecycle.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:go_router/go_router.dart';
@@ -22,9 +25,14 @@ final class AppShell extends ConsumerWidget {
     final isDatasourceRoute = matchedLocation == '/project/datasource';
     final isDocumentRoute = matchedLocation == '/project/document';
     final isMappingRoute = matchedLocation == '/project/mapping';
-    final statusText = activeProject == null
-        ? 'Sin proyecto activo'
-        : 'Proyecto activo: ${activeProject.name}';
+    final exportReady = ref.watch(exportReadinessProvider);
+    final workflowMode = ref.watch(mappingWorkflowProvider).mode;
+    final statusText = _resolveStatusText(
+      activeProject: activeProject,
+      isMappingRoute: isMappingRoute,
+      workflowMode: workflowMode,
+      exportReady: exportReady,
+    );
 
     return ProjectWindowLifecycle(
       child: Scaffold(
@@ -126,6 +134,32 @@ final class AppShell extends ConsumerWidget {
                                   color: AppColors.foregroundPrimary,
                                 ),
                               ),
+                            if (hasActiveProject && isMappingRoute)
+                              Tooltip(
+                                message:
+                                    workflowMode == MappingWorkflowMode.review
+                                    ? 'Volver al mapeo'
+                                    : 'Modo revisión',
+                                child: IconButton(
+                                  onPressed: () {
+                                    final notifier = ref.read(
+                                      mappingWorkflowProvider.notifier,
+                                    );
+                                    if (workflowMode ==
+                                        MappingWorkflowMode.review) {
+                                      notifier.enterMapping();
+                                    } else {
+                                      notifier.enterReview(userInitiated: true);
+                                    }
+                                  },
+                                  icon: Icon(
+                                    workflowMode == MappingWorkflowMode.review
+                                        ? Icons.alt_route_outlined
+                                        : Icons.fact_check_outlined,
+                                  ),
+                                  color: AppColors.foregroundPrimary,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -179,4 +213,22 @@ final class AppShell extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _resolveStatusText({
+  required Project? activeProject,
+  required bool isMappingRoute,
+  required MappingWorkflowMode workflowMode,
+  required bool exportReady,
+}) {
+  if (activeProject == null) {
+    return 'Sin proyecto activo';
+  }
+
+  if (isMappingRoute && workflowMode == MappingWorkflowMode.review) {
+    final readiness = exportReady ? 'lista' : 'bloqueada';
+    return 'Proyecto activo: ${activeProject.name} · Exportación: $readiness';
+  }
+
+  return 'Proyecto activo: ${activeProject.name}';
 }

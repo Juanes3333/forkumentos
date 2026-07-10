@@ -223,6 +223,19 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     _syncProjectAssignments();
   }
 
+  void removeAssignment(String assignmentId) {
+    final nextAssignments = removeAssignmentsById(
+      state.state.assignments,
+      <String>{assignmentId},
+    );
+    if (nextAssignments.length == state.state.assignments.length) {
+      return;
+    }
+
+    _applyMutation(state.state.copyWith(assignments: nextAssignments));
+    _syncProjectAssignments();
+  }
+
   void undo() {
     if (_undoStack.isEmpty) {
       return;

@@ -10,6 +10,7 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
   required List<TextOccurrence> suggestions,
   required int? hoveredFieldIndex,
   required int activeFieldIndex,
+  String? emphasizedAssignmentId,
 }) {
   final highlights = <ParagraphHighlightSegment>[];
 
@@ -19,12 +20,15 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
     }
 
     final color = mappingColorForFieldIndex(assignment.fieldIndex);
+    final emphasize =
+        emphasizedAssignmentId == assignment.id ||
+        hoveredFieldIndex == assignment.fieldIndex;
     highlights.add(
       ParagraphHighlightSegment(
         startOffset: assignment.startOffset,
         endOffset: assignment.endOffset,
         color: color,
-        emphasize: hoveredFieldIndex == assignment.fieldIndex,
+        emphasize: emphasize,
       ),
     );
   }

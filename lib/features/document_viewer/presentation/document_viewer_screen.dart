@@ -22,6 +22,8 @@ final class DocumentViewerScreen extends ConsumerStatefulWidget {
     this.sourceErrorMessage,
     this.showToolbar = true,
     this.viewerOverlay,
+    this.focusPageIndex,
+    this.focusToken = 0,
     super.key,
   });
 
@@ -30,6 +32,8 @@ final class DocumentViewerScreen extends ConsumerStatefulWidget {
   final String? sourceErrorMessage;
   final bool showToolbar;
   final DocumentViewerOverlay? viewerOverlay;
+  final int? focusPageIndex;
+  final int focusToken;
 
   @override
   ConsumerState<DocumentViewerScreen> createState() =>
@@ -56,16 +60,24 @@ final class _DocumentViewerScreenState
   @override
   void didUpdateWidget(covariant DocumentViewerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.documentPath == widget.documentPath) {
-      return;
+    if (oldWidget.documentPath != widget.documentPath) {
+      _currentPageIndex = 0;
+      _zoomMode = _ZoomMode.manual;
+      _manualZoomStepIndex = _defaultZoomStepIndex;
+      _lastKnownScale = _zoomSteps[_defaultZoomStepIndex];
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
     }
 
-    _currentPageIndex = 0;
-    _zoomMode = _ZoomMode.manual;
-    _manualZoomStepIndex = _defaultZoomStepIndex;
-    _lastKnownScale = _zoomSteps[_defaultZoomStepIndex];
-    if (_scrollController.hasClients) {
-      _scrollController.jumpTo(0);
+    if (widget.focusToken != oldWidget.focusToken &&
+        widget.focusPageIndex != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _goToPage(widget.focusPageIndex!);
+      });
     }
   }
 

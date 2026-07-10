@@ -8,6 +8,7 @@ final class MappingPreviewPanel extends StatelessWidget {
     required this.previewRow,
     required this.currentFieldIndex,
     required this.assignmentCounts,
+    this.focusedFieldIndex,
     super.key,
   });
 
@@ -15,6 +16,7 @@ final class MappingPreviewPanel extends StatelessWidget {
   final List<String?> previewRow;
   final int currentFieldIndex;
   final List<int> assignmentCounts;
+  final int? focusedFieldIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +58,7 @@ final class MappingPreviewPanel extends StatelessWidget {
                           : null,
                       color: mappingColorForFieldIndex(index),
                       isActive: index == currentFieldIndex,
+                      isFocused: index == focusedFieldIndex,
                       status: _statusFor(index),
                       assignmentCount: assignmentCounts[index],
                     ),
@@ -82,6 +85,7 @@ final class _PreviewFieldChip extends StatelessWidget {
     required this.previewValue,
     required this.color,
     required this.isActive,
+    required this.isFocused,
     required this.status,
     required this.assignmentCount,
   });
@@ -90,21 +94,25 @@ final class _PreviewFieldChip extends StatelessWidget {
   final String? previewValue;
   final Color color;
   final bool isActive;
+  final bool isFocused;
   final MappingFieldStatus status;
   final int assignmentCount;
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = isActive ? color : Theme.of(context).dividerColor;
+    final borderColor = isActive || isFocused
+        ? color
+        : Theme.of(context).dividerColor;
+    final borderWidth = isActive ? 2.0 : (isFocused ? 1.5 : 1.0);
 
     return Container(
       width: 180,
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        border: Border.all(color: borderColor, width: isActive ? 2 : 1),
+        border: Border.all(color: borderColor, width: borderWidth),
         borderRadius: BorderRadius.circular(8),
-        color: color.withValues(alpha: isActive ? 0.12 : 0.06),
+        color: color.withValues(alpha: isActive || isFocused ? 0.12 : 0.06),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
