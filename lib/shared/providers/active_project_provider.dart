@@ -1,0 +1,204 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/core/logging/logging_providers.dart';
+import 'package:forkumentos/core/logging/logging_service.dart';
+import 'package:forkumentos/features/project/data/project_repository_provider.dart';
+import 'package:forkumentos/features/project/domain/project.dart';
+import 'package:forkumentos/features/project/domain/project_repository.dart';
+import 'package:uuid/uuid.dart';
+
+final activeProjectProvider =
+    AsyncNotifierProvider<ActiveProjectNotifier, Project?>(
+      ActiveProjectNotifier.new,
+    );
+
+final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
+  final Uuid _uuid = const Uuid();
+  Future<void> _operationQueue = Future<void>.value();
+  Project? _projectOnErrorDismiss;
+
+  @override
+  FutureOr<Project?> build() {
+    return null;
+  }
+
+  Future<void> createProject({required String name}) {
+    return _enqueueOperation(() async {
+      final normalizedName = name.trim();
+      if (normalizedName.isEmpty) {
+        state = AsyncError<Project?>(
+          const ProjectLifecycleException(
+            'Ingresa un nombre para crear el proyecto.',
+          ),
+          StackTrace.current,
+        );
+        _projectOnErrorDismiss = null;
+        return;
+      }
+
+      final now = DateTime.now().toUtc();
+      final project = Project(
+        id: _uuid.v4(),
+        name: normalizedName,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      _logger.info('Proyecto creado: ${project.name}', module: 'Project');
+      _projectOnErrorDismiss = null;
+      state = AsyncData(project);
+    });
+  }
+
+  Future<void> saveProject({String? filePath}) {
+    return _enqueueOperation(() async {
+      final currentProject = state.valueOrNull;
+      if (currentProject == null) {
+        return;
+      }
+
+      final resolvedFilePath = filePath ?? currentProject.filePath;
+      if (resolvedFilePath == null || resolvedFilePath.trim().isEmpty) {
+        const failure = ProjectLifecycleException(
+          'Selecciona una ubicación para guardar el proyecto.',
+        );
+        _logger.warning(
+          'Guardado cancelado: no se recibió ruta destino',
+          module: 'Project',
+        );
+        _projectOnErrorDismiss = currentProject;
+        state = AsyncError<Project?>(
+          failure,
+          StackTrace.current,
+        ).copyWithPrevious(AsyncData(currentProject));
+        return;
+      }
+
+      try {
+        _logger.info(
+          'Guardando proyecto en $resolvedFilePath',
+          module: 'Project',
+        );
+        final savedProject = await _repository.save(
+          project: currentProject,
+          filePath: resolvedFilePath,
+        );
+        _projectOnErrorDismiss = null;
+        state = AsyncData(savedProject);
+        _logger.info(
+          'Proyecto guardado: ${savedProject.name}',
+          module: 'Project',
+        );
+      } catch (error, stackTrace) {
+        _logger.error(
+          'Fallo al guardar proyecto',
+          module: 'Project',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        _projectOnErrorDismiss = currentProject;
+        state = AsyncError<Project?>(
+          _classifySaveFailure(error),
+          stackTrace,
+        ).copyWithPrevious(AsyncData(currentProject));
+      }
+    });
+  }
+
+  Future<void> loadProject({required String filePath}) {
+    return _enqueueOperation(() async {
+      state = const AsyncLoading<Project?>();
+
+      try {
+        _logger.info('Abriendo proyecto desde $filePath', module: 'Project');
+        final project = await _repository.load(filePath);
+        _projectOnErrorDismiss = null;
+        state = AsyncData(project);
+        _logger.info('Proyecto abierto: ${project.name}', module: 'Project');
+      } catch (error, stackTrace) {
+        _logger.error(
+          'Fallo al abrir proyecto',
+          module: 'Project',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        _projectOnErrorDismiss = null;
+        state = AsyncError<Project?>(_classifyLoadFailure(error), stackTrace);
+      }
+    });
+  }
+
+  Future<void> closeProject() {
+    return _enqueueOperation(() async {
+      state = const AsyncLoading<Project?>();
+      _logger.info('Cerrando proyecto activo', module: 'Project');
+      _projectOnErrorDismiss = null;
+      state = const AsyncData(null);
+      _logger.info('Proyecto cerrado', module: 'Project');
+    });
+  }
+
+  void dismissError() {
+    final currentState = state;
+    if (!currentState.hasError) {
+      return;
+    }
+
+    final restoredProject = _projectOnErrorDismiss;
+    _projectOnErrorDismiss = null;
+    state = AsyncData(restoredProject);
+  }
+
+  Future<void> _enqueueOperation(Future<void> Function() operation) {
+    final queuedOperation = _operationQueue
+        .catchError((Object _, StackTrace __) {})
+        .then((_) => operation());
+    _operationQueue = queuedOperation;
+    return queuedOperation;
+  }
+
+  ProjectRepository get _repository => ref.read(projectRepositoryProvider);
+
+  LoggingService get _logger => ref.read(loggingServiceProvider);
+
+  ProjectLifecycleException _classifySaveFailure(Object error) {
+    if (error is FileSystemException) {
+      return const ProjectLifecycleException(
+        'No se pudo guardar el proyecto en la ruta seleccionada.',
+      );
+    }
+
+    return const ProjectLifecycleException(
+      'No se pudo guardar el proyecto. Inténtalo nuevamente.',
+    );
+  }
+
+  ProjectLifecycleException _classifyLoadFailure(Object error) {
+    if (error is FileSystemException) {
+      return const ProjectLifecycleException(
+        'No se pudo leer el archivo del proyecto.',
+      );
+    }
+
+    if (error is FormatException || error is TypeError) {
+      return const ProjectLifecycleException(
+        'El archivo no tiene un formato de proyecto válido.',
+      );
+    }
+
+    return const ProjectLifecycleException(
+      'No se pudo abrir el proyecto. Verifica el archivo e inténtalo de nuevo.',
+    );
+  }
+}
+
+final class ProjectLifecycleException implements Exception {
+  const ProjectLifecycleException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
