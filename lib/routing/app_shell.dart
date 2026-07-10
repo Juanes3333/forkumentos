@@ -17,8 +17,9 @@ final class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final activeProject = ref.watch(activeProjectProvider).valueOrNull;
     final hasActiveProject = activeProject != null;
-    final isTemplateRoute =
-        GoRouterState.of(context).matchedLocation == '/project/template';
+    final matchedLocation = GoRouterState.of(context).matchedLocation;
+    final isTemplateRoute = matchedLocation == '/project/template';
+    final isDatasourceRoute = matchedLocation == '/project/datasource';
     final statusText = activeProject == null
         ? 'Sin proyecto activo'
         : 'Proyecto activo: ${activeProject.name}';
@@ -56,6 +57,27 @@ final class AppShell extends ConsumerWidget {
                                     isTemplateRoute
                                         ? Icons.work_outline
                                         : Icons.description_outlined,
+                                  ),
+                                  color: AppColors.foregroundPrimary,
+                                ),
+                              ),
+                            if (hasActiveProject)
+                              Tooltip(
+                                message: isDatasourceRoute
+                                    ? 'Volver al proyecto'
+                                    : 'Gestionar datos',
+                                child: IconButton(
+                                  onPressed: () {
+                                    context.go(
+                                      isDatasourceRoute
+                                          ? '/project'
+                                          : '/project/datasource',
+                                    );
+                                  },
+                                  icon: Icon(
+                                    isDatasourceRoute
+                                        ? Icons.work_outline
+                                        : Icons.table_chart_outlined,
                                   ),
                                   color: AppColors.foregroundPrimary,
                                 ),

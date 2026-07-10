@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/app/app.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/window/window_service_providers.dart';
+import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
+import 'package:forkumentos/features/datasource/presentation/datasource_management_screen.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
@@ -87,6 +89,46 @@ void main() {
 
     expect(find.byType(TemplateManagementScreen), findsOneWidget);
   });
+
+  testWidgets('ruta de datasource requiere proyecto activo', (
+    WidgetTester tester,
+  ) async {
+    final withoutProjectContainer = _buildContainer();
+    addTearDown(withoutProjectContainer.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: withoutProjectContainer,
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    withoutProjectContainer.read(appRouterProvider).go('/project/datasource');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
+    expect(find.byType(DatasourceManagementScreen), findsNothing);
+
+    final withProjectContainer = _buildContainer();
+    addTearDown(withProjectContainer.dispose);
+    await withProjectContainer
+        .read(activeProjectProvider.notifier)
+        .createProject(name: 'Proyecto Router');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: withProjectContainer,
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    withProjectContainer.read(appRouterProvider).go('/project/datasource');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DatasourceManagementScreen), findsOneWidget);
+  });
 }
 
 ProviderContainer _buildContainer() {
@@ -94,6 +136,9 @@ ProviderContainer _buildContainer() {
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(_FakeProjectRepository()),
+      datasourceRepositoryProvider.overrideWithValue(
+        FakeDatasourceRepository(),
+      ),
       windowServiceProvider.overrideWithValue(FakeWindowService()),
     ],
   );

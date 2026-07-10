@@ -171,5 +171,8 @@ Uint8List _buildDocxBytes({
   }
 
   final encoded = ZipEncoder().encode(archive);
+  if (encoded == null) {
+    throw StateError('No se pudo codificar el ZIP DOCX de prueba.');
+  }
   return Uint8List.fromList(encoded);
 }

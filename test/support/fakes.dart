@@ -1,6 +1,8 @@
 import 'package:forkumentos/core/logging/logging_service.dart';
 import 'package:forkumentos/core/storage/key_value_storage.dart';
 import 'package:forkumentos/core/window/window_service.dart';
+import 'package:forkumentos/features/datasource/domain/datasource.dart';
+import 'package:forkumentos/features/datasource/domain/datasource_repository.dart';
 import 'package:forkumentos/features/template/domain/template.dart';
 import 'package:forkumentos/features/template/domain/template_repository.dart';
 
@@ -119,6 +121,33 @@ final class FakeTemplateRepository implements TemplateRepository {
       fileName: fileName,
       fileSizeBytes: 256,
       importedAt: DateTime.utc(2026),
+    );
+  }
+}
+
+final class FakeDatasourceRepository implements DatasourceRepository {
+  FakeDatasourceRepository({this.loadHandler});
+
+  Future<Datasource> Function(String filePath)? loadHandler;
+
+  @override
+  Future<Datasource> load(String filePath) async {
+    final handler = loadHandler;
+    if (handler != null) {
+      return handler(filePath);
+    }
+
+    final fileName = filePath.split(RegExp(r'[\\/]')).last;
+    return Datasource(
+      sourcePath: filePath,
+      fileName: fileName,
+      fileSizeBytes: 256,
+      importedAt: DateTime.utc(2026),
+      format: DatasourceFormat.csv,
+      headers: const <String>['nombre', 'correo'],
+      previewRow: const <String?>['Ana', 'ana@example.com'],
+      rowCount: 1,
+      emptyColumnIndexes: const <int>[],
     );
   }
 }

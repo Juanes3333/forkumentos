@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/datasource/presentation/datasource_management_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
 import 'package:forkumentos/features/template/presentation/template_management_screen.dart';
@@ -36,6 +37,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/project/template',
             builder: (BuildContext context, GoRouterState state) {
               return const TemplateManagementScreen();
+            },
+          ),
+          GoRoute(
+            path: '/project/datasource',
+            builder: (BuildContext context, GoRouterState state) {
+              return const DatasourceManagementScreen();
             },
           ),
         ],

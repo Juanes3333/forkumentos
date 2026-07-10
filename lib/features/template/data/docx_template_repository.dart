@@ -135,7 +135,14 @@ void _requireEntry(
 }
 
 String _archiveEntryAsString(ArchiveFile file) {
-  return utf8.decode(file.content, allowMalformed: true);
+  final content = file.content;
+  if (content is List<int>) {
+    return utf8.decode(content, allowMalformed: true);
+  }
+  if (content is String) {
+    return content;
+  }
+  throw const FormatException(_invalidDocxMessage);
 }
 
 String? _findElementText(XmlDocument xml, {required String localName}) {
