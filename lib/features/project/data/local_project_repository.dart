@@ -68,13 +68,53 @@ final class LocalProjectRepository implements ProjectRepository {
       return;
     } on FileSystemException {
       final targetFile = File(targetPath);
+      final backupFile = File(_buildBackupPath(targetPath));
+
       // ignore: avoid_slow_async_io
       if (!await targetFile.exists()) {
         rethrow;
       }
 
-      await targetFile.delete();
-      await tempFile.rename(targetPath);
+      // ignore: avoid_slow_async_io
+      if (await backupFile.exists()) {
+        await backupFile.delete();
+      }
+
+      await targetFile.rename(backupFile.path);
+      try {
+        await tempFile.rename(targetPath);
+      } on FileSystemException {
+        await _restoreBackupFile(
+          backupFile: backupFile,
+          targetPath: targetPath,
+        );
+        rethrow;
+      }
+
+      // ignore: avoid_slow_async_io
+      if (await backupFile.exists()) {
+        await backupFile.delete();
+      }
     }
+  }
+
+  String _buildBackupPath(String targetPath) => '$targetPath.bak';
+
+  Future<void> _restoreBackupFile({
+    required File backupFile,
+    required String targetPath,
+  }) async {
+    // ignore: avoid_slow_async_io
+    if (!await backupFile.exists()) {
+      return;
+    }
+
+    final targetFile = File(targetPath);
+    // ignore: avoid_slow_async_io
+    if (await targetFile.exists()) {
+      return;
+    }
+
+    await backupFile.rename(targetPath);
   }
 }

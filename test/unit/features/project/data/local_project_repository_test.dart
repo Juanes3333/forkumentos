@@ -51,6 +51,47 @@ void main() {
     expect(loadedProject.filePath, filePath);
   });
 
+  test(
+    'save sobre mismo path reemplaza contenido sin dejar tmp o bak',
+    () async {
+      final filePath = p.join(
+        tempDirectory.path,
+        'proyecto_reemplazo.forkumentos.json',
+      );
+      final firstProject = Project(
+        id: 'project-1',
+        name: 'Proyecto Inicial',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026, 1, 2),
+      );
+      final secondProject = firstProject.copyWith(
+        name: 'Proyecto Actualizado',
+        updatedAt: DateTime.utc(2026, 1, 3),
+      );
+
+      await repository.save(project: firstProject, filePath: filePath);
+      await repository.save(project: secondProject, filePath: filePath);
+
+      final rawFileContent = await File(filePath).readAsString();
+      final persistedJson = jsonDecode(rawFileContent) as Map<String, dynamic>;
+      expect(persistedJson['name'], 'Proyecto Actualizado');
+
+      final siblings = await tempDirectory.list().toList();
+      final tempOrBakFiles = siblings
+          .whereType<File>()
+          .map((entry) => p.basename(entry.path))
+          .where(
+            (name) =>
+                name.contains('.forkumentos.json.') ||
+                name.endsWith('.tmp') ||
+                name.endsWith('.bak'),
+          )
+          .toList();
+
+      expect(tempOrBakFiles, isEmpty);
+    },
+  );
+
   test('rechaza archivo JSON inválido', () async {
     final filePath = p.join(
       tempDirectory.path,
