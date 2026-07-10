@@ -8,6 +8,8 @@ import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
+import 'package:forkumentos/features/template/presentation/template_management_screen.dart';
+import 'package:forkumentos/routing/app_router.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
 import '../../support/fakes.dart';
@@ -44,6 +46,46 @@ void main() {
 
     expect(find.byType(ProjectWorkbenchScreen), findsOneWidget);
     expect(find.byType(ProjectWelcomeScreen), findsNothing);
+  });
+
+  testWidgets('ruta de plantilla requiere proyecto activo', (
+    WidgetTester tester,
+  ) async {
+    final withoutProjectContainer = _buildContainer();
+    addTearDown(withoutProjectContainer.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: withoutProjectContainer,
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    withoutProjectContainer.read(appRouterProvider).go('/project/template');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
+    expect(find.byType(TemplateManagementScreen), findsNothing);
+
+    final withProjectContainer = _buildContainer();
+    addTearDown(withProjectContainer.dispose);
+    await withProjectContainer
+        .read(activeProjectProvider.notifier)
+        .createProject(name: 'Proyecto Router');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: withProjectContainer,
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    withProjectContainer.read(appRouterProvider).go('/project/template');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TemplateManagementScreen), findsOneWidget);
   });
 }
 

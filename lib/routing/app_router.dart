@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
+import 'package:forkumentos/features/template/presentation/template_management_screen.dart';
 import 'package:forkumentos/routing/app_shell.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:go_router/go_router.dart';
@@ -31,6 +32,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               return const ProjectWorkbenchScreen();
             },
           ),
+          GoRoute(
+            path: '/project/template',
+            builder: (BuildContext context, GoRouterState state) {
+              return const TemplateManagementScreen();
+            },
+          ),
         ],
       ),
     ],
@@ -39,7 +46,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      final isProjectRoute = state.matchedLocation == '/project';
+      final isProjectRoute = state.matchedLocation.startsWith('/project');
 
       if (hasActiveProject && !isProjectRoute) {
         return '/project';

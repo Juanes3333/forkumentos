@@ -1,6 +1,8 @@
 import 'package:forkumentos/core/logging/logging_service.dart';
 import 'package:forkumentos/core/storage/key_value_storage.dart';
 import 'package:forkumentos/core/window/window_service.dart';
+import 'package:forkumentos/features/template/domain/template.dart';
+import 'package:forkumentos/features/template/domain/template_repository.dart';
 
 final class FakeLoggingService implements LoggingService {
   final List<String> entries = <String>[];
@@ -96,5 +98,27 @@ final class FakeWindowService implements WindowService {
   @override
   Future<void> destroy() async {
     destroyed = true;
+  }
+}
+
+final class FakeTemplateRepository implements TemplateRepository {
+  FakeTemplateRepository({this.loadHandler});
+
+  Future<Template> Function(String filePath)? loadHandler;
+
+  @override
+  Future<Template> load(String filePath) async {
+    final handler = loadHandler;
+    if (handler != null) {
+      return handler(filePath);
+    }
+
+    final fileName = filePath.split(RegExp(r'[\\/]')).last;
+    return Template(
+      sourcePath: filePath,
+      fileName: fileName,
+      fileSizeBytes: 256,
+      importedAt: DateTime.utc(2026),
+    );
   }
 }

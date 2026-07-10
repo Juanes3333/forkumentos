@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/project/presentation/project_window_lifecycle.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:go_router/go_router.dart';
 
 final class AppShell extends ConsumerWidget {
   const AppShell({required this.child, super.key});
@@ -15,6 +16,9 @@ final class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activeProject = ref.watch(activeProjectProvider).valueOrNull;
+    final hasActiveProject = activeProject != null;
+    final isTemplateRoute =
+        GoRouterState.of(context).matchedLocation == '/project/template';
     final statusText = activeProject == null
         ? 'Sin proyecto activo'
         : 'Proyecto activo: ${activeProject.name}';
@@ -28,9 +32,37 @@ final class AppShell extends ConsumerWidget {
               Expanded(
                 child: Row(
                   children: <Widget>[
-                    const SizedBox(
+                    SizedBox(
                       width: _sidebarWidth,
-                      child: ColoredBox(color: AppColors.backgroundSecondary),
+                      child: ColoredBox(
+                        color: AppColors.backgroundSecondary,
+                        child: Column(
+                          children: <Widget>[
+                            const SizedBox(height: 8),
+                            if (hasActiveProject)
+                              Tooltip(
+                                message: isTemplateRoute
+                                    ? 'Volver al proyecto'
+                                    : 'Gestionar plantilla',
+                                child: IconButton(
+                                  onPressed: () {
+                                    context.go(
+                                      isTemplateRoute
+                                          ? '/project'
+                                          : '/project/template',
+                                    );
+                                  },
+                                  icon: Icon(
+                                    isTemplateRoute
+                                        ? Icons.work_outline
+                                        : Icons.description_outlined,
+                                  ),
+                                  color: AppColors.foregroundPrimary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                     const VerticalDivider(
                       width: 1,
