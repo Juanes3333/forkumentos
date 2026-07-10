@@ -3,14 +3,15 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
-import 'package:forkumentos/features/document_viewer/domain/document.dart';
-import 'package:forkumentos/features/document_viewer/domain/document_repository.dart';
+import 'package:forkumentos/shared/data/document_repository.dart';
+import 'package:forkumentos/shared/models/document.dart';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
 typedef _SerializedRun = Map<String, Object?>;
 typedef _SerializedParagraph = List<_SerializedRun>;
-typedef _SerializedPage = List<_SerializedParagraph>;
+typedef _SerializedBlock = Map<String, Object?>;
+typedef _SerializedPage = List<_SerializedBlock>;
 
 const _invalidDocxMessage = 'El archivo no es un documento DOCX válido.';
 const _invalidDocumentXmlMessage =
@@ -86,10 +87,7 @@ Map<String, Object?> _parseDocxContent(Map<String, Object?> payload) {
     'pages': <Object?>[
       for (final page in pages)
         <Object?>[
-          for (final paragraph in page)
-            <Object?>[
-              for (final run in paragraph) <String, Object?>{...run},
-            ],
+          for (final block in page) <String, Object?>{...block},
         ],
     ],
     'omissions': <Object?>[
@@ -123,21 +121,12 @@ Document _documentFromPayload(Map<String, Object?> payload) {
   final pagesList = pagesRaw is List<Object?> ? pagesRaw : const <Object?>[];
   final pages = List<DocumentPage>.generate(pagesList.length, (index) {
     final pageRaw = pagesList[index];
-    final pageParagraphsRaw = pageRaw is List<Object?>
+    final pageBlocksRaw = pageRaw is List<Object?>
         ? pageRaw
         : const <Object?>[];
 
-    final paragraphs = <DocumentParagraph>[
-      for (final paragraphRaw in pageParagraphsRaw)
-        DocumentParagraph(
-          runs: <DocumentRun>[
-            for (final runRaw
-                in (paragraphRaw is List<Object?>
-                    ? paragraphRaw
-                    : const <Object?>[]))
-              _runFromPayload(runRaw),
-          ],
-        ),
+    final blocks = <DocumentBlock>[
+      for (final blockRaw in pageBlocksRaw) _blockFromPayload(blockRaw),
     ];
 
     return DocumentPage(
@@ -145,7 +134,7 @@ Document _documentFromPayload(Map<String, Object?> payload) {
       widthPoints: widthPoints,
       heightPoints: heightPoints,
       margins: margins,
-      paragraphs: paragraphs,
+      blocks: blocks,
     );
   });
 
@@ -162,6 +151,64 @@ Document _documentFromPayload(Map<String, Object?> payload) {
   };
 
   return Document(pages: pages, omissions: omissions);
+}
+
+DocumentBlock _blockFromPayload(Object? blockRaw) {
+  final blockMap = blockRaw is Map<Object?, Object?>
+      ? blockRaw
+      : const <Object?, Object?>{};
+  final kind = blockMap['kind'] as String?;
+
+  if (kind == 'table') {
+    return DocumentBlock.table(_tableFromPayload(blockMap['rows']));
+  }
+
+  final runsRaw = blockMap['runs'];
+  final runsList = runsRaw is List<Object?> ? runsRaw : const <Object?>[];
+  return DocumentBlock.paragraph(
+    DocumentParagraph(
+      runs: <DocumentRun>[
+        for (final runRaw in runsList) _runFromPayload(runRaw),
+      ],
+    ),
+  );
+}
+
+DocumentTable _tableFromPayload(Object? rowsRaw) {
+  final rowsList = rowsRaw is List<Object?> ? rowsRaw : const <Object?>[];
+
+  return DocumentTable(
+    rows: <DocumentTableRow>[
+      for (final rowRaw in rowsList)
+        DocumentTableRow(
+          cells: <DocumentTableCell>[
+            for (final cellRaw in _rowCellsRaw(rowRaw))
+              DocumentTableCell(
+                blocks: <DocumentBlock>[
+                  for (final blockRaw in _cellBlocksRaw(cellRaw))
+                    _blockFromPayload(blockRaw),
+                ],
+              ),
+          ],
+        ),
+    ],
+  );
+}
+
+List<Object?> _rowCellsRaw(Object? rowRaw) {
+  final rowMap = rowRaw is Map<Object?, Object?>
+      ? rowRaw
+      : const <Object?, Object?>{};
+  final cellsRaw = rowMap['cells'];
+  return cellsRaw is List<Object?> ? cellsRaw : const <Object?>[];
+}
+
+List<Object?> _cellBlocksRaw(Object? cellRaw) {
+  final cellMap = cellRaw is Map<Object?, Object?>
+      ? cellRaw
+      : const <Object?, Object?>{};
+  final blocksRaw = cellMap['blocks'];
+  return blocksRaw is List<Object?> ? blocksRaw : const <Object?>[];
 }
 
 DocumentRun _runFromPayload(Object? runRaw) {
@@ -374,43 +421,104 @@ List<_SerializedPage> _extractPages(
   Set<DocumentOmission> omissions,
 ) {
   final pages = <_SerializedPage>[];
-  var currentPageParagraphs = <_SerializedParagraph>[];
+  var currentPageBlocks = <_SerializedBlock>[];
 
-  for (final child in body.childElements) {
-    final localName = child.name.local;
-    if (localName == 'tbl') {
-      omissions.add(DocumentOmission.table);
-      continue;
-    }
-    if (localName != 'p') {
-      continue;
-    }
+  for (final segment in _parseContainerBlocks(body, omissions)) {
+    currentPageBlocks = <_SerializedBlock>[
+      ...currentPageBlocks,
+      <String, Object?>{...segment.block},
+    ];
 
-    final paragraphChunks = _splitParagraphByPageBreak(child, omissions);
-    for (final chunk in paragraphChunks) {
-      currentPageParagraphs = <_SerializedParagraph>[
-        ...currentPageParagraphs,
-        <_SerializedRun>[...chunk.runs],
-      ];
-
-      if (chunk.endsWithPageBreak) {
-        pages.add(currentPageParagraphs);
-        currentPageParagraphs = <_SerializedParagraph>[];
-      }
+    if (segment.endsWithPageBreak) {
+      pages.add(currentPageBlocks);
+      currentPageBlocks = <_SerializedBlock>[];
     }
   }
 
-  if (pages.isEmpty && currentPageParagraphs.isEmpty) {
-    return <_SerializedPage>[<_SerializedParagraph>[]];
+  if (pages.isEmpty && currentPageBlocks.isEmpty) {
+    return <_SerializedPage>[<_SerializedBlock>[]];
   }
 
-  // Si el documento termina exactamente en un salto de página explícito, no
-  // queda contenido remanente: no se agrega una página final fantasma vacía.
-  if (currentPageParagraphs.isEmpty && pages.isNotEmpty) {
+  if (currentPageBlocks.isEmpty && pages.isNotEmpty) {
     return pages;
   }
 
-  return <_SerializedPage>[...pages, currentPageParagraphs];
+  return <_SerializedPage>[...pages, currentPageBlocks];
+}
+
+List<_SerializedBlockSegment> _parseContainerBlocks(
+  XmlElement container,
+  Set<DocumentOmission> omissions,
+) {
+  final segments = <_SerializedBlockSegment>[];
+
+  for (final child in container.childElements) {
+    final localName = child.name.local;
+    if (localName == 'p') {
+      final chunks = _splitParagraphByPageBreak(child, omissions);
+      for (final chunk in chunks) {
+        segments.add(
+          _SerializedBlockSegment(
+            block: <String, Object?>{
+              'kind': 'paragraph',
+              'runs': <Object?>[
+                for (final run in chunk.runs) <String, Object?>{...run},
+              ],
+            },
+            endsWithPageBreak: chunk.endsWithPageBreak,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (localName == 'tbl') {
+      segments.add(
+        _SerializedBlockSegment(
+          block: _serializeTable(child, omissions),
+          endsWithPageBreak: false,
+        ),
+      );
+    }
+  }
+
+  return segments;
+}
+
+_SerializedBlock _serializeTable(
+  XmlElement tableElement,
+  Set<DocumentOmission> omissions,
+) {
+  final rows = <Object?>[];
+
+  // ponytail: no se interpreta gridSpan/vMerge en esta versión. Cada `w:tc`
+  // se renderiza como celda independiente para mantener una implementación
+  // mínima y estable. El techo: para fidelidad visual completa de fusiones se
+  // necesitaría parseo OOXML adicional de propiedades de tabla y layout.
+  for (final rowElement in tableElement.childElements) {
+    if (rowElement.name.local != 'tr') {
+      continue;
+    }
+
+    final cells = <Object?>[];
+    for (final cellElement in rowElement.childElements) {
+      if (cellElement.name.local != 'tc') {
+        continue;
+      }
+
+      final nestedSegments = _parseContainerBlocks(cellElement, omissions);
+      cells.add(<String, Object?>{
+        'blocks': <Object?>[
+          for (final segment in nestedSegments)
+            <String, Object?>{...segment.block},
+        ],
+      });
+    }
+
+    rows.add(<String, Object?>{'cells': cells});
+  }
+
+  return <String, Object?>{'kind': 'table', 'rows': rows};
 }
 
 List<_ParagraphChunk> _splitParagraphByPageBreak(
@@ -622,5 +730,15 @@ final class _ParagraphChunk {
   const _ParagraphChunk({required this.runs, required this.endsWithPageBreak});
 
   final _SerializedParagraph runs;
+  final bool endsWithPageBreak;
+}
+
+final class _SerializedBlockSegment {
+  const _SerializedBlockSegment({
+    required this.block,
+    required this.endsWithPageBreak,
+  });
+
+  final _SerializedBlock block;
   final bool endsWithPageBreak;
 }

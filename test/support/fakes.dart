@@ -3,10 +3,10 @@ import 'package:forkumentos/core/storage/key_value_storage.dart';
 import 'package:forkumentos/core/window/window_service.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/domain/datasource_repository.dart';
-import 'package:forkumentos/features/document_viewer/domain/document.dart';
-import 'package:forkumentos/features/document_viewer/domain/document_repository.dart';
 import 'package:forkumentos/features/template/domain/template.dart';
 import 'package:forkumentos/features/template/domain/template_repository.dart';
+import 'package:forkumentos/shared/data/document_repository.dart';
+import 'package:forkumentos/shared/models/document.dart';
 
 final class FakeLoggingService implements LoggingService {
   final List<String> entries = <String>[];
@@ -178,16 +178,18 @@ final class FakeDocumentRepository implements DocumentRepository {
             bottomPoints: 72,
             leftPoints: 72,
           ),
-          paragraphs: <DocumentParagraph>[
-            DocumentParagraph(
-              runs: <DocumentRun>[
-                DocumentRun(
-                  text: 'Documento de ejemplo',
-                  isBold: false,
-                  isItalic: false,
-                  isUnderlined: false,
-                ),
-              ],
+          blocks: <DocumentBlock>[
+            DocumentBlock.paragraph(
+              DocumentParagraph(
+                runs: <DocumentRun>[
+                  DocumentRun(
+                    text: 'Documento de ejemplo',
+                    isBold: false,
+                    isItalic: false,
+                    isUnderlined: false,
+                  ),
+                ],
+              ),
             ),
           ],
         ),

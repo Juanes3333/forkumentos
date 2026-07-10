@@ -190,7 +190,7 @@ mixin _$DocumentPage {
   double get widthPoints => throw _privateConstructorUsedError;
   double get heightPoints => throw _privateConstructorUsedError;
   DocumentMargins get margins => throw _privateConstructorUsedError;
-  List<DocumentParagraph> get paragraphs => throw _privateConstructorUsedError;
+  List<DocumentBlock> get blocks => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentPage
   /// with the given fields replaced by the non-null parameter values.
@@ -211,7 +211,7 @@ abstract class $DocumentPageCopyWith<$Res> {
     double widthPoints,
     double heightPoints,
     DocumentMargins margins,
-    List<DocumentParagraph> paragraphs,
+    List<DocumentBlock> blocks,
   });
 
   $DocumentMarginsCopyWith<$Res> get margins;
@@ -236,7 +236,7 @@ class _$DocumentPageCopyWithImpl<$Res, $Val extends DocumentPage>
     Object? widthPoints = null,
     Object? heightPoints = null,
     Object? margins = null,
-    Object? paragraphs = null,
+    Object? blocks = null,
   }) {
     return _then(
       _value.copyWith(
@@ -256,10 +256,10 @@ class _$DocumentPageCopyWithImpl<$Res, $Val extends DocumentPage>
                 ? _value.margins
                 : margins // ignore: cast_nullable_to_non_nullable
                       as DocumentMargins,
-            paragraphs: null == paragraphs
-                ? _value.paragraphs
-                : paragraphs // ignore: cast_nullable_to_non_nullable
-                      as List<DocumentParagraph>,
+            blocks: null == blocks
+                ? _value.blocks
+                : blocks // ignore: cast_nullable_to_non_nullable
+                      as List<DocumentBlock>,
           )
           as $Val,
     );
@@ -290,7 +290,7 @@ abstract class _$$DocumentPageImplCopyWith<$Res>
     double widthPoints,
     double heightPoints,
     DocumentMargins margins,
-    List<DocumentParagraph> paragraphs,
+    List<DocumentBlock> blocks,
   });
 
   @override
@@ -315,7 +315,7 @@ class __$$DocumentPageImplCopyWithImpl<$Res>
     Object? widthPoints = null,
     Object? heightPoints = null,
     Object? margins = null,
-    Object? paragraphs = null,
+    Object? blocks = null,
   }) {
     return _then(
       _$DocumentPageImpl(
@@ -335,10 +335,10 @@ class __$$DocumentPageImplCopyWithImpl<$Res>
             ? _value.margins
             : margins // ignore: cast_nullable_to_non_nullable
                   as DocumentMargins,
-        paragraphs: null == paragraphs
-            ? _value._paragraphs
-            : paragraphs // ignore: cast_nullable_to_non_nullable
-                  as List<DocumentParagraph>,
+        blocks: null == blocks
+            ? _value._blocks
+            : blocks // ignore: cast_nullable_to_non_nullable
+                  as List<DocumentBlock>,
       ),
     );
   }
@@ -352,8 +352,8 @@ class _$DocumentPageImpl implements _DocumentPage {
     required this.widthPoints,
     required this.heightPoints,
     required this.margins,
-    required final List<DocumentParagraph> paragraphs,
-  }) : _paragraphs = paragraphs;
+    required final List<DocumentBlock> blocks,
+  }) : _blocks = blocks;
 
   @override
   final int number;
@@ -363,17 +363,17 @@ class _$DocumentPageImpl implements _DocumentPage {
   final double heightPoints;
   @override
   final DocumentMargins margins;
-  final List<DocumentParagraph> _paragraphs;
+  final List<DocumentBlock> _blocks;
   @override
-  List<DocumentParagraph> get paragraphs {
-    if (_paragraphs is EqualUnmodifiableListView) return _paragraphs;
+  List<DocumentBlock> get blocks {
+    if (_blocks is EqualUnmodifiableListView) return _blocks;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_paragraphs);
+    return EqualUnmodifiableListView(_blocks);
   }
 
   @override
   String toString() {
-    return 'DocumentPage(number: $number, widthPoints: $widthPoints, heightPoints: $heightPoints, margins: $margins, paragraphs: $paragraphs)';
+    return 'DocumentPage(number: $number, widthPoints: $widthPoints, heightPoints: $heightPoints, margins: $margins, blocks: $blocks)';
   }
 
   @override
@@ -387,10 +387,7 @@ class _$DocumentPageImpl implements _DocumentPage {
             (identical(other.heightPoints, heightPoints) ||
                 other.heightPoints == heightPoints) &&
             (identical(other.margins, margins) || other.margins == margins) &&
-            const DeepCollectionEquality().equals(
-              other._paragraphs,
-              _paragraphs,
-            ));
+            const DeepCollectionEquality().equals(other._blocks, _blocks));
   }
 
   @override
@@ -400,7 +397,7 @@ class _$DocumentPageImpl implements _DocumentPage {
     widthPoints,
     heightPoints,
     margins,
-    const DeepCollectionEquality().hash(_paragraphs),
+    const DeepCollectionEquality().hash(_blocks),
   );
 
   /// Create a copy of DocumentPage
@@ -418,7 +415,7 @@ abstract class _DocumentPage implements DocumentPage {
     required final double widthPoints,
     required final double heightPoints,
     required final DocumentMargins margins,
-    required final List<DocumentParagraph> paragraphs,
+    required final List<DocumentBlock> blocks,
   }) = _$DocumentPageImpl;
 
   @override
@@ -430,7 +427,7 @@ abstract class _DocumentPage implements DocumentPage {
   @override
   DocumentMargins get margins;
   @override
-  List<DocumentParagraph> get paragraphs;
+  List<DocumentBlock> get blocks;
 
   /// Create a copy of DocumentPage
   /// with the given fields replaced by the non-null parameter values.
@@ -654,6 +651,810 @@ abstract class _DocumentMargins implements DocumentMargins {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$DocumentMarginsImplCopyWith<_$DocumentMarginsImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+mixin _$DocumentBlock {
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(DocumentParagraph paragraph) paragraph,
+    required TResult Function(DocumentTable table) table,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(DocumentParagraph paragraph)? paragraph,
+    TResult? Function(DocumentTable table)? table,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(DocumentParagraph paragraph)? paragraph,
+    TResult Function(DocumentTable table)? table,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(DocumentParagraphBlock value) paragraph,
+    required TResult Function(DocumentTableBlock value) table,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(DocumentParagraphBlock value)? paragraph,
+    TResult? Function(DocumentTableBlock value)? table,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(DocumentParagraphBlock value)? paragraph,
+    TResult Function(DocumentTableBlock value)? table,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $DocumentBlockCopyWith<$Res> {
+  factory $DocumentBlockCopyWith(
+    DocumentBlock value,
+    $Res Function(DocumentBlock) then,
+  ) = _$DocumentBlockCopyWithImpl<$Res, DocumentBlock>;
+}
+
+/// @nodoc
+class _$DocumentBlockCopyWithImpl<$Res, $Val extends DocumentBlock>
+    implements $DocumentBlockCopyWith<$Res> {
+  _$DocumentBlockCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+abstract class _$$DocumentParagraphBlockImplCopyWith<$Res> {
+  factory _$$DocumentParagraphBlockImplCopyWith(
+    _$DocumentParagraphBlockImpl value,
+    $Res Function(_$DocumentParagraphBlockImpl) then,
+  ) = __$$DocumentParagraphBlockImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({DocumentParagraph paragraph});
+
+  $DocumentParagraphCopyWith<$Res> get paragraph;
+}
+
+/// @nodoc
+class __$$DocumentParagraphBlockImplCopyWithImpl<$Res>
+    extends _$DocumentBlockCopyWithImpl<$Res, _$DocumentParagraphBlockImpl>
+    implements _$$DocumentParagraphBlockImplCopyWith<$Res> {
+  __$$DocumentParagraphBlockImplCopyWithImpl(
+    _$DocumentParagraphBlockImpl _value,
+    $Res Function(_$DocumentParagraphBlockImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? paragraph = null}) {
+    return _then(
+      _$DocumentParagraphBlockImpl(
+        null == paragraph
+            ? _value.paragraph
+            : paragraph // ignore: cast_nullable_to_non_nullable
+                  as DocumentParagraph,
+      ),
+    );
+  }
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $DocumentParagraphCopyWith<$Res> get paragraph {
+    return $DocumentParagraphCopyWith<$Res>(_value.paragraph, (value) {
+      return _then(_value.copyWith(paragraph: value));
+    });
+  }
+}
+
+/// @nodoc
+
+class _$DocumentParagraphBlockImpl implements DocumentParagraphBlock {
+  const _$DocumentParagraphBlockImpl(this.paragraph);
+
+  @override
+  final DocumentParagraph paragraph;
+
+  @override
+  String toString() {
+    return 'DocumentBlock.paragraph(paragraph: $paragraph)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DocumentParagraphBlockImpl &&
+            (identical(other.paragraph, paragraph) ||
+                other.paragraph == paragraph));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, paragraph);
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DocumentParagraphBlockImplCopyWith<_$DocumentParagraphBlockImpl>
+  get copyWith =>
+      __$$DocumentParagraphBlockImplCopyWithImpl<_$DocumentParagraphBlockImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(DocumentParagraph paragraph) paragraph,
+    required TResult Function(DocumentTable table) table,
+  }) {
+    return paragraph(this.paragraph);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(DocumentParagraph paragraph)? paragraph,
+    TResult? Function(DocumentTable table)? table,
+  }) {
+    return paragraph?.call(this.paragraph);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(DocumentParagraph paragraph)? paragraph,
+    TResult Function(DocumentTable table)? table,
+    required TResult orElse(),
+  }) {
+    if (paragraph != null) {
+      return paragraph(this.paragraph);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(DocumentParagraphBlock value) paragraph,
+    required TResult Function(DocumentTableBlock value) table,
+  }) {
+    return paragraph(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(DocumentParagraphBlock value)? paragraph,
+    TResult? Function(DocumentTableBlock value)? table,
+  }) {
+    return paragraph?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(DocumentParagraphBlock value)? paragraph,
+    TResult Function(DocumentTableBlock value)? table,
+    required TResult orElse(),
+  }) {
+    if (paragraph != null) {
+      return paragraph(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class DocumentParagraphBlock implements DocumentBlock {
+  const factory DocumentParagraphBlock(final DocumentParagraph paragraph) =
+      _$DocumentParagraphBlockImpl;
+
+  DocumentParagraph get paragraph;
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$DocumentParagraphBlockImplCopyWith<_$DocumentParagraphBlockImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$DocumentTableBlockImplCopyWith<$Res> {
+  factory _$$DocumentTableBlockImplCopyWith(
+    _$DocumentTableBlockImpl value,
+    $Res Function(_$DocumentTableBlockImpl) then,
+  ) = __$$DocumentTableBlockImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({DocumentTable table});
+
+  $DocumentTableCopyWith<$Res> get table;
+}
+
+/// @nodoc
+class __$$DocumentTableBlockImplCopyWithImpl<$Res>
+    extends _$DocumentBlockCopyWithImpl<$Res, _$DocumentTableBlockImpl>
+    implements _$$DocumentTableBlockImplCopyWith<$Res> {
+  __$$DocumentTableBlockImplCopyWithImpl(
+    _$DocumentTableBlockImpl _value,
+    $Res Function(_$DocumentTableBlockImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? table = null}) {
+    return _then(
+      _$DocumentTableBlockImpl(
+        null == table
+            ? _value.table
+            : table // ignore: cast_nullable_to_non_nullable
+                  as DocumentTable,
+      ),
+    );
+  }
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $DocumentTableCopyWith<$Res> get table {
+    return $DocumentTableCopyWith<$Res>(_value.table, (value) {
+      return _then(_value.copyWith(table: value));
+    });
+  }
+}
+
+/// @nodoc
+
+class _$DocumentTableBlockImpl implements DocumentTableBlock {
+  const _$DocumentTableBlockImpl(this.table);
+
+  @override
+  final DocumentTable table;
+
+  @override
+  String toString() {
+    return 'DocumentBlock.table(table: $table)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DocumentTableBlockImpl &&
+            (identical(other.table, table) || other.table == table));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, table);
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DocumentTableBlockImplCopyWith<_$DocumentTableBlockImpl> get copyWith =>
+      __$$DocumentTableBlockImplCopyWithImpl<_$DocumentTableBlockImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(DocumentParagraph paragraph) paragraph,
+    required TResult Function(DocumentTable table) table,
+  }) {
+    return table(this.table);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(DocumentParagraph paragraph)? paragraph,
+    TResult? Function(DocumentTable table)? table,
+  }) {
+    return table?.call(this.table);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(DocumentParagraph paragraph)? paragraph,
+    TResult Function(DocumentTable table)? table,
+    required TResult orElse(),
+  }) {
+    if (table != null) {
+      return table(this.table);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(DocumentParagraphBlock value) paragraph,
+    required TResult Function(DocumentTableBlock value) table,
+  }) {
+    return table(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(DocumentParagraphBlock value)? paragraph,
+    TResult? Function(DocumentTableBlock value)? table,
+  }) {
+    return table?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(DocumentParagraphBlock value)? paragraph,
+    TResult Function(DocumentTableBlock value)? table,
+    required TResult orElse(),
+  }) {
+    if (table != null) {
+      return table(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class DocumentTableBlock implements DocumentBlock {
+  const factory DocumentTableBlock(final DocumentTable table) =
+      _$DocumentTableBlockImpl;
+
+  DocumentTable get table;
+
+  /// Create a copy of DocumentBlock
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$DocumentTableBlockImplCopyWith<_$DocumentTableBlockImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+mixin _$DocumentTable {
+  List<DocumentTableRow> get rows => throw _privateConstructorUsedError;
+
+  /// Create a copy of DocumentTable
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $DocumentTableCopyWith<DocumentTable> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $DocumentTableCopyWith<$Res> {
+  factory $DocumentTableCopyWith(
+    DocumentTable value,
+    $Res Function(DocumentTable) then,
+  ) = _$DocumentTableCopyWithImpl<$Res, DocumentTable>;
+  @useResult
+  $Res call({List<DocumentTableRow> rows});
+}
+
+/// @nodoc
+class _$DocumentTableCopyWithImpl<$Res, $Val extends DocumentTable>
+    implements $DocumentTableCopyWith<$Res> {
+  _$DocumentTableCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of DocumentTable
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? rows = null}) {
+    return _then(
+      _value.copyWith(
+            rows: null == rows
+                ? _value.rows
+                : rows // ignore: cast_nullable_to_non_nullable
+                      as List<DocumentTableRow>,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$DocumentTableImplCopyWith<$Res>
+    implements $DocumentTableCopyWith<$Res> {
+  factory _$$DocumentTableImplCopyWith(
+    _$DocumentTableImpl value,
+    $Res Function(_$DocumentTableImpl) then,
+  ) = __$$DocumentTableImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<DocumentTableRow> rows});
+}
+
+/// @nodoc
+class __$$DocumentTableImplCopyWithImpl<$Res>
+    extends _$DocumentTableCopyWithImpl<$Res, _$DocumentTableImpl>
+    implements _$$DocumentTableImplCopyWith<$Res> {
+  __$$DocumentTableImplCopyWithImpl(
+    _$DocumentTableImpl _value,
+    $Res Function(_$DocumentTableImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of DocumentTable
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? rows = null}) {
+    return _then(
+      _$DocumentTableImpl(
+        rows: null == rows
+            ? _value._rows
+            : rows // ignore: cast_nullable_to_non_nullable
+                  as List<DocumentTableRow>,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$DocumentTableImpl implements _DocumentTable {
+  const _$DocumentTableImpl({required final List<DocumentTableRow> rows})
+    : _rows = rows;
+
+  final List<DocumentTableRow> _rows;
+  @override
+  List<DocumentTableRow> get rows {
+    if (_rows is EqualUnmodifiableListView) return _rows;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_rows);
+  }
+
+  @override
+  String toString() {
+    return 'DocumentTable(rows: $rows)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DocumentTableImpl &&
+            const DeepCollectionEquality().equals(other._rows, _rows));
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_rows));
+
+  /// Create a copy of DocumentTable
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DocumentTableImplCopyWith<_$DocumentTableImpl> get copyWith =>
+      __$$DocumentTableImplCopyWithImpl<_$DocumentTableImpl>(this, _$identity);
+}
+
+abstract class _DocumentTable implements DocumentTable {
+  const factory _DocumentTable({required final List<DocumentTableRow> rows}) =
+      _$DocumentTableImpl;
+
+  @override
+  List<DocumentTableRow> get rows;
+
+  /// Create a copy of DocumentTable
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$DocumentTableImplCopyWith<_$DocumentTableImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+mixin _$DocumentTableRow {
+  List<DocumentTableCell> get cells => throw _privateConstructorUsedError;
+
+  /// Create a copy of DocumentTableRow
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $DocumentTableRowCopyWith<DocumentTableRow> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $DocumentTableRowCopyWith<$Res> {
+  factory $DocumentTableRowCopyWith(
+    DocumentTableRow value,
+    $Res Function(DocumentTableRow) then,
+  ) = _$DocumentTableRowCopyWithImpl<$Res, DocumentTableRow>;
+  @useResult
+  $Res call({List<DocumentTableCell> cells});
+}
+
+/// @nodoc
+class _$DocumentTableRowCopyWithImpl<$Res, $Val extends DocumentTableRow>
+    implements $DocumentTableRowCopyWith<$Res> {
+  _$DocumentTableRowCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of DocumentTableRow
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? cells = null}) {
+    return _then(
+      _value.copyWith(
+            cells: null == cells
+                ? _value.cells
+                : cells // ignore: cast_nullable_to_non_nullable
+                      as List<DocumentTableCell>,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$DocumentTableRowImplCopyWith<$Res>
+    implements $DocumentTableRowCopyWith<$Res> {
+  factory _$$DocumentTableRowImplCopyWith(
+    _$DocumentTableRowImpl value,
+    $Res Function(_$DocumentTableRowImpl) then,
+  ) = __$$DocumentTableRowImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<DocumentTableCell> cells});
+}
+
+/// @nodoc
+class __$$DocumentTableRowImplCopyWithImpl<$Res>
+    extends _$DocumentTableRowCopyWithImpl<$Res, _$DocumentTableRowImpl>
+    implements _$$DocumentTableRowImplCopyWith<$Res> {
+  __$$DocumentTableRowImplCopyWithImpl(
+    _$DocumentTableRowImpl _value,
+    $Res Function(_$DocumentTableRowImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of DocumentTableRow
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? cells = null}) {
+    return _then(
+      _$DocumentTableRowImpl(
+        cells: null == cells
+            ? _value._cells
+            : cells // ignore: cast_nullable_to_non_nullable
+                  as List<DocumentTableCell>,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$DocumentTableRowImpl implements _DocumentTableRow {
+  const _$DocumentTableRowImpl({required final List<DocumentTableCell> cells})
+    : _cells = cells;
+
+  final List<DocumentTableCell> _cells;
+  @override
+  List<DocumentTableCell> get cells {
+    if (_cells is EqualUnmodifiableListView) return _cells;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_cells);
+  }
+
+  @override
+  String toString() {
+    return 'DocumentTableRow(cells: $cells)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DocumentTableRowImpl &&
+            const DeepCollectionEquality().equals(other._cells, _cells));
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_cells));
+
+  /// Create a copy of DocumentTableRow
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DocumentTableRowImplCopyWith<_$DocumentTableRowImpl> get copyWith =>
+      __$$DocumentTableRowImplCopyWithImpl<_$DocumentTableRowImpl>(
+        this,
+        _$identity,
+      );
+}
+
+abstract class _DocumentTableRow implements DocumentTableRow {
+  const factory _DocumentTableRow({
+    required final List<DocumentTableCell> cells,
+  }) = _$DocumentTableRowImpl;
+
+  @override
+  List<DocumentTableCell> get cells;
+
+  /// Create a copy of DocumentTableRow
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$DocumentTableRowImplCopyWith<_$DocumentTableRowImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+mixin _$DocumentTableCell {
+  List<DocumentBlock> get blocks => throw _privateConstructorUsedError;
+
+  /// Create a copy of DocumentTableCell
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $DocumentTableCellCopyWith<DocumentTableCell> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $DocumentTableCellCopyWith<$Res> {
+  factory $DocumentTableCellCopyWith(
+    DocumentTableCell value,
+    $Res Function(DocumentTableCell) then,
+  ) = _$DocumentTableCellCopyWithImpl<$Res, DocumentTableCell>;
+  @useResult
+  $Res call({List<DocumentBlock> blocks});
+}
+
+/// @nodoc
+class _$DocumentTableCellCopyWithImpl<$Res, $Val extends DocumentTableCell>
+    implements $DocumentTableCellCopyWith<$Res> {
+  _$DocumentTableCellCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of DocumentTableCell
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? blocks = null}) {
+    return _then(
+      _value.copyWith(
+            blocks: null == blocks
+                ? _value.blocks
+                : blocks // ignore: cast_nullable_to_non_nullable
+                      as List<DocumentBlock>,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$DocumentTableCellImplCopyWith<$Res>
+    implements $DocumentTableCellCopyWith<$Res> {
+  factory _$$DocumentTableCellImplCopyWith(
+    _$DocumentTableCellImpl value,
+    $Res Function(_$DocumentTableCellImpl) then,
+  ) = __$$DocumentTableCellImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<DocumentBlock> blocks});
+}
+
+/// @nodoc
+class __$$DocumentTableCellImplCopyWithImpl<$Res>
+    extends _$DocumentTableCellCopyWithImpl<$Res, _$DocumentTableCellImpl>
+    implements _$$DocumentTableCellImplCopyWith<$Res> {
+  __$$DocumentTableCellImplCopyWithImpl(
+    _$DocumentTableCellImpl _value,
+    $Res Function(_$DocumentTableCellImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of DocumentTableCell
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? blocks = null}) {
+    return _then(
+      _$DocumentTableCellImpl(
+        blocks: null == blocks
+            ? _value._blocks
+            : blocks // ignore: cast_nullable_to_non_nullable
+                  as List<DocumentBlock>,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$DocumentTableCellImpl implements _DocumentTableCell {
+  const _$DocumentTableCellImpl({required final List<DocumentBlock> blocks})
+    : _blocks = blocks;
+
+  final List<DocumentBlock> _blocks;
+  @override
+  List<DocumentBlock> get blocks {
+    if (_blocks is EqualUnmodifiableListView) return _blocks;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_blocks);
+  }
+
+  @override
+  String toString() {
+    return 'DocumentTableCell(blocks: $blocks)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DocumentTableCellImpl &&
+            const DeepCollectionEquality().equals(other._blocks, _blocks));
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_blocks));
+
+  /// Create a copy of DocumentTableCell
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DocumentTableCellImplCopyWith<_$DocumentTableCellImpl> get copyWith =>
+      __$$DocumentTableCellImplCopyWithImpl<_$DocumentTableCellImpl>(
+        this,
+        _$identity,
+      );
+}
+
+abstract class _DocumentTableCell implements DocumentTableCell {
+  const factory _DocumentTableCell({
+    required final List<DocumentBlock> blocks,
+  }) = _$DocumentTableCellImpl;
+
+  @override
+  List<DocumentBlock> get blocks;
+
+  /// Create a copy of DocumentTableCell
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$DocumentTableCellImplCopyWith<_$DocumentTableCellImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

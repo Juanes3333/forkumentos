@@ -2,8 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:forkumentos/features/document_viewer/domain/document.dart';
-import 'package:forkumentos/features/document_viewer/presentation/document_content_provider.dart';
+import 'package:forkumentos/shared/models/document.dart';
+import 'package:forkumentos/shared/models/document_text_path.dart';
+import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
+import 'package:forkumentos/shared/providers/document_content_provider.dart';
+import 'package:forkumentos/shared/widgets/mapping_aware_paragraph.dart';
 
 const _zoomSteps = <double>[0.5, 0.75, 1, 1.25, 1.5, 2];
 const _defaultZoomStepIndex = 2;
@@ -17,12 +20,16 @@ final class DocumentViewerScreen extends ConsumerStatefulWidget {
     required this.documentPath,
     required this.isSourceLoading,
     this.sourceErrorMessage,
+    this.showToolbar = true,
+    this.viewerOverlay,
     super.key,
   });
 
   final String? documentPath;
   final bool isSourceLoading;
   final String? sourceErrorMessage;
+  final bool showToolbar;
+  final DocumentViewerOverlay? viewerOverlay;
 
   @override
   ConsumerState<DocumentViewerScreen> createState() =>
@@ -134,23 +141,24 @@ final class _DocumentViewerScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          _DocumentToolbar(
-            currentPageNumber: currentPageNumber,
-            pageCount: pageCount,
-            zoomPercentage: (_lastKnownScale * 100).round(),
-            canGoToPreviousPage: _currentPageIndex > 0,
-            canGoToNextPage: _currentPageIndex < pageCount - 1,
-            isFitWidthSelected: _zoomMode == _ZoomMode.fitWidth,
-            isFitPageSelected: _zoomMode == _ZoomMode.fitPage,
-            onPreviousPage: () => _goToPage(_currentPageIndex - 1),
-            onNextPage: () => _goToPage(_currentPageIndex + 1),
-            onZoomOut: _zoomOut,
-            onZoomIn: _zoomIn,
-            onFitWidth: _selectFitWidth,
-            onFitPage: _selectFitPage,
-          ),
+          if (widget.showToolbar)
+            _DocumentToolbar(
+              currentPageNumber: currentPageNumber,
+              pageCount: pageCount,
+              zoomPercentage: (_lastKnownScale * 100).round(),
+              canGoToPreviousPage: _currentPageIndex > 0,
+              canGoToNextPage: _currentPageIndex < pageCount - 1,
+              isFitWidthSelected: _zoomMode == _ZoomMode.fitWidth,
+              isFitPageSelected: _zoomMode == _ZoomMode.fitPage,
+              onPreviousPage: () => _goToPage(_currentPageIndex - 1),
+              onNextPage: () => _goToPage(_currentPageIndex + 1),
+              onZoomOut: _zoomOut,
+              onZoomIn: _zoomIn,
+              onFitWidth: _selectFitWidth,
+              onFitPage: _selectFitPage,
+            ),
           if (document.omissions.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 8),
+            if (widget.showToolbar) const SizedBox(height: 8),
             _InlineInfo(message: _buildOmissionsMessage(document.omissions)),
           ],
           const SizedBox(height: 8),
@@ -198,8 +206,10 @@ final class _DocumentViewerScreenState
                                     key: _pageKeys[index],
                                     alignment: Alignment.topCenter,
                                     child: _DocumentPageSheet(
+                                      pageIndex: index,
                                       page: document.pages[index],
                                       scale: effectiveScale,
+                                      viewerOverlay: widget.viewerOverlay,
                                     ),
                                   ),
                                   if (index < document.pages.length - 1)
@@ -460,7 +470,7 @@ final class _DocumentViewerScreenState
 }
 
 String _resolveDocumentErrorMessage(Object? error) {
-  if (error is DocumentViewerException) {
+  if (error is DocumentContentException) {
     return error.message;
   }
   return 'No se pudo cargar la vista del documento.';
@@ -471,7 +481,6 @@ String _buildOmissionsMessage(Set<DocumentOmission> omissions) {
     for (final omission
         in omissions.toList()..sort((a, b) => a.index - b.index))
       switch (omission) {
-        DocumentOmission.table => 'tablas',
         DocumentOmission.image => 'imágenes',
         DocumentOmission.headerFooter => 'encabezados o pies de página',
         DocumentOmission.footnote => 'notas al pie',
@@ -597,10 +606,17 @@ final class _DocumentToolbar extends StatelessWidget {
 }
 
 final class _DocumentPageSheet extends StatelessWidget {
-  const _DocumentPageSheet({required this.page, required this.scale});
+  const _DocumentPageSheet({
+    required this.pageIndex,
+    required this.page,
+    required this.scale,
+    this.viewerOverlay,
+  });
 
+  final int pageIndex;
   final DocumentPage page;
   final double scale;
+  final DocumentViewerOverlay? viewerOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -639,35 +655,162 @@ final class _DocumentPageSheet extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              for (final paragraph in page.paragraphs)
-                paragraph.runs.isEmpty
-                    ? SizedBox(height: scaledLineHeight)
-                    : RichText(
-                        text: TextSpan(
-                          style: scaledBodyStyle.copyWith(color: Colors.black),
-                          children: <InlineSpan>[
-                            for (final run in paragraph.runs)
-                              TextSpan(
-                                text: run.text,
-                                style: TextStyle(
-                                  fontWeight: run.isBold
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  fontStyle: run.isItalic
-                                      ? FontStyle.italic
-                                      : FontStyle.normal,
-                                  decoration: run.isUnderlined
-                                      ? TextDecoration.underline
-                                      : TextDecoration.none,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
+              for (
+                var blockIndex = 0;
+                blockIndex < page.blocks.length;
+                blockIndex++
+              )
+                _DocumentBlockWidget(
+                  pageIndex: pageIndex,
+                  rootBlockIndex: blockIndex,
+                  block: page.blocks[blockIndex],
+                  textStyle: scaledBodyStyle,
+                  emptyParagraphHeight: scaledLineHeight,
+                  viewerOverlay: viewerOverlay,
+                ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+final class _DocumentBlockWidget extends StatelessWidget {
+  const _DocumentBlockWidget({
+    required this.pageIndex,
+    required this.rootBlockIndex,
+    required this.block,
+    required this.textStyle,
+    required this.emptyParagraphHeight,
+    this.viewerOverlay,
+    this.prefixSteps = const <DocumentPathStep>[],
+  });
+
+  final int pageIndex;
+  final int rootBlockIndex;
+  final DocumentBlock block;
+  final TextStyle textStyle;
+  final double emptyParagraphHeight;
+  final DocumentViewerOverlay? viewerOverlay;
+  final List<DocumentPathStep> prefixSteps;
+
+  DocumentTextPath _pathForParagraph() {
+    return DocumentTextPath(
+      pageIndex: pageIndex,
+      steps: <DocumentPathStep>[
+        DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
+        ...prefixSteps,
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (block) {
+      DocumentParagraphBlock(:final paragraph) => MappingAwareParagraph(
+        path: _pathForParagraph(),
+        paragraph: paragraph,
+        textStyle: textStyle,
+        emptyParagraphHeight: emptyParagraphHeight,
+        highlights:
+            viewerOverlay?.highlightBuilder(_pathForParagraph()) ??
+            const <ParagraphHighlightSegment>[],
+        onTextSelected: viewerOverlay?.onTextSelected,
+      ),
+      DocumentTableBlock(:final table) => Padding(
+        padding: EdgeInsets.only(bottom: emptyParagraphHeight * 0.25),
+        child: _DocumentTableWidget(
+          pageIndex: pageIndex,
+          rootBlockIndex: rootBlockIndex,
+          table: table,
+          textStyle: textStyle,
+          emptyParagraphHeight: emptyParagraphHeight,
+          viewerOverlay: viewerOverlay,
+        ),
+      ),
+    };
+  }
+}
+
+final class _DocumentTableWidget extends StatelessWidget {
+  const _DocumentTableWidget({
+    required this.pageIndex,
+    required this.rootBlockIndex,
+    required this.table,
+    required this.textStyle,
+    required this.emptyParagraphHeight,
+    this.viewerOverlay,
+  });
+
+  final int pageIndex;
+  final int rootBlockIndex;
+  final DocumentTable table;
+  final TextStyle textStyle;
+  final double emptyParagraphHeight;
+  final DocumentViewerOverlay? viewerOverlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxColumns = table.rows.fold<int>(
+      0,
+      (currentMax, row) => math.max(currentMax, row.cells.length),
+    );
+
+    if (maxColumns == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final borderColor = Theme.of(context).colorScheme.outlineVariant;
+    return Table(
+      border: TableBorder.all(color: borderColor, width: 0.6),
+      children: <TableRow>[
+        for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
+          TableRow(
+            children: <Widget>[
+              for (var cellIndex = 0; cellIndex < maxColumns; cellIndex++)
+                if (cellIndex < table.rows[rowIndex].cells.length)
+                  Padding(
+                    padding: EdgeInsets.all(emptyParagraphHeight * 0.25),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        for (
+                          var innerBlockIndex = 0;
+                          innerBlockIndex <
+                              table
+                                  .rows[rowIndex]
+                                  .cells[cellIndex]
+                                  .blocks
+                                  .length;
+                          innerBlockIndex++
+                        )
+                          _DocumentBlockWidget(
+                            pageIndex: pageIndex,
+                            rootBlockIndex: rootBlockIndex,
+                            block: table
+                                .rows[rowIndex]
+                                .cells[cellIndex]
+                                .blocks[innerBlockIndex],
+                            textStyle: textStyle,
+                            emptyParagraphHeight: emptyParagraphHeight,
+                            viewerOverlay: viewerOverlay,
+                            prefixSteps: <DocumentPathStep>[
+                              DocumentPathStep.cellBlock(
+                                rowIndex: rowIndex,
+                                cellIndex: cellIndex,
+                                blockIndex: innerBlockIndex,
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  )
+                else
+                  const SizedBox.shrink(),
+            ],
+          ),
+      ],
     );
   }
 }

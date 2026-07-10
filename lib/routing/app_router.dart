@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/datasource/presentation/datasource_management_screen.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
+import 'package:forkumentos/features/mapping/presentation/mapping_assistant_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
 import 'package:forkumentos/features/project/presentation/project_workbench_screen.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
@@ -53,6 +55,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               return const _DocumentViewerRoute();
             },
           ),
+          GoRoute(
+            path: '/project/mapping',
+            builder: (BuildContext context, GoRouterState state) {
+              return const _MappingAssistantRoute();
+            },
+          ),
         ],
       ),
     ],
@@ -101,4 +109,39 @@ String? _resolveTemplateErrorMessage(Object? error) {
   }
 
   return 'No se pudo cargar la plantilla activa.';
+}
+
+final class _MappingAssistantRoute extends ConsumerWidget {
+  const _MappingAssistantRoute();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final templateState = ref.watch(activeTemplateProvider);
+    final datasourceState = ref.watch(activeDatasourceProvider);
+    final datasource = datasourceState.valueOrNull;
+
+    final sourceError =
+        _resolveTemplateErrorMessage(templateState.error) ??
+        _resolveDatasourceErrorMessage(datasourceState.error);
+
+    return MappingAssistantScreen(
+      documentPath: templateState.valueOrNull?.sourcePath,
+      headers: datasource?.headers ?? const <String>[],
+      previewRow: datasource?.previewRow ?? const <String?>[],
+      isSourceLoading: templateState.isLoading || datasourceState.isLoading,
+      sourceErrorMessage: sourceError,
+    );
+  }
+}
+
+String? _resolveDatasourceErrorMessage(Object? error) {
+  if (error == null) {
+    return null;
+  }
+
+  if (error is DatasourceLifecycleException) {
+    return error.message;
+  }
+
+  return 'No se pudo cargar la fuente de datos activa.';
 }

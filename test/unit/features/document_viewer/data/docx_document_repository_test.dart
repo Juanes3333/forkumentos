@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:forkumentos/features/document_viewer/data/docx_document_repository.dart';
-import 'package:forkumentos/features/document_viewer/domain/document.dart';
+import 'package:forkumentos/shared/data/docx_document_repository.dart';
+import 'package:forkumentos/shared/models/document.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -39,7 +39,7 @@ void main() {
     final document = await repository.load(filePath);
 
     expect(document.pages, hasLength(1));
-    final runs = document.pages.single.paragraphs.single.runs;
+    final runs = _paragraphs(document.pages.single).single.runs;
     expect(runs, hasLength(3));
     expect(
       runs[0],
@@ -87,10 +87,10 @@ void main() {
     final document = await repository.load(filePath);
 
     expect(document.pages, hasLength(2));
-    expect(document.pages[0].paragraphs, hasLength(1));
-    expect(document.pages[0].paragraphs[0].runs.single.text, 'Antes');
-    expect(document.pages[1].paragraphs, hasLength(1));
-    expect(document.pages[1].paragraphs[0].runs.single.text, 'Después');
+    expect(_paragraphs(document.pages[0]), hasLength(1));
+    expect(_paragraphs(document.pages[0]).single.runs.single.text, 'Antes');
+    expect(_paragraphs(document.pages[1]), hasLength(1));
+    expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Después');
   });
 
   test('salto de página final no genera una página fantasma vacía', () async {
@@ -110,7 +110,7 @@ void main() {
     final document = await repository.load(filePath);
 
     expect(document.pages, hasLength(1));
-    final runs = document.pages[0].paragraphs[0].runs;
+    final runs = _paragraphs(document.pages[0]).single.runs;
     expect(runs.map((run) => run.text), <String>['Antes', 'Después']);
   });
 
@@ -137,8 +137,8 @@ void main() {
 
     final document = await repository.load(filePath);
 
-    expect(document.pages.single.paragraphs, hasLength(1));
-    expect(document.pages.single.paragraphs.single.runs, isEmpty);
+    expect(_paragraphs(document.pages.single), hasLength(1));
+    expect(_paragraphs(document.pages.single).single.runs, isEmpty);
   });
 
   test('excluye texto oculto por w:vanish', () async {
@@ -159,11 +159,14 @@ void main() {
 
     final document = await repository.load(filePath);
 
-    expect(document.pages.single.paragraphs.single.runs, hasLength(1));
-    expect(document.pages.single.paragraphs.single.runs.single.text, 'Visible');
+    expect(_paragraphs(document.pages.single).single.runs, hasLength(1));
+    expect(
+      _paragraphs(document.pages.single).single.runs.single.text,
+      'Visible',
+    );
   });
 
-  test('w:tbl agrega omisión table y no incluye contenido de tabla', () async {
+  test('w:tbl parsea contenido de tabla como bloque', () async {
     final filePath = p.join(tempDirectory.path, 'tabla.docx');
     await File(filePath).writeAsBytes(
       _buildDocxBytes(
@@ -178,9 +181,13 @@ void main() {
 
     final document = await repository.load(filePath);
 
-    expect(document.omissions.contains(DocumentOmission.table), isTrue);
-    expect(document.pages.single.paragraphs, hasLength(1));
-    expect(document.pages.single.paragraphs.single.runs.single.text, 'Visible');
+    expect(document.pages.single.blocks, hasLength(2));
+    expect(document.pages.single.blocks.first, isA<DocumentTableBlock>());
+    expect(document.pages.single.blocks.last, isA<DocumentParagraphBlock>());
+    expect(
+      _paragraphs(document.pages.single).single.runs.single.text,
+      'Visible',
+    );
   });
 
   test('run con w:drawing agrega omisión image', () async {
@@ -314,6 +321,13 @@ void main() {
       ),
     );
   });
+}
+
+List<DocumentParagraph> _paragraphs(DocumentPage page) {
+  return <DocumentParagraph>[
+    for (final block in page.blocks)
+      if (block case DocumentParagraphBlock(:final paragraph)) paragraph,
+  ];
 }
 
 String _documentWithBody(String bodyContent) {

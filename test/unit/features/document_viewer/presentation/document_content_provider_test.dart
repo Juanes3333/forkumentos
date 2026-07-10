@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/features/document_viewer/data/document_repository_provider.dart';
-import 'package:forkumentos/features/document_viewer/domain/document.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_content_provider.dart';
+import 'package:forkumentos/shared/models/document.dart';
 
 import '../../../../support/fakes.dart';
 
@@ -18,13 +18,10 @@ void main() {
       documentContentProvider('/tmp/plantilla.docx').future,
     );
 
-    expect(
-      document.pages.single.paragraphs.single.runs.single.text,
-      '/tmp/plantilla.docx',
-    );
+    expect(_firstParagraphText(document.pages.single), '/tmp/plantilla.docx');
   });
 
-  test('clasifica errores como DocumentViewerException', () async {
+  test('clasifica errores como DocumentContentException', () async {
     final fakeRepository = FakeDocumentRepository(
       loadHandler: (_) async => throw const FormatException('DOCX inválido'),
     );
@@ -34,7 +31,7 @@ void main() {
     await expectLater(
       container.read(documentContentProvider('/tmp/invalido.docx').future),
       throwsA(
-        isA<DocumentViewerException>().having(
+        isA<DocumentContentException>().having(
           (error) => error.message,
           'message',
           'DOCX inválido',
@@ -61,14 +58,8 @@ void main() {
       documentContentProvider('/tmp/b.docx').future,
     );
 
-    expect(
-      first.pages.single.paragraphs.single.runs.single.text,
-      '/tmp/a.docx',
-    );
-    expect(
-      second.pages.single.paragraphs.single.runs.single.text,
-      '/tmp/b.docx',
-    );
+    expect(_firstParagraphText(first.pages.single), '/tmp/a.docx');
+    expect(_firstParagraphText(second.pages.single), '/tmp/b.docx');
     expect(
       loadedPaths,
       containsAllInOrder(<String>['/tmp/a.docx', '/tmp/b.docx']),
@@ -133,20 +124,32 @@ Document _buildDocument({required String text}) {
           bottomPoints: 72,
           leftPoints: 72,
         ),
-        paragraphs: <DocumentParagraph>[
-          DocumentParagraph(
-            runs: <DocumentRun>[
-              DocumentRun(
-                text: text,
-                isBold: false,
-                isItalic: false,
-                isUnderlined: false,
-              ),
-            ],
+        blocks: <DocumentBlock>[
+          DocumentBlock.paragraph(
+            DocumentParagraph(
+              runs: <DocumentRun>[
+                DocumentRun(
+                  text: text,
+                  isBold: false,
+                  isItalic: false,
+                  isUnderlined: false,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     ],
     omissions: const <DocumentOmission>{},
   );
+}
+
+String _firstParagraphText(DocumentPage page) {
+  for (final block in page.blocks) {
+    if (block case DocumentParagraphBlock(:final paragraph)) {
+      return paragraph.runs.single.text;
+    }
+  }
+
+  throw StateError('La página no contiene párrafos.');
 }

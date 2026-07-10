@@ -1,4 +1,4 @@
-import 'package:forkumentos/features/document_viewer/domain/document.dart';
+import 'package:forkumentos/shared/models/document.dart';
 
 // ignore: one_member_abstracts
 abstract interface class DocumentRepository {

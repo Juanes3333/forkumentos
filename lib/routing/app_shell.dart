@@ -21,6 +21,7 @@ final class AppShell extends ConsumerWidget {
     final isTemplateRoute = matchedLocation == '/project/template';
     final isDatasourceRoute = matchedLocation == '/project/datasource';
     final isDocumentRoute = matchedLocation == '/project/document';
+    final isMappingRoute = matchedLocation == '/project/mapping';
     final statusText = activeProject == null
         ? 'Sin proyecto activo'
         : 'Proyecto activo: ${activeProject.name}';
@@ -100,6 +101,27 @@ final class AppShell extends ConsumerWidget {
                                     isDocumentRoute
                                         ? Icons.work_outline
                                         : Icons.visibility_outlined,
+                                  ),
+                                  color: AppColors.foregroundPrimary,
+                                ),
+                              ),
+                            if (hasActiveProject)
+                              Tooltip(
+                                message: isMappingRoute
+                                    ? 'Volver al proyecto'
+                                    : 'Asistente de mapeo',
+                                child: IconButton(
+                                  onPressed: () {
+                                    context.go(
+                                      isMappingRoute
+                                          ? '/project'
+                                          : '/project/mapping',
+                                    );
+                                  },
+                                  icon: Icon(
+                                    isMappingRoute
+                                        ? Icons.work_outline
+                                        : Icons.alt_route_outlined,
                                   ),
                                   color: AppColors.foregroundPrimary,
                                 ),

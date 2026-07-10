@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/features/document_viewer/data/document_repository_provider.dart';
-import 'package:forkumentos/features/document_viewer/domain/document.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
+import 'package:forkumentos/shared/models/document.dart';
 
 import '../../../../support/fakes.dart';
 
@@ -188,8 +188,8 @@ void main() {
         loadHandler: (_) async => _buildDocument(
           pages: <DocumentPage>[_buildPage(number: 1, text: 'Con omisiones')],
           omissions: const <DocumentOmission>{
-            DocumentOmission.table,
             DocumentOmission.image,
+            DocumentOmission.headerFooter,
           },
         ),
       ),
@@ -279,16 +279,18 @@ DocumentPage _buildPage({required int number, required String text}) {
       bottomPoints: 72,
       leftPoints: 72,
     ),
-    paragraphs: <DocumentParagraph>[
-      DocumentParagraph(
-        runs: <DocumentRun>[
-          DocumentRun(
-            text: text,
-            isBold: false,
-            isItalic: false,
-            isUnderlined: false,
-          ),
-        ],
+    blocks: <DocumentBlock>[
+      DocumentBlock.paragraph(
+        DocumentParagraph(
+          runs: <DocumentRun>[
+            DocumentRun(
+              text: text,
+              isBold: false,
+              isItalic: false,
+              isUnderlined: false,
+            ),
+          ],
+        ),
       ),
     ],
   );

@@ -2,7 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'document.freezed.dart';
 
-enum DocumentOmission { table, image, headerFooter, footnote }
+enum DocumentOmission { image, headerFooter, footnote }
 
 @freezed
 class Document with _$Document {
@@ -19,7 +19,7 @@ class DocumentPage with _$DocumentPage {
     required double widthPoints,
     required double heightPoints,
     required DocumentMargins margins,
-    required List<DocumentParagraph> paragraphs,
+    required List<DocumentBlock> blocks,
   }) = _DocumentPage;
 }
 
@@ -31,6 +31,32 @@ class DocumentMargins with _$DocumentMargins {
     required double bottomPoints,
     required double leftPoints,
   }) = _DocumentMargins;
+}
+
+@freezed
+sealed class DocumentBlock with _$DocumentBlock {
+  const factory DocumentBlock.paragraph(DocumentParagraph paragraph) =
+      DocumentParagraphBlock;
+
+  const factory DocumentBlock.table(DocumentTable table) = DocumentTableBlock;
+}
+
+@freezed
+class DocumentTable with _$DocumentTable {
+  const factory DocumentTable({required List<DocumentTableRow> rows}) =
+      _DocumentTable;
+}
+
+@freezed
+class DocumentTableRow with _$DocumentTableRow {
+  const factory DocumentTableRow({required List<DocumentTableCell> cells}) =
+      _DocumentTableRow;
+}
+
+@freezed
+class DocumentTableCell with _$DocumentTableCell {
+  const factory DocumentTableCell({required List<DocumentBlock> blocks}) =
+      _DocumentTableCell;
 }
 
 @freezed

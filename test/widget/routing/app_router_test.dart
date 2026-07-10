@@ -5,9 +5,11 @@ import 'package:forkumentos/app/app.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/window/window_service_providers.dart';
 import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
+import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/datasource/presentation/datasource_management_screen.dart';
 import 'package:forkumentos/features/document_viewer/data/document_repository_provider.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
+import 'package:forkumentos/features/mapping/presentation/mapping_assistant_screen.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
@@ -201,6 +203,66 @@ void main() {
       await tester.pump();
     },
   );
+
+  testWidgets('ruta de mapping requiere proyecto activo y refleja datasource', (
+    WidgetTester tester,
+  ) async {
+    final withoutProjectContainer = _buildContainer();
+    addTearDown(withoutProjectContainer.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: withoutProjectContainer,
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    withoutProjectContainer.read(appRouterProvider).go('/project/mapping');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
+    expect(find.byType(MappingAssistantScreen), findsNothing);
+
+    final withProjectContainer = _buildContainer();
+    addTearDown(withProjectContainer.dispose);
+    await withProjectContainer
+        .read(activeProjectProvider.notifier)
+        .createProject(name: 'Proyecto Router');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: withProjectContainer,
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    withProjectContainer.read(appRouterProvider).go('/project/mapping');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MappingAssistantScreen), findsOneWidget);
+    expect(
+      find.text('Importa una plantilla y una fuente de datos para mapear.'),
+      findsOneWidget,
+    );
+
+    await withProjectContainer
+        .read(activeDatasourceProvider.notifier)
+        .importDatasource(filePath: '/tmp/datos.csv');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Importa una plantilla y una fuente de datos para mapear.'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pump();
+    withProjectContainer.dispose();
+    await tester.pump();
+  });
 }
 
 ProviderContainer _buildContainer() {
