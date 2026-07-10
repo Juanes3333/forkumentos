@@ -1,0 +1,58 @@
+---
+description: Forces the simplest, shortest, most minimal solution that actually works (YAGNI/lazy senior developer mindset)
+globs: "**/*"
+---
+
+## Purpose
+This rule prevents over-engineering, speculative code, boilerplate, and unnecessary dependencies. It ensures that the agent always finds the most direct, elegant, and minimal path to implement correct behavior.
+
+## Scope
+Any code modification, refactoring, library selection, or implementation design.
+
+## Core Principles
+- The best code is the code never written. Question whether the task or the code needs to exist at all.
+- Re-use before you write: check the codebase for existing helpers, types, or utilities before writing a new one.
+- Native/stdlib first: reach for the Dart standard library or Flutter SDK features before adding a new package.
+- Shortest working diff wins, but only after fully understanding the root cause. Patching a symptom is not lazy; it is a future bug.
+- Mark deliberate shortcuts with a `// ponytail: [description] + [upgrade path]` comment to show intent.
+
+## DO
+- Search the codebase using grep to see if a similar function, helper, or class already exists.
+- Implement the simplest possible data structure or flow that satisfies the current requirements.
+- Use existing package dependencies (like `collection`, `intl`, `uuid`) before requesting a new package.
+- Leave a single, simple unit/widget test for non-trivial logic instead of complex test suites.
+
+## DON'T
+- Create abstract repository classes with only one implementation.
+- Add configuration parameters, variables, or features "for future extensibility."
+- Write custom logic when standard library collections or utility methods (e.g., `firstWhereOrNull`) cover it.
+
+## NEVER
+- Add a new dependency to `pubspec.yaml` without proving that the task cannot be solved in < 20 lines of standard Dart/Flutter.
+- Create placeholder UI, classes, or mock features that are not requested.
+
+## GOOD Example
+```dart
+// Correct: Reusing collection package's extension method in one line
+final activeUser = users.firstWhereOrNull((u) => u.isActive);
+```
+
+## BAD Example
+```dart
+// Wrong: Handrolling a custom helper function for a solved problem
+User? findFirstActiveUser(List<User> users) {
+  for (final user in users) {
+    if (user.isActive) return user;
+  }
+  return null;
+}
+```
+
+## Decision Rules
+1. Can this be solved by reusing an existing function or class? → Yes: Reuse it.
+2. Can this be solved with a standard Dart/Flutter feature? → Yes: Use it.
+3. Is a new dependency required? → Only if it avoids writing > 100 lines of complex, error-prone code.
+4. Is it a bug? → Find the root cause and patch it there, not at the caller side.
+
+## Conflict Resolution
+This rule takes precedence over `ui_philosophy.mdc` and `state_management.mdc` when choosing the complexity of the implementation. Minimal/lazy execution always wins.

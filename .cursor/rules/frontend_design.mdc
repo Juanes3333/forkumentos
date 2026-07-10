@@ -1,0 +1,57 @@
+---
+description: Enforces distinctive, intentional visual design, typography, layout, and copy when building or modifying UI
+globs: "lib/features/**/presentation/**/*.dart, lib/shared/widgets/**/*.dart"
+---
+
+## Purpose
+This rule ensures that the visual identity of Forkumentos does not read like a generic, templated default UI. It forces deliberate choices in typography, visual structure, spacing, and micro-interactions, while keeping the interface conversational and professional.
+
+## Scope
+Any presentation layer widget, layout structure, custom paint, theme extension, dialog, or text element.
+
+## Core Principles
+- Ground design in the subject: Forkumentos is a document-mapping tool. The UI should feel like a precise workbench, using structural lines, typography, and density to encode information rather than decorate it.
+- Spend your boldness in one place: Let one key area or transition be memorable, keeping the surrounding elements clean, quiet, and disciplined.
+- Typography carries the personality: Set a clear, intentional type scale with custom weights, spacing, and complementary pairings rather than generic defaults.
+- Copy is design material: Write error states, loading messages, and labels from the user's perspective, using plain verbs, active voice, and clear signposting.
+
+## DO
+- Design with high information density, prioritizing visibility of tabular data and structure.
+- Group layout elements with precise hairline dividers (0.5dp) rather than generic thick borders or margins.
+- Provide descriptive, active button labels ("Import Document" instead of "Submit" or "OK").
+- Provide clear inline error validation and actionable error messages detailing how to fix the issue.
+
+## DON'T
+- Use decorative numbered markers (01, 02, etc.) unless the content is a strict sequence or timeline.
+- Use generic cream/terracotta or acid-green/black palettes unless specified in the brand guidelines.
+- Use generic mobile-style UI components like bottom sheets, swipe-to-dismiss lists, or full-screen loading spinners.
+
+## NEVER
+- Leave an interactive control without visual hover, focus, and keyboard shortcuts.
+- Use fake Latin placeholder text (Lorem Ipsum) or blank generic mockups in the user interface.
+
+## GOOD Example
+```dart
+// Professional, active, and specific button text
+TextButton(
+  onPressed: handleImport,
+  child: const Text('Select Source File'),
+)
+```
+
+## BAD Example
+```dart
+// Generic, passive button text
+ElevatedButton(
+  onPressed: handleImport,
+  child: const Text('OK'),
+)
+```
+
+## Decision Rules
+Is the UI component interactive? → Must have hover states and keyboard shortcuts.
+Is the operation taking time? → Show inline progress or steps, do not clear the screen content.
+Is it a user message? → Write in active voice, sentence case, with no emotional filler or apologies.
+
+## Conflict Resolution
+This rule defers to `ui_philosophy.mdc` on layout constraints and `performance.mdc` on rendering performance. It takes precedence over general Material 3 defaults.
