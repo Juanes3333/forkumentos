@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forkumentos/core/theme/app_theme.dart';
 
 /// The root Widget of the application.
 class App extends StatelessWidget {
@@ -7,9 +8,12 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       title: 'Forkumentos',
-      home: Scaffold(body: Center(child: Text('Forkumentos Bootstrap Ready'))),
+      theme: AppTheme.dark,
+      home: const Scaffold(
+        body: Center(child: Text('Forkumentos Bootstrap Ready')),
+      ),
     );
   }
 }
