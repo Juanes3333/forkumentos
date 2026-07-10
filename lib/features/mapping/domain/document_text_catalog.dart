@@ -28,6 +28,12 @@ List<ParagraphTextEntry> enumerateParagraphTexts(Document document) {
   return entries;
 }
 
+List<ParagraphTextEntry> extractDocumentTextPlaceholders(Document document) {
+  return enumerateParagraphTexts(
+    document,
+  ).where((entry) => entry.text.trim().isNotEmpty).toList();
+}
+
 void _collectParagraphTexts({
   required int pageIndex,
   required int rootBlockIndex,

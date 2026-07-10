@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/mapping/data/mapping_json.dart';
 import 'package:forkumentos/features/mapping/domain/document_text_catalog.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_commands.dart';
@@ -33,20 +34,33 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
 
   @override
   MappingSession build() {
-    ref.listen<String?>(
-      activeProjectProvider.select(
-        (projectState) => projectState.valueOrNull?.id,
-      ),
-      (String? previousProjectId, String? nextProjectId) {
-        if (previousProjectId == nextProjectId) {
+    final initialProject = ref.read(activeProjectProvider).valueOrNull;
+    ref.listen<({String? id, List<Map<String, dynamic>> assignments})>(
+      activeProjectProvider.select((projectState) {
+        final project = projectState.valueOrNull;
+        return (
+          id: project?.id,
+          assignments: project?.mappingAssignments ?? <Map<String, dynamic>>[],
+        );
+      }),
+      (previousProject, nextProject) {
+        if (previousProject?.id == nextProject.id) {
           return;
         }
-        _resetHistory(const MappingState(assignments: <FieldAssignment>[]));
+        _resetHistory(
+          MappingState(
+            assignments: mappingAssignmentsFromJson(nextProject.assignments),
+          ),
+        );
       },
     );
 
-    return const MappingSession(
-      state: MappingState(assignments: <FieldAssignment>[]),
+    return MappingSession(
+      state: MappingState(
+        assignments: mappingAssignmentsFromJson(
+          initialProject?.mappingAssignments ?? <Map<String, dynamic>>[],
+        ),
+      ),
       canUndo: false,
       canRedo: false,
     );
@@ -142,7 +156,7 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
         ),
       ),
     );
-    ref.read(activeProjectProvider.notifier).markProjectDirty();
+    _syncProjectAssignments();
   }
 
   void replaceAssignment({
@@ -188,7 +202,7 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
         assignments: <FieldAssignment>[...withoutExisting, ...replacement],
       ),
     );
-    ref.read(activeProjectProvider.notifier).markProjectDirty();
+    _syncProjectAssignments();
   }
 
   void removeAssignmentsForField(int fieldIndex) {
@@ -206,7 +220,7 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
         currentFieldIndex: fieldIndex,
       ),
     );
-    ref.read(activeProjectProvider.notifier).markProjectDirty();
+    _syncProjectAssignments();
   }
 
   void undo() {
@@ -217,7 +231,7 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     final previous = _undoStack.removeLast();
     _redoStack.add(state.state);
     _updateState(previous);
-    ref.read(activeProjectProvider.notifier).markProjectDirty();
+    _syncProjectAssignments();
   }
 
   void redo() {
@@ -228,7 +242,7 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     final next = _redoStack.removeLast();
     _undoStack.add(state.state);
     _updateState(next);
-    ref.read(activeProjectProvider.notifier).markProjectDirty();
+    _syncProjectAssignments();
   }
 
   int _nextUnmappedFieldIndex({
@@ -268,5 +282,13 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     _undoStack.clear();
     _redoStack.clear();
     _updateState(next);
+  }
+
+  void _syncProjectAssignments() {
+    ref
+        .read(activeProjectProvider.notifier)
+        .updateMappingAssignments(
+          mappingAssignmentsToJson(state.state.assignments),
+        );
   }
 }

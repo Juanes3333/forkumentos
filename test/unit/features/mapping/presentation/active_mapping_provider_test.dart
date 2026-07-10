@@ -1,12 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
+import 'package:forkumentos/features/mapping/data/mapping_json.dart';
+import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
+import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
 import '../../../../support/fakes.dart';
 
@@ -112,6 +115,53 @@ void main() {
     expect(container.read(activeMappingProvider).state.assignments, isEmpty);
     expect(container.read(activeMappingProvider).canUndo, isTrue);
   });
+
+  test('restaura asignaciones desde el proyecto activo', () async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+
+    await container
+        .read(activeProjectProvider.notifier)
+        .loadProject(filePath: 'mapped.forkumentos.json');
+
+    final assignments = container.read(activeMappingProvider).state.assignments;
+    expect(assignments, hasLength(1));
+    expect(assignments.single.fieldHeader, 'nombre');
+  });
+
+  test('sincroniza asignaciones confirmadas al proyecto activo', () async {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+
+    await container
+        .read(activeProjectProvider.notifier)
+        .createProject(name: 'Proyecto Mapping');
+
+    container
+        .read(activeMappingProvider.notifier)
+        .confirmAssignment(
+          selection: const DocumentTextSelection(
+            path: DocumentTextPath(
+              pageIndex: 0,
+              steps: <DocumentPathStep>[
+                DocumentPathStep.rootBlock(blockIndex: 0),
+              ],
+            ),
+            startOffset: 0,
+            endOffset: 3,
+            selectedText: 'Ana',
+          ),
+          fieldHeader: 'nombre',
+          fieldIndex: 0,
+          headerCount: 1,
+        );
+
+    await Future<void>.delayed(Duration.zero);
+
+    final project = container.read(activeProjectProvider).valueOrNull;
+    expect(project?.mappingAssignments, hasLength(1));
+    expect(project?.isDirty, isTrue);
+  });
 }
 
 ProviderContainer _createContainer() {
@@ -126,11 +176,27 @@ ProviderContainer _createContainer() {
 final class _FakeProjectRepository implements ProjectRepository {
   @override
   Future<Project> load(String filePath) async {
+    const assignment = FieldAssignment(
+      id: 'persisted-1',
+      fieldIndex: 0,
+      fieldHeader: 'nombre',
+      selectedText: 'Ana',
+      path: DocumentTextPath(
+        pageIndex: 0,
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
+      ),
+      startOffset: 0,
+      endOffset: 3,
+    );
+
     return Project(
       id: 'project-mapping',
       name: 'Proyecto Mapping',
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026),
+      mappingAssignments: mappingAssignmentsToJson(<FieldAssignment>[
+        assignment,
+      ]),
       filePath: filePath,
     );
   }

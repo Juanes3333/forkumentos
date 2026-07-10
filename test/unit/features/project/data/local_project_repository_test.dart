@@ -27,6 +27,9 @@ void main() {
       name: 'Proyecto Persistente',
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026, 1, 2),
+      mappingAssignments: const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'assignment-1', 'fieldIndex': 0},
+      ],
     );
     final filePath = p.join(
       tempDirectory.path,
@@ -42,12 +45,14 @@ void main() {
     final rawFileContent = await File(filePath).readAsString();
     final persistedJson = jsonDecode(rawFileContent) as Map<String, dynamic>;
     expect(persistedJson.containsKey('filePath'), isFalse);
+    expect(persistedJson['mappingAssignments'], hasLength(1));
 
     final loadedProject = await repository.load(filePath);
     expect(loadedProject.id, sourceProject.id);
     expect(loadedProject.name, sourceProject.name);
     expect(loadedProject.createdAt, sourceProject.createdAt);
     expect(loadedProject.updatedAt, savedProject.updatedAt);
+    expect(loadedProject.mappingAssignments, sourceProject.mappingAssignments);
     expect(loadedProject.filePath, filePath);
   });
 

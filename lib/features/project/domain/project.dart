@@ -12,6 +12,8 @@ class Project with _$Project {
     required String name,
     required DateTime createdAt,
     required DateTime updatedAt,
+    @Default(<Map<String, dynamic>>[])
+    List<Map<String, dynamic>> mappingAssignments,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
     @Default(false)
     @JsonKey(includeFromJson: false, includeToJson: false)

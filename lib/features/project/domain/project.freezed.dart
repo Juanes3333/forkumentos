@@ -25,6 +25,8 @@ mixin _$Project {
   String get name => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
   DateTime get updatedAt => throw _privateConstructorUsedError;
+  List<Map<String, dynamic>> get mappingAssignments =>
+      throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
   String? get filePath => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,6 +51,7 @@ abstract class $ProjectCopyWith<$Res> {
     String name,
     DateTime createdAt,
     DateTime updatedAt,
+    List<Map<String, dynamic>> mappingAssignments,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) bool isDirty,
   });
@@ -73,6 +76,7 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? name = null,
     Object? createdAt = null,
     Object? updatedAt = null,
+    Object? mappingAssignments = null,
     Object? filePath = freezed,
     Object? isDirty = null,
   }) {
@@ -94,6 +98,10 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            mappingAssignments: null == mappingAssignments
+                ? _value.mappingAssignments
+                : mappingAssignments // ignore: cast_nullable_to_non_nullable
+                      as List<Map<String, dynamic>>,
             filePath: freezed == filePath
                 ? _value.filePath
                 : filePath // ignore: cast_nullable_to_non_nullable
@@ -121,6 +129,7 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
     String name,
     DateTime createdAt,
     DateTime updatedAt,
+    List<Map<String, dynamic>> mappingAssignments,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) bool isDirty,
   });
@@ -144,6 +153,7 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? name = null,
     Object? createdAt = null,
     Object? updatedAt = null,
+    Object? mappingAssignments = null,
     Object? filePath = freezed,
     Object? isDirty = null,
   }) {
@@ -165,6 +175,10 @@ class __$$ProjectImplCopyWithImpl<$Res>
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        mappingAssignments: null == mappingAssignments
+            ? _value._mappingAssignments
+            : mappingAssignments // ignore: cast_nullable_to_non_nullable
+                  as List<Map<String, dynamic>>,
         filePath: freezed == filePath
             ? _value.filePath
             : filePath // ignore: cast_nullable_to_non_nullable
@@ -186,9 +200,11 @@ class _$ProjectImpl implements _Project {
     required this.name,
     required this.createdAt,
     required this.updatedAt,
+    final List<Map<String, dynamic>> mappingAssignments =
+        const <Map<String, dynamic>>[],
     @JsonKey(includeFromJson: false, includeToJson: false) this.filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) this.isDirty = false,
-  });
+  }) : _mappingAssignments = mappingAssignments;
 
   factory _$ProjectImpl.fromJson(Map<String, dynamic> json) =>
       _$$ProjectImplFromJson(json);
@@ -201,6 +217,16 @@ class _$ProjectImpl implements _Project {
   final DateTime createdAt;
   @override
   final DateTime updatedAt;
+  final List<Map<String, dynamic>> _mappingAssignments;
+  @override
+  @JsonKey()
+  List<Map<String, dynamic>> get mappingAssignments {
+    if (_mappingAssignments is EqualUnmodifiableListView)
+      return _mappingAssignments;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_mappingAssignments);
+  }
+
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final String? filePath;
@@ -210,7 +236,7 @@ class _$ProjectImpl implements _Project {
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, filePath: $filePath, isDirty: $isDirty)';
+    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty)';
   }
 
   @override
@@ -224,6 +250,10 @@ class _$ProjectImpl implements _Project {
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt) &&
+            const DeepCollectionEquality().equals(
+              other._mappingAssignments,
+              _mappingAssignments,
+            ) &&
             (identical(other.filePath, filePath) ||
                 other.filePath == filePath) &&
             (identical(other.isDirty, isDirty) || other.isDirty == isDirty));
@@ -237,6 +267,7 @@ class _$ProjectImpl implements _Project {
     name,
     createdAt,
     updatedAt,
+    const DeepCollectionEquality().hash(_mappingAssignments),
     filePath,
     isDirty,
   );
@@ -261,6 +292,7 @@ abstract class _Project implements Project {
     required final String name,
     required final DateTime createdAt,
     required final DateTime updatedAt,
+    final List<Map<String, dynamic>> mappingAssignments,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final String? filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) final bool isDirty,
@@ -276,6 +308,8 @@ abstract class _Project implements Project {
   DateTime get createdAt;
   @override
   DateTime get updatedAt;
+  @override
+  List<Map<String, dynamic>> get mappingAssignments;
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   String? get filePath;

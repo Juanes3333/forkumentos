@@ -152,6 +152,24 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
     });
   }
 
+  Future<void> updateMappingAssignments(
+    List<Map<String, dynamic>> mappingAssignments,
+  ) {
+    return _enqueueOperation(() async {
+      final currentProject = state.valueOrNull;
+      if (currentProject == null) {
+        return;
+      }
+
+      state = AsyncData(
+        currentProject.copyWith(
+          mappingAssignments: mappingAssignments,
+          isDirty: true,
+        ),
+      );
+    });
+  }
+
   void dismissError() {
     final currentState = state;
     if (!currentState.hasError) {

@@ -8,6 +8,9 @@ void main() {
       name: 'Proyecto Demo',
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026, 1, 2),
+      mappingAssignments: const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'assignment-1'},
+      ],
       filePath: r'C:\temp\demo.forkumentos.json',
     );
 
@@ -19,6 +22,7 @@ void main() {
     expect(restored.name, project.name);
     expect(restored.createdAt, project.createdAt);
     expect(restored.updatedAt, project.updatedAt);
+    expect(restored.mappingAssignments, project.mappingAssignments);
     expect(restored.filePath, isNull);
   });
 
