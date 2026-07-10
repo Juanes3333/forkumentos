@@ -1,0 +1,21 @@
+---
+description: Git version control, branch naming, and Conventional Commits guidelines
+globs: *
+---
+
+# Git and Version Control Rules
+
+## Commit Message Standard
+We use the **Conventional Commits** specification:
+- `feat:` for new features.
+- `fix:` for bug fixes.
+- `chore:` for build system updates, dependencies, configuration changes.
+- `docs:` for documentation updates.
+- `refactor:` for code changes that neither fix a bug nor add a feature.
+- `test:` for adding or modifying tests.
+
+## Rules for Commits
+- Commits must be **logical and atomic**. Avoid mixing unrelated changes (e.g. refactoring + adding a package + fixing a bug).
+- Never create a single massive commit for a whole task.
+- Write commit titles in lowercase (e.g., `feat: configure project routes`), concise and clear.
+- Use git branch conventions (e.g., `feature/branch-name`, `bugfix/issue-name`).

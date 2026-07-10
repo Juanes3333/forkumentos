@@ -1,0 +1,22 @@
+---
+description: Rules for Flutter development, state management, and desktop environment
+globs: lib/**/*.dart, pubspec.yaml
+---
+
+# Flutter & Desktop Development Rules
+
+## State Management
+- Use **Riverpod** for all state management.
+- Avoid using `setState` in large widgets; use Riverpod's `StateProvider`, `NotifierProvider`, or `AsyncNotifierProvider` instead.
+- Use `ConsumerWidget` or `ConsumerStatefulWidget` to read providers.
+- Always use `ref.watch` inside build methods, and `ref.read` inside user interaction callbacks.
+
+## Widgets and Performance
+- Use `const` constructors wherever possible to optimize rebuilds.
+- Keep widget build methods small, focused, and free of heavy computations.
+- Split large widget trees into smaller stateless components.
+
+## Windows Desktop Specifics
+- Use `window_manager` for managing desktop window properties (min/max size, title bar customizations, positioning).
+- Ensure all desktop interactions are responsive and handle desktop window resize events gracefully.
+- Handle paths and local directories using `path` and `path_provider` in a cross-platform manner.
