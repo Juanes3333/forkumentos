@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/export/domain/filename_pattern.dart';
 
 /// Visual filename pattern editor (text + field chips, live preview).
@@ -21,13 +22,17 @@ final class FilenamePatternEditor extends StatefulWidget {
 }
 
 final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
-  late List<FilenamePatternBlock> _blocks;
+  late List<_EditableBlock> _blocks;
   final _textController = TextEditingController();
+  var _idSeed = 0;
 
   @override
   void initState() {
     super.initState();
-    _blocks = List<FilenamePatternBlock>.of(widget.initialPattern.blocks);
+    _blocks = <_EditableBlock>[
+      for (final block in widget.initialPattern.blocks)
+        _EditableBlock(id: _idSeed++, block: block),
+    ];
   }
 
   @override
@@ -36,15 +41,27 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
     super.dispose();
   }
 
-  FilenamePattern get _pattern => FilenamePattern(blocks: _blocks);
+  FilenamePattern get _pattern => FilenamePattern(
+    blocks: _blocks.map((entry) => entry.block).toList(growable: false),
+  );
 
   void _emit() {
     widget.onChanged(_pattern);
     setState(() {});
   }
 
+  void _reorder(int oldIndex, int newIndex) {
+    setState(() {
+      final item = _blocks.removeAt(oldIndex);
+      _blocks.insert(newIndex, item);
+    });
+    _emit();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
     final preview = _pattern.resolve(
       row: widget.sampleRow,
       headers: widget.headers,
@@ -53,29 +70,38 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Text(
-          'Nombre de archivo',
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
+        Text('Nombre de archivo', style: theme.textTheme.labelLarge),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: <Widget>[
-            for (var index = 0; index < _blocks.length; index++)
-              _BlockChip(
-                block: _blocks[index],
-                onRemove: () {
-                  setState(() {
-                    _blocks = <FilenamePatternBlock>[
-                      ..._blocks.take(index),
-                      ..._blocks.skip(index + 1),
-                    ];
-                  });
-                  _emit();
-                },
-              ),
-          ],
+        SizedBox(
+          height: 40,
+          child: ReorderableListView.builder(
+            scrollDirection: Axis.horizontal,
+            buildDefaultDragHandles: false,
+            onReorderItem: _reorder,
+            itemCount: _blocks.length,
+            itemBuilder: (context, index) {
+              final entry = _blocks[index];
+              return ReorderableDragStartListener(
+                key: ValueKey<int>(entry.id),
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: _BlockChip(
+                    block: entry.block,
+                    onRemove: () {
+                      setState(() {
+                        _blocks = <_EditableBlock>[
+                          ..._blocks.take(index),
+                          ..._blocks.skip(index + 1),
+                        ];
+                      });
+                      _emit();
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
         ),
         const SizedBox(height: 8),
         Row(
@@ -91,7 +117,7 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
               ),
             ),
             const SizedBox(width: 8),
-            OutlinedButton(
+            FilledButton(
               onPressed: _addText,
               child: const Text('Añadir texto'),
             ),
@@ -100,11 +126,14 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
               tooltip: 'Añadir campo',
               onSelected: (fieldIndex) {
                 setState(() {
-                  _blocks = <FilenamePatternBlock>[
+                  _blocks = <_EditableBlock>[
                     ..._blocks,
-                    FilenameFieldBlock(
-                      fieldIndex: fieldIndex,
-                      fieldHeader: widget.headers[fieldIndex],
+                    _EditableBlock(
+                      id: _idSeed++,
+                      block: FilenameFieldBlock(
+                        fieldIndex: fieldIndex,
+                        fieldHeader: widget.headers[fieldIndex],
+                      ),
                     ),
                   ];
                 });
@@ -117,9 +146,11 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
                     child: Text(widget.headers[index]),
                   ),
               ],
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Text('Añadir campo'),
+              child: IgnorePointer(
+                child: FilledButton.tonal(
+                  onPressed: () {},
+                  child: const Text('Añadir campo'),
+                ),
               ),
             ),
           ],
@@ -127,7 +158,10 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
         const SizedBox(height: 8),
         Text(
           'Vista previa: $preview',
-          style: Theme.of(context).textTheme.bodySmall,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: colors.foregroundPrimary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -139,11 +173,21 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
       return;
     }
     setState(() {
-      _blocks = <FilenamePatternBlock>[..._blocks, FilenameTextBlock(text)];
+      _blocks = <_EditableBlock>[
+        ..._blocks,
+        _EditableBlock(id: _idSeed++, block: FilenameTextBlock(text)),
+      ];
       _textController.clear();
     });
     _emit();
   }
+}
+
+final class _EditableBlock {
+  const _EditableBlock({required this.id, required this.block});
+
+  final int id;
+  final FilenamePatternBlock block;
 }
 
 final class _BlockChip extends StatelessWidget {
@@ -154,15 +198,34 @@ final class _BlockChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final isField = block is FilenameFieldBlock;
     final label = switch (block) {
       FilenameTextBlock(:final text) => '"$text"',
       FilenameFieldBlock(:final fieldHeader) => fieldHeader,
     };
 
     return InputChip(
-      label: Text(label),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isField ? colors.accent : colors.foregroundPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       onDeleted: onRemove,
+      deleteIconColor: isField ? colors.accent : colors.foregroundMuted,
       visualDensity: VisualDensity.compact,
+      backgroundColor: isField
+          ? Color.alphaBlend(
+              colors.accent.withValues(alpha: 0.18),
+              colors.surface,
+            )
+          : colors.backgroundSecondary,
+      side: BorderSide(
+        color: isField ? colors.accent : colors.border,
+        width: isField ? 1.5 : 1.25,
+      ),
     );
   }
 }

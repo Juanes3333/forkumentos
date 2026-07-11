@@ -703,6 +703,10 @@ final class _DocumentBlockWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (block) {
       DocumentParagraphBlock(:final paragraph) => MappingAwareParagraph(
+        key: ValueKey<String>(
+          '${_pathForParagraph()}-'
+          '${paragraph.runs.map((run) => run.text).join()}',
+        ),
         path: _pathForParagraph(),
         paragraph: paragraph,
         textStyle: textStyle,

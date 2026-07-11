@@ -309,8 +309,12 @@ final class _HomeRibbonActions extends ConsumerWidget {
               isBusy: previewState.isRefreshing,
               onPressed: datasource == null || previewState.isRefreshing
                   ? null
-                  : () {
-                      ref.read(previewStateProvider.notifier).refresh();
+                  : () async {
+                      await ref.read(previewStateProvider.notifier).refresh();
+                      ref
+                              .read(workbenchReviewRenderModeProvider.notifier)
+                              .mode =
+                          WorkbenchReviewRenderMode.preview;
                     },
             ),
           ],

@@ -25,7 +25,7 @@ void main() {
   });
 
   group('FilenamePattern.resolve', () {
-    test('combina texto y campos con sanitizado', () {
+    test('no duplica separador si el texto ya termina en -', () {
       const pattern = FilenamePattern(
         blocks: <FilenamePatternBlock>[
           FilenameTextBlock('Contrato - '),
@@ -39,6 +39,38 @@ void main() {
           headers: <String>['nombre'],
         ),
         'Contrato - Ana_Pérez',
+      );
+    });
+
+    test('une bloques con _ entre partes sin separador', () {
+      const pattern = FilenamePattern(
+        blocks: <FilenamePatternBlock>[
+          FilenameTextBlock('Contrato'),
+          FilenameFieldBlock(fieldIndex: 0, fieldHeader: 'nombre'),
+          FilenameFieldBlock(fieldIndex: 1, fieldHeader: 'empresa'),
+        ],
+      );
+
+      expect(
+        pattern.resolve(
+          row: <String?>['Juan', 'Gerente'],
+          headers: <String>['nombre', 'empresa'],
+        ),
+        'Contrato_Juan_Gerente',
+      );
+    });
+
+    test('no duplica _ si el texto ya termina en _', () {
+      const pattern = FilenamePattern(
+        blocks: <FilenamePatternBlock>[
+          FilenameTextBlock('Prefijo_'),
+          FilenameFieldBlock(fieldIndex: 0, fieldHeader: 'nombre'),
+        ],
+      );
+
+      expect(
+        pattern.resolve(row: <String?>['Ana'], headers: <String>['nombre']),
+        'Prefijo_Ana',
       );
     });
   });

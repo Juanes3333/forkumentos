@@ -81,6 +81,9 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
     final previewRowIndex = ref.watch(
       previewStateProvider.select((state) => state.rowIndex),
     );
+    final previewGeneration = ref.watch(
+      previewStateProvider.select((state) => state.previewGeneration),
+    );
     final selectionState = ref.watch(workbenchSelectionProvider);
     final emphasizedAssignmentId = ref.watch(emphasizedAssignmentIdProvider);
     final viewerController = ref.watch(documentViewerControllerProvider);
@@ -106,7 +109,9 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
       key: _documentStackKey,
       children: <Widget>[
         DocumentViewerScreen(
-          key: isPreview ? ValueKey<int>(previewRowIndex) : null,
+          key: isPreview
+              ? ValueKey<String>('preview-$previewRowIndex-$previewGeneration')
+              : null,
           documentPath: templatePath,
           isSourceLoading:
               templateState.isLoading ||

@@ -109,19 +109,31 @@ final class PreviewStateNotifier extends Notifier<PreviewState> {
     if (state.rowIndex == 0) {
       return;
     }
-    state = state.copyWith(rowIndex: state.rowIndex - 1);
+    state = state.copyWith(
+      rowIndex: state.rowIndex - 1,
+      previewGeneration: state.previewGeneration + 1,
+    );
   }
 
   void nextRow(int rowCount) {
     if (rowCount <= 0 || state.rowIndex >= rowCount - 1) {
       return;
     }
-    state = state.copyWith(rowIndex: state.rowIndex + 1);
+    state = state.copyWith(
+      rowIndex: state.rowIndex + 1,
+      previewGeneration: state.previewGeneration + 1,
+    );
   }
 
   void selectRow(int rowIndex, int rowCount) {
     if (rowCount <= 0) {
-      state = state.copyWith(rowIndex: 0);
+      if (state.rowIndex == 0) {
+        return;
+      }
+      state = state.copyWith(
+        rowIndex: 0,
+        previewGeneration: state.previewGeneration + 1,
+      );
       return;
     }
 
@@ -129,7 +141,10 @@ final class PreviewStateNotifier extends Notifier<PreviewState> {
     if (normalized == state.rowIndex) {
       return;
     }
-    state = state.copyWith(rowIndex: normalized);
+    state = state.copyWith(
+      rowIndex: normalized,
+      previewGeneration: state.previewGeneration + 1,
+    );
   }
 
   Future<void> refresh() async {
@@ -154,28 +169,37 @@ final class PreviewStateNotifier extends Notifier<PreviewState> {
       return;
     }
 
-    state = state.copyWith(isRefreshing: false);
+    state = state.copyWith(
+      isRefreshing: false,
+      previewGeneration: state.previewGeneration + 1,
+    );
   }
 }
 
 final class PreviewState {
   const PreviewState({
     this.rowIndex = 0,
+    this.previewGeneration = 0,
     this.isRefreshing = false,
     this.errorMessage,
   });
 
   final int rowIndex;
+
+  /// Bumped on refresh and row changes so the preview viewer remounts.
+  final int previewGeneration;
   final bool isRefreshing;
   final String? errorMessage;
 
   PreviewState copyWith({
     int? rowIndex,
+    int? previewGeneration,
     bool? isRefreshing,
     String? errorMessage,
   }) {
     return PreviewState(
       rowIndex: rowIndex ?? this.rowIndex,
+      previewGeneration: previewGeneration ?? this.previewGeneration,
       isRefreshing: isRefreshing ?? this.isRefreshing,
       errorMessage: errorMessage,
     );
