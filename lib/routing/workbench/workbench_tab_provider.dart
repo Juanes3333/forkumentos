@@ -16,10 +16,10 @@ final class WorkbenchTabNotifier extends Notifier<WorkbenchTab> {
   void selectTab(WorkbenchTab tab) {
     state = tab;
     final workflow = ref.read(mappingWorkflowProvider.notifier);
-    if (tab == WorkbenchTab.mapping) {
-      workflow.enterMapping();
-    } else if (tab == WorkbenchTab.review) {
+    if (tab == WorkbenchTab.review) {
       workflow.enterReview(userInitiated: true);
+    } else if (tab == WorkbenchTab.home) {
+      workflow.enterMapping();
     }
   }
 }

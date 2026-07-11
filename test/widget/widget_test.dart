@@ -4,12 +4,15 @@ import 'package:forkumentos/app/app.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/storage/storage_providers.dart';
 import 'package:forkumentos/core/window/window_service_providers.dart';
+import 'package:forkumentos/features/project/presentation/project_welcome_screen.dart';
+import 'package:forkumentos/routing/app_shell.dart';
+import 'package:forkumentos/routing/workbench/workbench_ribbon.dart';
 import 'package:forkumentos/routing/workbench/workbench_screen.dart';
 
 import '../support/fakes.dart';
 
 void main() {
-  testWidgets('App renders workbench shell with provider overrides', (
+  testWidgets('App arranca en landing sin chrome del workbench', (
     WidgetTester tester,
   ) async {
     final fakeLogger = FakeLoggingService();
@@ -29,7 +32,10 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.byType(WorkbenchScreen), findsOneWidget);
-    expect(find.text('Archivo'), findsOneWidget);
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.byType(ProjectWelcomeScreen), findsOneWidget);
+    expect(find.byType(WorkbenchScreen), findsNothing);
+    expect(find.byType(WorkbenchRibbon), findsNothing);
+    expect(find.text('Archivo'), findsNothing);
   });
 }

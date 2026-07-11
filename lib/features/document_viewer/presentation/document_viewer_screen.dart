@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/document_viewer/presentation/document_viewer_controller.dart';
 import 'package:forkumentos/shared/models/document.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
@@ -21,6 +22,7 @@ final class DocumentViewerScreen extends ConsumerStatefulWidget {
     required this.isSourceLoading,
     this.sourceErrorMessage,
     this.showToolbar = true,
+    this.controller,
     this.documentOverride,
     this.viewerOverlay,
     this.focusPageIndex,
@@ -32,6 +34,7 @@ final class DocumentViewerScreen extends ConsumerStatefulWidget {
   final bool isSourceLoading;
   final String? sourceErrorMessage;
   final bool showToolbar;
+  final DocumentViewerController? controller;
   final AsyncValue<Document?>? documentOverride;
   final DocumentViewerOverlay? viewerOverlay;
   final int? focusPageIndex;
@@ -57,11 +60,16 @@ final class _DocumentViewerScreenState
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _attachController(widget.controller);
   }
 
   @override
   void didUpdateWidget(covariant DocumentViewerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.detach();
+      _attachController(widget.controller);
+    }
     if (oldWidget.documentPath != widget.documentPath) {
       _currentPageIndex = 0;
       _zoomMode = _ZoomMode.manual;
@@ -70,6 +78,7 @@ final class _DocumentViewerScreenState
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
+      _publishViewState();
     }
 
     if (widget.focusToken != oldWidget.focusToken &&
@@ -85,10 +94,29 @@ final class _DocumentViewerScreenState
 
   @override
   void dispose() {
+    widget.controller?.detach();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
     super.dispose();
+  }
+
+  void _attachController(DocumentViewerController? controller) {
+    controller?.attach(
+      zoomIn: _zoomIn,
+      zoomOut: _zoomOut,
+      fitWidth: _selectFitWidth,
+      fitPage: _selectFitPage,
+    );
+    _publishViewState();
+  }
+
+  void _publishViewState() {
+    widget.controller?.updateViewState(
+      zoomPercentage: (_lastKnownScale * 100).round(),
+      isFitWidth: _zoomMode == _ZoomMode.fitWidth,
+      isFitPage: _zoomMode == _ZoomMode.fitPage,
+    );
   }
 
   @override
@@ -266,6 +294,7 @@ final class _DocumentViewerScreenState
       setState(() {
         _lastKnownScale = scale;
       });
+      _publishViewState();
     });
   }
 
@@ -412,6 +441,7 @@ final class _DocumentViewerScreenState
     final previousFraction = _captureScrollFraction();
 
     setState(updateZoom);
+    _publishViewState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {

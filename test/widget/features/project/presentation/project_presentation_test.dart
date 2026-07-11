@@ -78,7 +78,7 @@ void main() {
     expect(find.text('/tmp/reciente.forkumentos.json'), findsOneWidget);
   });
 
-  testWidgets('Workbench inspector muestra solo información de preview', (
+  testWidgets('Workbench inspector muestra el navegador de campos', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
@@ -99,9 +99,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Inspector · Preview'), findsOneWidget);
-    expect(find.text('Fila activa'), findsOneWidget);
-    expect(find.text('Campo activo'), findsOneWidget);
+    expect(find.text('Campos'), findsOneWidget);
+    expect(find.textContaining('Importa una fuente de datos'), findsOneWidget);
   });
 }
 

@@ -126,6 +126,13 @@ Navigation is centralized in `lib/routing/` using `go_router`.
 - Route guards intercept navigation (e.g., preventing navigation away from an unsaved project without confirmation).
 - Features expose entry-point widgets, but do not dictate their own routes.
 
+The root shell (`AppShell`) switches between three mutually exclusive **UI phases** (not domain states):
+- **Landing** — no active project; create / open / recent only.
+- **Project Wizard** — active project before the user starts working; template and datasource setup.
+- **Workbench** — ribbon, document viewer, inspector, and status bar; entered only via “Start Working”.
+
+Closing a project destroys the Workbench tree and returns to Landing. The Workbench chrome must never be instantiated in Landing or Wizard.
+
 ---
 
 ## 10. State Management Philosophy
@@ -211,6 +218,8 @@ stateDiagram-v2
     Active --> Closing : User Closes Project
     Closing --> NoProject : Cleanup Complete
 ```
+
+UI phases (Landing / Wizard / Workbench) sit on top of this lifecycle. `NoProject` maps to Landing; `Active` maps to Wizard until the user enters the Workbench, then to Workbench until close.
 
 ---
 

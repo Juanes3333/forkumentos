@@ -23,7 +23,7 @@ import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import '../../../../support/fakes.dart';
 
 void main() {
-  testWidgets('mantiene la pestaña de revisión con inspector de preview', (
+  testWidgets('mantiene la pestaña de revisión con inspector de campos', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1400, 900));
@@ -86,10 +86,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(workbenchTabProvider), WorkbenchTab.review);
-    expect(find.text('Inspector · Preview'), findsOneWidget);
-    expect(find.text('Asignaciones'), findsOneWidget);
-    expect(find.textContaining('1 región'), findsOneWidget);
-    expect(find.text('Fila activa'), findsOneWidget);
+    expect(find.text('Campos'), findsOneWidget);
+    expect(find.text('nombre'), findsWidgets);
+    expect(find.textContaining('1 asignación'), findsOneWidget);
+    expect(find.text('Revisión de mapeo'), findsOneWidget);
   });
 }
 
