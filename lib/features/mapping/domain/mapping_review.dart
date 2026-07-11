@@ -132,7 +132,11 @@ bool isExportReady({
   required MappingValidationResult validation,
   required List<String> invalidAssignmentIds,
 }) {
-  return validation.isValid && invalidAssignmentIds.isEmpty;
+  // Soft-gate: missing fields are OK (export dialog warns). Hard-block only
+  // overlaps, duplicate assignment ids, and invalid assignments.
+  return validation.duplicateAssignmentIds.isEmpty &&
+      validation.overlaps.isEmpty &&
+      invalidAssignmentIds.isEmpty;
 }
 
 List<String> findInvalidAssignmentIds({

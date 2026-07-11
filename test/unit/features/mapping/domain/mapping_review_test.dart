@@ -34,13 +34,13 @@ void main() {
       expect(snapshot.invalidAssignments, isEmpty);
     });
 
-    test('detecta campos faltantes y bloquea export', () {
+    test('permite export con campos faltantes (soft-gate)', () {
       final snapshot = buildMappingReviewSnapshot(
         assignments: <FieldAssignment>[_assignment(id: 'a1', fieldIndex: 0)],
         datasourceHeaders: <String>['nombre', 'correo'],
       );
 
-      expect(snapshot.isExportReady, isFalse);
+      expect(snapshot.isExportReady, isTrue);
       expect(snapshot.missingFieldHeaders, <String>['correo']);
       expect(snapshot.statistics.pendingFieldCount, 1);
     });

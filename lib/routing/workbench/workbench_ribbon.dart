@@ -1,9 +1,6 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:forkumentos/core/open_in_explorer.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
@@ -18,12 +15,12 @@ import 'package:forkumentos/features/project/presentation/recent_projects_provid
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
+import 'package:forkumentos/routing/workbench/export_launcher.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_resource_actions.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
-import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 
 final class WorkbenchRibbon extends ConsumerWidget {
@@ -598,14 +595,14 @@ final class _ExportRibbonActions extends ConsumerWidget {
               label: 'Exportar',
               onPressed: project == null
                   ? null
-                  : () => _exportToDefaultFolder(ref, project.name),
+                  : () => launchExport(context, ref, pickDestination: false),
             ),
             _RibbonActionButton(
               icon: Icons.drive_folder_upload_outlined,
               label: 'Exportar como',
               onPressed: project == null
                   ? null
-                  : () => _exportAsFolder(project.name),
+                  : () => launchExport(context, ref, pickDestination: true),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -626,27 +623,6 @@ final class _ExportRibbonActions extends ConsumerWidget {
       ],
     );
   }
-}
-
-Future<void> _exportToDefaultFolder(WidgetRef ref, String projectName) async {
-  final paths = ref.read(workspacePathsProvider);
-  if (paths == null) {
-    return;
-  }
-  await paths.ensureExportFolder(projectName);
-  await openFolderInExplorer(paths.exportFolder(projectName));
-}
-
-Future<void> _exportAsFolder(String projectName) async {
-  final selected = await FilePicker.platform.getDirectoryPath(
-    dialogTitle: 'Seleccionar carpeta de exportación',
-  );
-  if (selected == null) {
-    return;
-  }
-  final folder = Directory(selected + Platform.pathSeparator + projectName);
-  await folder.create(recursive: true);
-  await openFolderInExplorer(folder.path);
 }
 
 final class _RibbonActionsRow extends StatelessWidget {

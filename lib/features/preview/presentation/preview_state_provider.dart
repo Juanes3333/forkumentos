@@ -138,20 +138,12 @@ final class PreviewStateNotifier extends Notifier<PreviewState> {
     state = state.copyWith(isRefreshing: true);
     try {
       final template = ref.read(activeTemplateProvider).valueOrNull;
-      final datasource = ref.read(activeDatasourceProvider).valueOrNull;
-
       if (template != null) {
         ref.invalidate(documentContentProvider(template.sourcePath));
-        await ref
-            .read(activeTemplateProvider.notifier)
-            .importTemplate(filePath: template.sourcePath);
-      }
-      if (datasource != null) {
-        await ref
-            .read(activeDatasourceProvider.notifier)
-            .importDatasource(filePath: datasource.sourcePath);
+        await ref.read(documentContentProvider(template.sourcePath).future);
       }
       ref.invalidate(previewRecordProvider);
+      await ref.read(previewRecordProvider.future);
     } catch (error) {
       state = state.copyWith(
         isRefreshing: false,
