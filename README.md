@@ -24,6 +24,8 @@ Forkumentos is a Windows Desktop application designed for document mapping, prev
    flutter run -d windows
    ```
 
+On first run on Windows, Forkumentos registers the `.fork` extension for the current executable (per-user HKCU). Double-clicking a `.fork` file in Explorer opens that project.
+
 ## Repository Structure
 
 The project follows a **Feature-First** architecture:

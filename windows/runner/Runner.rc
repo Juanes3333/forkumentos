@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.forkumentos" "\0"
-            VALUE "FileDescription", "forkumentos" "\0"
+            VALUE "FileDescription", "Forkumentos" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "forkumentos" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.forkumentos. All rights reserved." "\0"
             VALUE "OriginalFilename", "forkumentos.exe" "\0"
-            VALUE "ProductName", "forkumentos" "\0"
+            VALUE "ProductName", "Forkumentos" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

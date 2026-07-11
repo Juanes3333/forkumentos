@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/core/launch/launch_arguments.dart';
+import 'package:forkumentos/core/launch/spawn_app_instance.dart';
 import 'package:forkumentos/core/open_in_explorer.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/domain/recent_project.dart';
@@ -172,6 +174,18 @@ final class _ProjectWelcomeScreenState
         isLoading) {
       return;
     }
+
+    // Let argv launch handling win over openRecentOnStartup.
+    final underTest = WidgetsBinding.instance.runtimeType.toString().contains(
+      'Test',
+    );
+    if (!underTest) {
+      final args = Platform.executableArguments;
+      if (resolveLaunchProjectPath(args) != null || wantsNewProject(args)) {
+        return;
+      }
+    }
+
     _didAutoOpenRecent = true;
     final entry = entries.first;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -183,6 +197,11 @@ final class _ProjectWelcomeScreenState
   }
 
   Future<void> _handleCreateProject(BuildContext context, WidgetRef ref) async {
+    if (ref.read(activeProjectProvider).valueOrNull != null) {
+      await spawnAppInstance(newProject: true);
+      return;
+    }
+
     final projectName = await showCreateProjectDialog(context, ref);
     if (projectName == null) {
       return;
@@ -212,6 +231,11 @@ final class _ProjectWelcomeScreenState
       return;
     }
 
+    if (ref.read(activeProjectProvider).valueOrNull != null) {
+      await spawnAppInstance(projectPath: filePath);
+      return;
+    }
+
     await ref
         .read(activeProjectProvider.notifier)
         .loadProject(filePath: filePath);
@@ -231,6 +255,11 @@ final class _ProjectWelcomeScreenState
       if (remove ?? false) {
         await ref.read(recentProjectsProvider.notifier).remove(entry.filePath);
       }
+      return;
+    }
+
+    if (ref.read(activeProjectProvider).valueOrNull != null) {
+      await spawnAppInstance(projectPath: entry.filePath);
       return;
     }
 

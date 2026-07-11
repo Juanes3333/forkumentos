@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:forkumentos/core/logging/app_logger.dart';
 import 'package:forkumentos/core/logging/logging_service.dart';
@@ -5,6 +7,7 @@ import 'package:forkumentos/core/storage/file_key_value_storage.dart';
 import 'package:forkumentos/core/storage/key_value_storage.dart';
 import 'package:forkumentos/core/window/native_window_service.dart';
 import 'package:forkumentos/core/window/window_service.dart';
+import 'package:forkumentos/core/windows/fork_file_association.dart';
 import 'package:window_manager/window_manager.dart';
 
 @immutable
@@ -46,6 +49,10 @@ Future<AppBootstrapDependencies> bootstrap() async {
     });
 
     final windowService = NativeWindowService();
+
+    if (Platform.isWindows) {
+      await registerForkFileAssociation(loggingService);
+    }
 
     loggingService.info('Bootstrap completado', module: 'Bootstrap');
 

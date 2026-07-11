@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/core/launch/spawn_app_instance.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
@@ -9,7 +10,6 @@ import 'package:forkumentos/features/mapping/presentation/active_mapping_provide
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
 import 'package:forkumentos/features/preview/presentation/preview_state_provider.dart';
 import 'package:forkumentos/features/project/presentation/close_active_project.dart';
-import 'package:forkumentos/features/project/presentation/confirm_close_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
@@ -21,7 +21,6 @@ import 'package:forkumentos/routing/workbench/workbench_resource_actions.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
-import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 
 final class WorkbenchRibbon extends ConsumerWidget {
@@ -151,8 +150,9 @@ final class _FileRibbonActions extends ConsumerWidget {
 }
 
 Future<void> _startNewProject(BuildContext context, WidgetRef ref) async {
-  final closed = await closeActiveProject(context, ref);
-  if (!closed || !context.mounted) {
+  // Multi-window: with an active project, spawn a second process.
+  if (ref.read(activeProjectProvider).valueOrNull != null) {
+    await spawnAppInstance(newProject: true);
     return;
   }
 
@@ -167,30 +167,6 @@ Future<void> _startNewProject(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _openProject(BuildContext context, WidgetRef ref) async {
-  final project = ref.read(activeProjectProvider).valueOrNull;
-  if (project != null &&
-      project.isDirty &&
-      ref.read(confirmBeforeClosingProvider)) {
-    if (!context.mounted) {
-      return;
-    }
-    final choice = await confirmCloseProject(context);
-    switch (choice) {
-      case CloseProjectChoice.cancel:
-        return;
-      case CloseProjectChoice.closeWithoutSaving:
-        break;
-      case CloseProjectChoice.saveAndClose:
-        if (!context.mounted) {
-          return;
-        }
-        final saved = await saveActiveProject(context, ref, project);
-        if (!saved) {
-          return;
-        }
-    }
-  }
-
   final selected = await FilePicker.platform.pickFiles(
     dialogTitle: 'Abrir proyecto',
     type: FileType.custom,
@@ -220,6 +196,11 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
         );
       },
     );
+    return;
+  }
+
+  if (ref.read(activeProjectProvider).valueOrNull != null) {
+    await spawnAppInstance(projectPath: filePath);
     return;
   }
 
