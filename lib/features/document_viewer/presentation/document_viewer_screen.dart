@@ -107,6 +107,7 @@ final class _DocumentViewerScreenState
       zoomOut: _zoomOut,
       fitWidth: _selectFitWidth,
       fitPage: _selectFitPage,
+      setScale: _setScale,
     );
     _publishViewState();
   }
@@ -194,17 +195,10 @@ final class _DocumentViewerScreenState
             _DocumentToolbar(
               currentPageNumber: currentPageNumber,
               pageCount: pageCount,
-              zoomPercentage: (_lastKnownScale * 100).round(),
               canGoToPreviousPage: _currentPageIndex > 0,
               canGoToNextPage: _currentPageIndex < pageCount - 1,
-              isFitWidthSelected: _zoomMode == _ZoomMode.fitWidth,
-              isFitPageSelected: _zoomMode == _ZoomMode.fitPage,
               onPreviousPage: () => _goToPage(_currentPageIndex - 1),
               onNextPage: () => _goToPage(_currentPageIndex + 1),
-              onZoomOut: _zoomOut,
-              onZoomIn: _zoomIn,
-              onFitWidth: _selectFitWidth,
-              onFitPage: _selectFitPage,
             ),
           if (document.omissions.isNotEmpty) ...<Widget>[
             if (widget.showToolbar) const SizedBox(height: 8),
@@ -422,6 +416,16 @@ final class _DocumentViewerScreenState
     });
   }
 
+  void _setScale(double scale) {
+    final clamped = scale.clamp(_zoomSteps.first, _zoomSteps.last);
+    final nextStepIndex = _nearestZoomStepIndex(clamped);
+
+    _updateZoomPreservingPosition(() {
+      _zoomMode = _ZoomMode.manual;
+      _manualZoomStepIndex = nextStepIndex;
+    });
+  }
+
   int _nearestZoomStepIndex(double scale) {
     var selectedIndex = 0;
     var selectedDistance = double.infinity;
@@ -555,102 +559,39 @@ final class _DocumentToolbar extends StatelessWidget {
   const _DocumentToolbar({
     required this.currentPageNumber,
     required this.pageCount,
-    required this.zoomPercentage,
     required this.canGoToPreviousPage,
     required this.canGoToNextPage,
-    required this.isFitWidthSelected,
-    required this.isFitPageSelected,
     required this.onPreviousPage,
     required this.onNextPage,
-    required this.onZoomOut,
-    required this.onZoomIn,
-    required this.onFitWidth,
-    required this.onFitPage,
   });
 
   final int currentPageNumber;
   final int pageCount;
-  final int zoomPercentage;
   final bool canGoToPreviousPage;
   final bool canGoToNextPage;
-  final bool isFitWidthSelected;
-  final bool isFitPageSelected;
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
-  final VoidCallback onZoomOut;
-  final VoidCallback onZoomIn;
-  final VoidCallback onFitWidth;
-  final VoidCallback onFitPage;
 
   @override
   Widget build(BuildContext context) {
-    final toggleButtons = ToggleButtons(
-      isSelected: <bool>[isFitWidthSelected, isFitPageSelected],
-      onPressed: (index) {
-        if (index == 0) {
-          onFitWidth();
-          return;
-        }
-        onFitPage();
-      },
-      children: const <Widget>[
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text('Ajustar ancho'),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text('Ajustar página'),
-        ),
-      ],
-    );
-
     return Material(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Wrap(
-          spacing: 12,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                IconButton(
-                  tooltip: 'Página anterior',
-                  onPressed: canGoToPreviousPage ? onPreviousPage : null,
-                  icon: const Icon(Icons.navigate_before),
-                ),
-                IconButton(
-                  tooltip: 'Página siguiente',
-                  onPressed: canGoToNextPage ? onNextPage : null,
-                  icon: const Icon(Icons.navigate_next),
-                ),
-                const SizedBox(width: 8),
-                Text('Página $currentPageNumber de $pageCount'),
-              ],
+            IconButton(
+              tooltip: 'Página anterior',
+              onPressed: canGoToPreviousPage ? onPreviousPage : null,
+              icon: const Icon(Icons.navigate_before),
             ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                IconButton(
-                  tooltip: 'Alejar',
-                  onPressed: onZoomOut,
-                  icon: const Icon(Icons.zoom_out),
-                ),
-                SizedBox(
-                  width: 56,
-                  child: Center(child: Text('$zoomPercentage%')),
-                ),
-                IconButton(
-                  tooltip: 'Acercar',
-                  onPressed: onZoomIn,
-                  icon: const Icon(Icons.zoom_in),
-                ),
-                const SizedBox(width: 12),
-                toggleButtons,
-              ],
+            IconButton(
+              tooltip: 'Página siguiente',
+              onPressed: canGoToNextPage ? onNextPage : null,
+              icon: const Icon(Icons.navigate_next),
             ),
+            const SizedBox(width: 8),
+            Text('Página $currentPageNumber de $pageCount'),
           ],
         ),
       ),

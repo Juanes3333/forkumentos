@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/app/app_splash.dart';
 import 'package:forkumentos/core/theme/app_theme.dart';
 import 'package:forkumentos/routing/app_router.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
@@ -20,6 +21,9 @@ class App extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) {
+        return AppSplash(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 }

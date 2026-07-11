@@ -79,15 +79,24 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
         }
 
         final renderBox = context.findRenderObject() as RenderBox?;
-        final globalAnchor = renderBox == null
-            ? const Offset(120, 80)
-            : renderBox.localToGlobal(
-                Offset(
-                  renderBox.size.width *
-                      (selection.extentOffset / plainText.length).clamp(0, 1),
-                  0,
-                ),
+        final localBounds = _selectionLocalBounds(
+          plainText: plainText,
+          selection: selection,
+          maxWidth: renderBox?.size.width ?? 0,
+        );
+        final globalBounds = renderBox == null || localBounds == null
+            ? null
+            : Rect.fromPoints(
+                renderBox.localToGlobal(localBounds.topLeft),
+                renderBox.localToGlobal(localBounds.bottomRight),
               );
+        // Bottom-left of the selection so the tooltip clears the text and
+        // left-aligns with the selection start.
+        final globalAnchor =
+            globalBounds?.bottomLeft ??
+            (renderBox == null
+                ? const Offset(120, 80)
+                : renderBox.localToGlobal(Offset(0, renderBox.size.height)));
 
         widget.onSelectionChanged?.call(
           DocumentTextSelection(
@@ -96,10 +105,41 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
             endOffset: selection.end,
             selectedText: selectedText,
             anchor: globalAnchor,
+            bounds: globalBounds,
           ),
         );
       },
     );
+  }
+
+  Rect? _selectionLocalBounds({
+    required String plainText,
+    required TextSelection selection,
+    required double maxWidth,
+  }) {
+    if (maxWidth <= 0) {
+      return null;
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(
+        style: widget.textStyle.copyWith(color: Colors.black),
+        children: _buildDecoratedSpans(plainText),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+
+    final boxes = painter.getBoxesForSelection(selection);
+    if (boxes.isEmpty) {
+      return null;
+    }
+
+    return boxes
+        .skip(1)
+        .fold<Rect>(
+          boxes.first.toRect(),
+          (Rect acc, TextBox box) => acc.expandToInclude(box.toRect()),
+        );
   }
 
   List<InlineSpan> _buildDecoratedSpans(String plainText) {

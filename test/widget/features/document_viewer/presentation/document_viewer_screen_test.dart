@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/features/document_viewer/data/document_repository_provider.dart';
+import 'package:forkumentos/features/document_viewer/presentation/document_viewer_controller.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
 import 'package:forkumentos/shared/models/document.dart';
 
@@ -79,9 +80,10 @@ void main() {
     expect(find.text('Página 1 de 2'), findsOneWidget);
   });
 
-  testWidgets('zoom in/out actualiza porcentaje mostrado', (
+  testWidgets('zoom in/out actualiza porcentaje vía controller', (
     WidgetTester tester,
   ) async {
+    final controller = DocumentViewerController();
     await _pumpScreen(
       tester,
       repository: FakeDocumentRepository(
@@ -92,23 +94,31 @@ void main() {
       documentPath: '/tmp/documento.docx',
       isSourceLoading: false,
       sourceErrorMessage: null,
+      controller: controller,
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('100%'), findsOneWidget);
+    expect(controller.zoomPercentage, 100);
 
-    await tester.tap(find.byTooltip('Acercar'));
+    controller.zoomIn();
     await tester.pumpAndSettle();
-    expect(find.text('125%'), findsOneWidget);
+    expect(controller.zoomPercentage, 125);
 
-    await tester.tap(find.byTooltip('Alejar'));
+    controller.zoomOut();
     await tester.pumpAndSettle();
-    expect(find.text('100%'), findsOneWidget);
+    expect(controller.zoomPercentage, 100);
+
+    controller.setScale(1.5);
+    await tester.pumpAndSettle();
+    expect(controller.zoomPercentage, 150);
+
+    controller.dispose();
   });
 
-  testWidgets('fit width y fit page alternan selección', (
+  testWidgets('fit width y fit page actualizan estado vía controller', (
     WidgetTester tester,
   ) async {
+    final controller = DocumentViewerController();
     await _pumpScreen(
       tester,
       repository: FakeDocumentRepository(
@@ -119,22 +129,47 @@ void main() {
       documentPath: '/tmp/documento.docx',
       isSourceLoading: false,
       sourceErrorMessage: null,
+      controller: controller,
     );
     await tester.pumpAndSettle();
 
-    var toggles = tester.widget<ToggleButtons>(find.byType(ToggleButtons));
-    expect(toggles.isSelected, <bool>[false, false]);
+    expect(controller.isFitWidth, isFalse);
+    expect(controller.isFitPage, isFalse);
 
-    await tester.tap(find.text('Ajustar ancho'));
+    controller.fitWidth();
     await tester.pumpAndSettle();
-    toggles = tester.widget<ToggleButtons>(find.byType(ToggleButtons));
-    expect(toggles.isSelected, <bool>[true, false]);
+    expect(controller.isFitWidth, isTrue);
+    expect(controller.isFitPage, isFalse);
 
-    await tester.ensureVisible(find.text('Ajustar página'));
-    await tester.tap(find.text('Ajustar página'));
+    controller.fitPage();
     await tester.pumpAndSettle();
-    toggles = tester.widget<ToggleButtons>(find.byType(ToggleButtons));
-    expect(toggles.isSelected, <bool>[false, true]);
+    expect(controller.isFitWidth, isFalse);
+    expect(controller.isFitPage, isTrue);
+
+    controller.dispose();
+  });
+
+  testWidgets('toolbar del viewer solo muestra navegación de páginas', (
+    WidgetTester tester,
+  ) async {
+    await _pumpScreen(
+      tester,
+      repository: FakeDocumentRepository(
+        loadHandler: (_) async => _buildDocument(
+          pages: <DocumentPage>[_buildPage(number: 1, text: 'Nav')],
+        ),
+      ),
+      documentPath: '/tmp/documento.docx',
+      isSourceLoading: false,
+      sourceErrorMessage: null,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Página 1 de 1'), findsOneWidget);
+    expect(find.byTooltip('Acercar'), findsNothing);
+    expect(find.byTooltip('Alejar'), findsNothing);
+    expect(find.text('Ajustar ancho'), findsNothing);
+    expect(find.text('Ajustar página'), findsNothing);
   });
 
   testWidgets('navegación prev/next se habilita según límites', (
@@ -234,6 +269,7 @@ Future<void> _pumpScreen(
   required String? documentPath,
   required bool isSourceLoading,
   required String? sourceErrorMessage,
+  DocumentViewerController? controller,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -246,6 +282,7 @@ Future<void> _pumpScreen(
             documentPath: documentPath,
             isSourceLoading: isSourceLoading,
             sourceErrorMessage: sourceErrorMessage,
+            controller: controller,
           ),
         ),
       ),

@@ -7,6 +7,7 @@ final class DocumentViewerController extends ChangeNotifier {
   VoidCallback? _zoomOut;
   VoidCallback? _fitWidth;
   VoidCallback? _fitPage;
+  void Function(double scale)? _setScale;
   int _zoomPercentage = 100;
   bool _isFitWidth = false;
   bool _isFitPage = false;
@@ -24,6 +25,7 @@ final class DocumentViewerController extends ChangeNotifier {
     required VoidCallback zoomOut,
     required VoidCallback fitWidth,
     required VoidCallback fitPage,
+    required void Function(double scale) setScale,
   }) {
     if (_disposed) {
       return;
@@ -32,6 +34,7 @@ final class DocumentViewerController extends ChangeNotifier {
     _zoomOut = zoomOut;
     _fitWidth = fitWidth;
     _fitPage = fitPage;
+    _setScale = setScale;
     _attached = true;
     _safeNotify();
   }
@@ -41,6 +44,7 @@ final class DocumentViewerController extends ChangeNotifier {
     _zoomOut = null;
     _fitWidth = null;
     _fitPage = null;
+    _setScale = null;
     _attached = false;
     if (!_disposed) {
       _safeNotify();
@@ -70,6 +74,7 @@ final class DocumentViewerController extends ChangeNotifier {
   void zoomOut() => _zoomOut?.call();
   void fitWidth() => _fitWidth?.call();
   void fitPage() => _fitPage?.call();
+  void setScale(double scale) => _setScale?.call(scale);
 
   @override
   void dispose() {
@@ -78,6 +83,7 @@ final class DocumentViewerController extends ChangeNotifier {
     _zoomOut = null;
     _fitWidth = null;
     _fitPage = null;
+    _setScale = null;
     _attached = false;
     super.dispose();
   }

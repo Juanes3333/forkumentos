@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/settings/domain/app_settings.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
+import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
 
 Future<void> showSettingsDialog(BuildContext context) {
   return showDialog<void>(
@@ -43,7 +44,13 @@ final class _SettingsDialogState extends ConsumerState<_SettingsDialog> {
     }
 
     return AlertDialog(
-      title: const Text('Configuración'),
+      title: const Row(
+        children: <Widget>[
+          ForkumentosLogo(height: 28),
+          SizedBox(width: 12),
+          Text('Configuración'),
+        ],
+      ),
       content: SizedBox(
         width: 480,
         child: settings == null

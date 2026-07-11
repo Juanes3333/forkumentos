@@ -121,7 +121,11 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
     }
     ref
         .read(workbenchSelectionProvider.notifier)
-        .updateSelection(selection, selection.anchor!);
+        .updateSelection(
+          selection,
+          selection.anchor!,
+          bounds: selection.bounds,
+        );
   }
 
   void _handleNavigation(MappingNavigationTarget target) {

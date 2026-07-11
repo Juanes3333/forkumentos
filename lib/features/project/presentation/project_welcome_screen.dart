@@ -1,11 +1,14 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/core/open_in_explorer.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/domain/recent_project.dart';
 import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
+import 'package:intl/intl.dart';
 
 final class ProjectWelcomeScreen extends ConsumerWidget {
   const ProjectWelcomeScreen({super.key, this.onOpenSettings});
@@ -30,6 +33,15 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                const Center(child: ForkumentosLogo(height: 64)),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    'Forkumentos',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -198,6 +210,10 @@ bool _isProjectFilePath(String filePath) {
   return filePath.toLowerCase().endsWith(projectFileExtension);
 }
 
+String _formatLastOpenedAt(DateTime lastOpenedAt) {
+  return DateFormat('dd/MM/yyyy HH:mm').format(lastOpenedAt.toLocal());
+}
+
 final class _RecentProjectsList extends StatelessWidget {
   const _RecentProjectsList({
     required this.entries,
@@ -247,12 +263,27 @@ final class _RecentProjectTile extends StatelessWidget {
       dense: true,
       title: Text(entry.name),
       subtitle: Text(
-        entry.filePath,
+        _formatLastOpenedAt(entry.lastOpenedAt),
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontFamily: 'monospace',
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
+      ),
+      trailing: PopupMenuButton<String>(
+        tooltip: 'Más acciones',
+        onSelected: (value) {
+          if (value == 'show_in_explorer') {
+            showFileInExplorer(entry.filePath);
+          }
+        },
+        itemBuilder: (BuildContext context) {
+          return const <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(
+              value: 'show_in_explorer',
+              child: Text('Mostrar en el Explorador'),
+            ),
+          ];
+        },
       ),
       onTap: onTap,
     );

@@ -15,7 +15,7 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
   /// into local [Positioned] coordinates.
   final GlobalKey stackKey;
 
-  static const double _gap = 8;
+  static const double _gap = 28;
   static const double _approxWidth = 280;
   static const double _approxHeight = 140;
 
@@ -38,10 +38,12 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
         : mappingState.currentFieldIndex.clamp(0, headers.length - 1);
     final overlapping = mappingNotifier.findConflictingAssignment(selection);
 
+    final localBounds = _toStackLocalRect(selectionState.bounds);
     final localAnchor = _toStackLocal(anchor);
     final stackSize = _stackSize();
     final position = _resolvePosition(
       anchor: localAnchor,
+      bounds: localBounds,
       stackSize: stackSize,
     );
 
@@ -145,31 +147,47 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
     );
   }
 
-  /// Anchor is treated as the bottom of the selection; prefer above first.
-  Offset _resolvePosition({required Offset anchor, required Size stackSize}) {
-    final aboveTop = anchor.dy - _approxHeight - _gap;
-    if (aboveTop >= 0) {
-      return Offset(_clampLeft(anchor.dx, stackSize.width), aboveTop);
+  /// Prefer above, then below, then sides — always with [_gap] clearance from
+  /// the selection bounds (or anchor). Left-align with the selection start.
+  Offset _resolvePosition({
+    required Offset anchor,
+    required Rect? bounds,
+    required Size stackSize,
+  }) {
+    final left = bounds?.left ?? anchor.dx;
+    final top = bounds?.top ?? anchor.dy;
+    final bottom = bounds?.bottom ?? anchor.dy;
+    final midY = bounds == null
+        ? anchor.dy - _approxHeight / 2
+        : bounds.center.dy - _approxHeight / 2;
+
+    final candidates = <Offset>[
+      Offset(_clampLeft(left, stackSize.width), top - _approxHeight - _gap),
+      Offset(_clampLeft(left, stackSize.width), bottom + _gap),
+      Offset(
+        (bounds?.right ?? anchor.dx) + _gap,
+        _clampTop(midY, stackSize.height),
+      ),
+      Offset(left - _approxWidth - _gap, _clampTop(midY, stackSize.height)),
+    ];
+
+    for (final candidate in candidates) {
+      if (_fits(candidate, stackSize)) {
+        return candidate;
+      }
     }
 
-    final belowTop = anchor.dy + _gap;
-    if (belowTop + _approxHeight <= stackSize.height) {
-      return Offset(_clampLeft(anchor.dx, stackSize.width), belowTop);
-    }
-
-    final rightLeft = anchor.dx + _gap;
-    if (rightLeft + _approxWidth <= stackSize.width) {
-      return Offset(
-        rightLeft,
-        _clampTop(anchor.dy - _approxHeight / 2, stackSize.height),
-      );
-    }
-
-    final leftLeft = anchor.dx - _approxWidth - _gap;
     return Offset(
-      leftLeft.clamp(8.0, stackSize.width - _approxWidth - 8),
-      _clampTop(anchor.dy - _approxHeight / 2, stackSize.height),
+      _clampLeft(left, stackSize.width),
+      _clampTop(top - _approxHeight - _gap, stackSize.height),
     );
+  }
+
+  bool _fits(Offset topLeft, Size stackSize) {
+    return topLeft.dx >= 0 &&
+        topLeft.dy >= 0 &&
+        topLeft.dx + _approxWidth <= stackSize.width &&
+        topLeft.dy + _approxHeight <= stackSize.height;
   }
 
   double _clampLeft(double preferred, double stackWidth) {
@@ -194,6 +212,20 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
       return globalAnchor;
     }
     return box.globalToLocal(globalAnchor);
+  }
+
+  Rect? _toStackLocalRect(Rect? globalBounds) {
+    if (globalBounds == null) {
+      return null;
+    }
+    final box = stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return globalBounds;
+    }
+    return Rect.fromPoints(
+      box.globalToLocal(globalBounds.topLeft),
+      box.globalToLocal(globalBounds.bottomRight),
+    );
   }
 
   void _removeOverlapping(WidgetRef ref, FieldAssignment overlapping) {

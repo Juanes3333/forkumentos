@@ -22,6 +22,7 @@ final class DocumentTextSelection {
     required this.endOffset,
     required this.selectedText,
     this.anchor,
+    this.bounds,
   });
 
   final DocumentTextPath path;
@@ -29,4 +30,7 @@ final class DocumentTextSelection {
   final int endOffset;
   final String selectedText;
   final Offset? anchor;
+
+  /// Global bounds of the selected text, when available.
+  final Rect? bounds;
 }

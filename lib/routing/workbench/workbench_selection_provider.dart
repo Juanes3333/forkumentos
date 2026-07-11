@@ -14,8 +14,16 @@ final class WorkbenchSelectionNotifier
     return const WorkbenchSelectionState();
   }
 
-  void updateSelection(DocumentTextSelection selection, Offset anchor) {
-    state = WorkbenchSelectionState(selection: selection, anchor: anchor);
+  void updateSelection(
+    DocumentTextSelection selection,
+    Offset anchor, {
+    Rect? bounds,
+  }) {
+    state = WorkbenchSelectionState(
+      selection: selection,
+      anchor: anchor,
+      bounds: bounds,
+    );
   }
 
   void clearSelection() {
@@ -27,10 +35,13 @@ final class WorkbenchSelectionNotifier
 }
 
 final class WorkbenchSelectionState {
-  const WorkbenchSelectionState({this.selection, this.anchor});
+  const WorkbenchSelectionState({this.selection, this.anchor, this.bounds});
 
   final DocumentTextSelection? selection;
   final Offset? anchor;
+
+  /// Global selection bounds used to keep the tooltip clear of the text.
+  final Rect? bounds;
 
   bool get hasSelection => selection != null && anchor != null;
 }

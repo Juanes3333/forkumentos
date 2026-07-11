@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/core/open_in_explorer.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
@@ -21,9 +22,9 @@ import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_resource_actions.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
-import 'package:forkumentos/routing/workbench/workbench_view_tools.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
+import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 
 final class WorkbenchRibbon extends ConsumerWidget {
   const WorkbenchRibbon({super.key});
@@ -60,14 +61,8 @@ final class WorkbenchRibbon extends ConsumerWidget {
           SizedBox(
             height: 72,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Expanded(child: _RibbonTabContent(tab: activeTab)),
-                  const WorkbenchViewTools(),
-                ],
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: _RibbonTabContent(tab: activeTab),
             ),
           ),
         ],
@@ -144,6 +139,11 @@ final class _FileRibbonActions extends ConsumerWidget {
               icon: Icons.settings_outlined,
               label: 'Configuración',
               onPressed: () => showSettingsDialog(context),
+            ),
+            _RibbonActionButton(
+              icon: Icons.info_outline,
+              label: 'Acerca de',
+              onPressed: () => showAboutForkumentosDialog(context),
             ),
           ],
         ),
@@ -256,6 +256,32 @@ final class _HomeRibbonActions extends ConsumerWidget {
     return _RibbonActionsRow(
       children: <Widget>[
         _RibbonGroup(
+          label: 'Historial',
+          children: <Widget>[
+            _RibbonActionButton(
+              icon: Icons.undo,
+              label: 'Deshacer',
+              tooltip: 'Deshacer (Ctrl+Z)',
+              onPressed: mappingSession.canUndo
+                  ? ref.read(activeMappingProvider.notifier).undo
+                  : null,
+            ),
+            _RibbonActionButton(
+              icon: Icons.redo,
+              label: 'Rehacer',
+              tooltip: 'Rehacer (Ctrl+Y)',
+              onPressed: mappingSession.canRedo
+                  ? ref.read(activeMappingProvider.notifier).redo
+                  : null,
+            ),
+          ],
+        ),
+        VerticalDivider(
+          width: 8,
+          thickness: 1,
+          color: AppColors.of(context).border,
+        ),
+        _RibbonGroup(
           label: 'Navegación',
           children: <Widget>[
             _RibbonActionButton(
@@ -299,7 +325,7 @@ final class _HomeRibbonActions extends ConsumerWidget {
           ],
         ),
         VerticalDivider(
-          width: 16,
+          width: 8,
           thickness: 1,
           color: AppColors.of(context).border,
         ),
@@ -335,32 +361,6 @@ final class _HomeRibbonActions extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-        VerticalDivider(
-          width: 16,
-          thickness: 1,
-          color: AppColors.of(context).border,
-        ),
-        _RibbonGroup(
-          label: 'Historial',
-          children: <Widget>[
-            _RibbonActionButton(
-              icon: Icons.undo,
-              label: 'Deshacer',
-              tooltip: 'Deshacer (Ctrl+Z)',
-              onPressed: mappingSession.canUndo
-                  ? ref.read(activeMappingProvider.notifier).undo
-                  : null,
-            ),
-            _RibbonActionButton(
-              icon: Icons.redo,
-              label: 'Rehacer',
-              tooltip: 'Rehacer (Ctrl+Y)',
-              onPressed: mappingSession.canRedo
-                  ? ref.read(activeMappingProvider.notifier).redo
-                  : null,
             ),
           ],
         ),
@@ -407,7 +407,7 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
           ],
         ),
         VerticalDivider(
-          width: 16,
+          width: 8,
           thickness: 1,
           color: AppColors.of(context).border,
         ),
@@ -634,7 +634,7 @@ Future<void> _exportToDefaultFolder(WidgetRef ref, String projectName) async {
     return;
   }
   await paths.ensureExportFolder(projectName);
-  await _openFolder(paths.exportFolder(projectName));
+  await openFolderInExplorer(paths.exportFolder(projectName));
 }
 
 Future<void> _exportAsFolder(String projectName) async {
@@ -646,13 +646,7 @@ Future<void> _exportAsFolder(String projectName) async {
   }
   final folder = Directory(selected + Platform.pathSeparator + projectName);
   await folder.create(recursive: true);
-  await _openFolder(folder.path);
-}
-
-Future<void> _openFolder(String folderPath) async {
-  if (Platform.isWindows) {
-    await Process.start('explorer', <String>[folderPath]);
-  }
+  await openFolderInExplorer(folder.path);
 }
 
 final class _RibbonActionsRow extends StatelessWidget {
@@ -683,7 +677,7 @@ final class _RibbonGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

@@ -13,6 +13,7 @@ import 'package:forkumentos/routing/workbench/workbench_screen.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../support/fakes.dart';
 
@@ -72,7 +73,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Proyecto Reciente'), findsOneWidget);
-    expect(find.text('/tmp/reciente.fork'), findsOneWidget);
+    expect(find.text('/tmp/reciente.fork'), findsNothing);
+
+    final recent = container.read(recentProjectsProvider).valueOrNull!.first;
+    final expectedDate = DateFormat(
+      'dd/MM/yyyy HH:mm',
+    ).format(recent.lastOpenedAt.toLocal());
+    expect(find.text(expectedDate), findsOneWidget);
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget);
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Mostrar en el Explorador'), findsOneWidget);
   });
 
   testWidgets('Workbench inspector muestra el navegador de campos', (
