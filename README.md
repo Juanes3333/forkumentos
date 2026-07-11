@@ -18,20 +18,6 @@ Projects are portable `.fork` archives that embed the template, datasource, and 
 
 ---
 
-## Screenshots
-
-> Place screenshots under `docs/screenshots/` and update the paths below when available.
-
-| Screen | Preview |
-|--------|---------|
-| Landing | ![Landing Page](docs/screenshots/landing.png) |
-| Workbench | ![Workbench](docs/screenshots/workbench.png) |
-| Mapping / Review | ![Review](docs/screenshots/review.png) |
-| Export | ![Export](docs/screenshots/export.png) |
-| Settings | ![Settings](docs/screenshots/settings.png) |
-
----
-
 ## Features
 
 ### Project management
