@@ -22,11 +22,11 @@ void main() {
 
     await container
         .read(recentProjectsProvider.notifier)
-        .record(filePath: '/tmp/uno.forkumentos.json', name: 'Uno');
+        .record(filePath: '/tmp/uno.fork', name: 'Uno');
 
     final entries = container.read(recentProjectsProvider).valueOrNull;
     expect(entries, hasLength(1));
-    expect(entries?.first.filePath, '/tmp/uno.forkumentos.json');
+    expect(entries?.first.filePath, '/tmp/uno.fork');
   });
 
   test('record deduplica por filePath moviendo la entrada al frente', () async {
@@ -35,16 +35,13 @@ void main() {
     await container.read(recentProjectsProvider.future);
     final notifier = container.read(recentProjectsProvider.notifier);
 
-    await notifier.record(filePath: '/tmp/uno.forkumentos.json', name: 'Uno');
-    await notifier.record(filePath: '/tmp/dos.forkumentos.json', name: 'Dos');
-    await notifier.record(
-      filePath: '/tmp/uno.forkumentos.json',
-      name: 'Uno Renombrado',
-    );
+    await notifier.record(filePath: '/tmp/uno.fork', name: 'Uno');
+    await notifier.record(filePath: '/tmp/dos.fork', name: 'Dos');
+    await notifier.record(filePath: '/tmp/uno.fork', name: 'Uno Renombrado');
 
     final entries = container.read(recentProjectsProvider).valueOrNull;
     expect(entries, hasLength(2));
-    expect(entries?.first.filePath, '/tmp/uno.forkumentos.json');
+    expect(entries?.first.filePath, '/tmp/uno.fork');
     expect(entries?.first.name, 'Uno Renombrado');
   });
 
@@ -58,18 +55,16 @@ void main() {
 
       for (var i = 0; i < 12; i++) {
         await notifier.record(
-          filePath: '/tmp/proyecto_$i.forkumentos.json',
+          filePath: '/tmp/proyecto_$i.fork',
           name: 'Proyecto $i',
         );
       }
 
       final entries = container.read(recentProjectsProvider).valueOrNull;
       expect(entries, hasLength(10));
-      expect(entries?.first.filePath, '/tmp/proyecto_11.forkumentos.json');
+      expect(entries?.first.filePath, '/tmp/proyecto_11.fork');
       expect(
-        entries?.any(
-          (entry) => entry.filePath == '/tmp/proyecto_0.forkumentos.json',
-        ),
+        entries?.any((entry) => entry.filePath == '/tmp/proyecto_0.fork'),
         isFalse,
       );
     },

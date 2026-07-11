@@ -24,12 +24,12 @@ void main() {
 
     final entries = <RecentProject>[
       RecentProject(
-        filePath: '/tmp/uno.forkumentos.json',
+        filePath: '/tmp/uno.fork',
         name: 'Uno',
         lastOpenedAt: DateTime.utc(2026),
       ),
       RecentProject(
-        filePath: '/tmp/dos.forkumentos.json',
+        filePath: '/tmp/dos.fork',
         name: 'Dos',
         lastOpenedAt: DateTime.utc(2026, 1, 2),
       ),
@@ -39,8 +39,8 @@ void main() {
     final restored = await store.read();
 
     expect(restored, hasLength(2));
-    expect(restored[0].filePath, '/tmp/uno.forkumentos.json');
-    expect(restored[1].filePath, '/tmp/dos.forkumentos.json');
+    expect(restored[0].filePath, '/tmp/uno.fork');
+    expect(restored[1].filePath, '/tmp/dos.fork');
   });
 
   test(

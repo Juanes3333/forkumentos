@@ -29,7 +29,10 @@ Future<bool> closeActiveProject(BuildContext context, WidgetRef ref) async {
       await ref.read(activeProjectProvider.notifier).closeProject();
       return true;
     case CloseProjectChoice.saveAndClose:
-      final saved = await saveActiveProject(ref, project);
+      if (!context.mounted) {
+        return false;
+      }
+      final saved = await saveActiveProject(context, ref, project);
       if (!saved) {
         return false;
       }

@@ -1,14 +1,17 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/domain/recent_project.dart';
+import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 
-const _projectFileExtension = '.forkumentos.json';
-
 final class ProjectWelcomeScreen extends ConsumerWidget {
-  const ProjectWelcomeScreen({super.key});
+  const ProjectWelcomeScreen({super.key, this.onOpenSettings});
+
+  /// Opened by routing (Landing). Keeps settings UI out of this feature.
+  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,9 +30,21 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text(
-                  'Inicia un proyecto',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        'Inicia un proyecto',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    if (onOpenSettings != null)
+                      IconButton(
+                        tooltip: 'Configuración',
+                        onPressed: isLoading ? null : onOpenSettings,
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -91,7 +106,7 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
   }
 
   Future<void> _handleCreateProject(BuildContext context, WidgetRef ref) async {
-    final projectName = await _promptProjectName(context);
+    final projectName = await showCreateProjectDialog(context, ref);
     if (projectName == null) {
       return;
     }
@@ -105,7 +120,7 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
     final selected = await FilePicker.platform.pickFiles(
       dialogTitle: 'Abrir proyecto',
       type: FileType.custom,
-      allowedExtensions: const <String>['json'],
+      allowedExtensions: const <String>['fork'],
     );
     final filePath = selected?.files.single.path;
     if (filePath == null) {
@@ -149,76 +164,13 @@ Future<void> _recordIfLoaded(WidgetRef ref) async {
       .record(filePath: project.filePath!, name: project.name);
 }
 
-Future<String?> _promptProjectName(BuildContext context) async {
-  final controller = TextEditingController();
-  var showError = false;
-
-  final result = await showDialog<String>(
-    context: context,
-    builder: (BuildContext context) {
-      return StatefulBuilder(
-        builder: (BuildContext context, StateSetter setState) {
-          return AlertDialog(
-            title: const Text('Crear proyecto'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) {
-                final normalizedName = controller.text.trim();
-                if (normalizedName.isEmpty) {
-                  setState(() {
-                    showError = true;
-                  });
-                  return;
-                }
-
-                Navigator.of(context).pop(normalizedName);
-              },
-              decoration: InputDecoration(
-                labelText: 'Nombre del proyecto',
-                errorText: showError ? 'El nombre no puede estar vacío.' : null,
-              ),
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final normalizedName = controller.text.trim();
-                  if (normalizedName.isEmpty) {
-                    setState(() {
-                      showError = true;
-                    });
-                    return;
-                  }
-
-                  Navigator.of(context).pop(normalizedName);
-                },
-                child: const Text('Crear proyecto'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-
-  controller.dispose();
-  return result;
-}
-
 Future<void> _showUnsupportedFileDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
     builder: (BuildContext context) {
       return AlertDialog(
         title: const Text('Archivo no compatible'),
-        content: const Text(
-          'Selecciona un archivo con extensión .forkumentos.json.',
-        ),
+        content: const Text('Selecciona un archivo con extensión .fork.'),
         actions: <Widget>[
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -243,7 +195,7 @@ String? _resolveErrorMessage(Object? error) {
 }
 
 bool _isProjectFilePath(String filePath) {
-  return filePath.toLowerCase().endsWith(_projectFileExtension);
+  return filePath.toLowerCase().endsWith(projectFileExtension);
 }
 
 final class _RecentProjectsList extends StatelessWidget {

@@ -18,6 +18,10 @@ class Project with _$Project {
     @Default(false)
     @JsonKey(includeFromJson: false, includeToJson: false)
     bool isDirty,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? embeddedTemplatePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? embeddedDatasourcePath,
   }) = _Project;
 
   factory Project.fromJson(Map<String, dynamic> json) =>

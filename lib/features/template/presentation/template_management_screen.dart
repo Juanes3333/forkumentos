@@ -86,6 +86,12 @@ Future<void> _pickAndImportTemplate(WidgetRef ref) async {
   await ref
       .read(activeTemplateProvider.notifier)
       .importTemplate(filePath: filePath);
+  final path = ref.read(activeTemplateProvider).valueOrNull?.sourcePath;
+  if (path != null) {
+    ref
+        .read(activeProjectProvider.notifier)
+        .setEmbeddedArtifactPaths(templatePath: path);
+  }
 }
 
 String? _resolveErrorMessage(Object? error) {

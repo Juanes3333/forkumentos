@@ -12,37 +12,34 @@ final class WorkbenchScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final inspectorVisible = ref.watch(workbenchInspectorVisibleProvider);
 
     return ColoredBox(
-      color: AppColors.backgroundPrimary,
+      color: colors.backgroundPrimary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           const WorkbenchRibbon(),
-          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          Divider(height: 1, thickness: 1, color: colors.border),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                const Expanded(
+                Expanded(
                   child: ColoredBox(
-                    color: AppColors.surface,
-                    child: WorkbenchWorkspace(),
+                    color: colors.surface,
+                    child: const WorkbenchWorkspace(),
                   ),
                 ),
                 if (inspectorVisible) ...<Widget>[
-                  const VerticalDivider(
-                    width: 1,
-                    thickness: 1,
-                    color: AppColors.border,
-                  ),
+                  VerticalDivider(width: 1, thickness: 1, color: colors.border),
                   const WorkbenchInspector(),
                 ],
               ],
             ),
           ),
-          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          Divider(height: 1, thickness: 1, color: colors.border),
           const WorkbenchStatusBar(),
         ],
       ),

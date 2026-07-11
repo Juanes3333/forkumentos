@@ -15,6 +15,7 @@ final class WorkbenchStatusBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final project = ref.watch(activeProjectProvider).valueOrNull;
     final tab = ref.watch(workbenchTabProvider);
     final exportReady = ref.watch(exportReadinessProvider);
@@ -30,7 +31,7 @@ final class WorkbenchStatusBar extends ConsumerWidget {
     return SizedBox(
       height: height,
       child: ColoredBox(
-        color: AppColors.backgroundSecondary,
+        color: colors.backgroundSecondary,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Align(
@@ -41,7 +42,7 @@ final class WorkbenchStatusBar extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: AppColors.foregroundMuted),
+              ).textTheme.bodySmall?.copyWith(color: colors.foregroundMuted),
             ),
           ),
         ),

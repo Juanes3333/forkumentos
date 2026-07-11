@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/features/project/data/local_project_repository.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
@@ -21,7 +22,12 @@ void main() {
     await tempDirectory.delete(recursive: true);
   });
 
-  test('save y load persisten el proyecto en JSON', () async {
+  test('save y load round-trip ZIP con artefactos embebidos', () async {
+    final templateSource = File(p.join(tempDirectory.path, 'plantilla.docx'))
+      ..writeAsBytesSync(utf8.encode('DOCX-BYTES'));
+    final datasourceSource = File(p.join(tempDirectory.path, 'datos.csv'))
+      ..writeAsStringSync('nombre,correo\nAna,a@x.com\n');
+
     final sourceProject = Project(
       id: 'project-1',
       name: 'Proyecto Persistente',
@@ -31,91 +37,137 @@ void main() {
         <String, dynamic>{'id': 'assignment-1', 'fieldIndex': 0},
       ],
     );
-    final filePath = p.join(
-      tempDirectory.path,
-      'proyecto_persistente.forkumentos.json',
-    );
+    final filePath = p.join(tempDirectory.path, 'proyecto_persistente.fork');
+    final cacheRoot = p.join(tempDirectory.path, 'Cache');
 
     final savedProject = await repository.save(
       project: sourceProject,
       filePath: filePath,
+      templateSourcePath: templateSource.path,
+      datasourceSourcePath: datasourceSource.path,
+      cacheDirectory: cacheRoot,
     );
     expect(savedProject.filePath, filePath);
+    expect(savedProject.embeddedTemplatePath, isNotNull);
+    expect(savedProject.embeddedDatasourcePath, isNotNull);
 
-    final rawFileContent = await File(filePath).readAsString();
-    final persistedJson = jsonDecode(rawFileContent) as Map<String, dynamic>;
-    expect(persistedJson.containsKey('filePath'), isFalse);
-    expect(persistedJson['mappingAssignments'], hasLength(1));
+    final bytes = await File(filePath).readAsBytes();
+    final archive = ZipDecoder().decodeBytes(bytes);
+    expect(archive.findFile('manifest.json'), isNotNull);
+    expect(archive.findFile('project.json'), isNotNull);
+    expect(archive.findFile('mappings.json'), isNotNull);
+    expect(archive.findFile('template/plantilla.docx'), isNotNull);
+    expect(archive.findFile('datasource/datos.csv'), isNotNull);
 
-    final loadedProject = await repository.load(filePath);
+    final loadCache = p.join(tempDirectory.path, 'LoadCache');
+    final loadedProject = await repository.load(
+      filePath,
+      cacheDirectory: loadCache,
+    );
     expect(loadedProject.id, sourceProject.id);
     expect(loadedProject.name, sourceProject.name);
     expect(loadedProject.createdAt, sourceProject.createdAt);
-    expect(loadedProject.updatedAt, savedProject.updatedAt);
     expect(loadedProject.mappingAssignments, sourceProject.mappingAssignments);
     expect(loadedProject.filePath, filePath);
+    expect(loadedProject.isDirty, isFalse);
+    expect(loadedProject.embeddedTemplatePath, isNotNull);
+    expect(loadedProject.embeddedDatasourcePath, isNotNull);
+    expect(File(loadedProject.embeddedTemplatePath!).existsSync(), isTrue);
+    expect(File(loadedProject.embeddedDatasourcePath!).existsSync(), isTrue);
   });
 
-  test(
-    'save sobre mismo path reemplaza contenido sin dejar tmp o bak',
-    () async {
-      final filePath = p.join(
-        tempDirectory.path,
-        'proyecto_reemplazo.forkumentos.json',
-      );
-      final firstProject = Project(
-        id: 'project-1',
-        name: 'Proyecto Inicial',
-        createdAt: DateTime.utc(2026),
-        updatedAt: DateTime.utc(2026, 1, 2),
-      );
-      final secondProject = firstProject.copyWith(
-        name: 'Proyecto Actualizado',
-        updatedAt: DateTime.utc(2026, 1, 3),
-      );
-
-      await repository.save(project: firstProject, filePath: filePath);
-      await repository.save(project: secondProject, filePath: filePath);
-
-      final rawFileContent = await File(filePath).readAsString();
-      final persistedJson = jsonDecode(rawFileContent) as Map<String, dynamic>;
-      expect(persistedJson['name'], 'Proyecto Actualizado');
-
-      final siblings = await tempDirectory.list().toList();
-      final tempOrBakFiles = siblings
-          .whereType<File>()
-          .map((entry) => p.basename(entry.path))
-          .where(
-            (name) =>
-                name.contains('.forkumentos.json.') ||
-                name.endsWith('.tmp') ||
-                name.endsWith('.bak'),
-          )
-          .toList();
-
-      expect(tempOrBakFiles, isEmpty);
-    },
-  );
-
-  test('rechaza archivo JSON inválido', () async {
-    final filePath = p.join(
-      tempDirectory.path,
-      'invalid_json.forkumentos.json',
+  test('save sobre mismo path reemplaza sin dejar tmp o bak', () async {
+    final filePath = p.join(tempDirectory.path, 'proyecto_reemplazo.fork');
+    final firstProject = Project(
+      id: 'project-1',
+      name: 'Proyecto Inicial',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026, 1, 2),
     );
-    await File(filePath).writeAsString('[1, 2, 3]');
-
-    expect(() => repository.load(filePath), throwsA(isA<FormatException>()));
-  });
-
-  test('rechaza estructura de proyecto malformada', () async {
-    final filePath = p.join(
-      tempDirectory.path,
-      'malformed_project.forkumentos.json',
+    final secondProject = firstProject.copyWith(
+      name: 'Proyecto Actualizado',
+      updatedAt: DateTime.utc(2026, 1, 3),
     );
-    await File(
+
+    await repository.save(project: firstProject, filePath: filePath);
+    await repository.save(project: secondProject, filePath: filePath);
+
+    final loaded = await repository.load(
       filePath,
-    ).writeAsString(jsonEncode(<String, dynamic>{'id': 'only-id'}));
+      cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+    );
+    expect(loaded.name, 'Proyecto Actualizado');
 
-    expect(() => repository.load(filePath), throwsA(isA<Object>()));
+    final siblings = await tempDirectory.list().toList();
+    final tempOrBakFiles = siblings
+        .whereType<File>()
+        .map((entry) => p.basename(entry.path))
+        .where(
+          (name) =>
+              name.contains('.fork.') ||
+              name.endsWith('.tmp') ||
+              name.endsWith('.bak'),
+        )
+        .toList();
+
+    expect(tempOrBakFiles, isEmpty);
+  });
+
+  test('rechaza extensión distinta de .fork', () async {
+    final filePath = p.join(tempDirectory.path, 'otro.json');
+    await File(filePath).writeAsString('{}');
+
+    expect(
+      () => repository.load(
+        filePath,
+        cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+      ),
+      throwsA(
+        isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('.fork'),
+        ),
+      ),
+    );
+  });
+
+  test('rechaza formato JSON antiguo con mensaje claro', () async {
+    final filePath = p.join(tempDirectory.path, 'legacy.fork');
+    await File(filePath).writeAsString(
+      jsonEncode(<String, dynamic>{
+        'id': 'old',
+        'name': 'Viejo',
+        'createdAt': '2026-01-01T00:00:00.000Z',
+        'updatedAt': '2026-01-01T00:00:00.000Z',
+      }),
+    );
+
+    expect(
+      () => repository.load(
+        filePath,
+        cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+      ),
+      throwsA(
+        isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('formato antiguo'),
+        ),
+      ),
+    );
+  });
+
+  test('rechaza ZIP inválido', () async {
+    final filePath = p.join(tempDirectory.path, 'roto.fork');
+    await File(filePath).writeAsBytes(<int>[0, 1, 2, 3, 4, 5]);
+
+    expect(
+      () => repository.load(
+        filePath,
+        cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+      ),
+      throwsA(isA<FormatException>()),
+    );
   });
 }

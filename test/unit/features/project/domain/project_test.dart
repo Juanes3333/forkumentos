@@ -11,7 +11,7 @@ void main() {
       mappingAssignments: const <Map<String, dynamic>>[
         <String, dynamic>{'id': 'assignment-1'},
       ],
-      filePath: r'C:\temp\demo.forkumentos.json',
+      filePath: r'C:\temp\demo.fork',
     );
 
     final json = project.toJson();

@@ -10,6 +10,7 @@ final class WorkbenchViewTools extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final controller = ref.watch(documentViewerControllerProvider);
 
     return ListenableBuilder(
@@ -18,11 +19,7 @@ final class WorkbenchViewTools extends ConsumerWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const VerticalDivider(
-              width: 16,
-              thickness: 1,
-              color: AppColors.border,
-            ),
+            VerticalDivider(width: 16, thickness: 1, color: colors.border),
             _ViewToolGroup(
               label: 'Zoom',
               children: <Widget>[
@@ -42,7 +39,7 @@ final class WorkbenchViewTools extends ConsumerWidget {
                     '${controller.zoomPercentage}%',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppColors.foregroundPrimary,
+                      color: colors.foregroundPrimary,
                     ),
                   ),
                 ),
@@ -116,7 +113,7 @@ final class _ViewToolGroup extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppColors.foregroundMuted,
+            color: AppColors.of(context).foregroundMuted,
             fontSize: 10,
           ),
         ),
@@ -144,6 +141,7 @@ final class _CompactToolButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Tooltip(
       message: tooltip,
       child: TextButton.icon(
@@ -151,9 +149,7 @@ final class _CompactToolButton extends StatelessWidget {
         icon: Icon(icon, size: 16),
         label: Text(label),
         style: TextButton.styleFrom(
-          foregroundColor: isActive
-              ? AppColors.accent
-              : AppColors.foregroundPrimary,
+          foregroundColor: isActive ? colors.accent : colors.foregroundPrimary,
           padding: const EdgeInsets.symmetric(horizontal: 6),
           minimumSize: const Size(0, 32),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,

@@ -87,7 +87,10 @@ final class _ProjectWindowLifecycleState
       case CloseProjectChoice.closeWithoutSaving:
         await windowService.destroy();
       case CloseProjectChoice.saveAndClose:
-        final saved = await saveActiveProject(ref, project);
+        if (!mounted) {
+          return;
+        }
+        final saved = await saveActiveProject(context, ref, project);
         if (saved) {
           await windowService.destroy();
         }

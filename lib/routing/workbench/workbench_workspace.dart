@@ -15,9 +15,8 @@ import 'package:forkumentos/features/template/presentation/active_template_provi
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_selection_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_selection_tooltip.dart';
-import 'package:forkumentos/routing/workbench/workbench_tab.dart';
-import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
+import 'package:forkumentos/shared/widgets/mapping_aware_paragraph.dart';
 
 final class WorkbenchWorkspace extends ConsumerStatefulWidget {
   const WorkbenchWorkspace({super.key});
@@ -52,7 +51,6 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
 
     final templateState = ref.watch(activeTemplateProvider);
     final templatePath = templateState.valueOrNull?.sourcePath;
-    final activeTab = ref.watch(workbenchTabProvider);
     final reviewMode = ref.watch(workbenchReviewRenderModeProvider);
     final datasource = ref.watch(activeDatasourceProvider).valueOrNull;
     final headers = datasource?.headers ?? const <String>[];
@@ -61,9 +59,7 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
     final selectionState = ref.watch(workbenchSelectionProvider);
     final emphasizedAssignmentId = ref.watch(emphasizedAssignmentIdProvider);
     final viewerController = ref.watch(documentViewerControllerProvider);
-    final isMappingReview =
-        activeTab == WorkbenchTab.review &&
-        reviewMode == WorkbenchReviewRenderMode.mappingReview;
+    final isPreview = reviewMode == WorkbenchReviewRenderMode.preview;
 
     if (templatePath == null) {
       if (templateState.isLoading) {
@@ -87,32 +83,32 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
           documentPath: templatePath,
           isSourceLoading:
               templateState.isLoading ||
-              (!isMappingReview &&
+              (isPreview &&
                   previewDocumentState.isLoading &&
                   previewDocumentState.valueOrNull == null),
           sourceErrorMessage: _resolveTemplateErrorMessage(templateState.error),
-          documentOverride: isMappingReview ? null : previewDocumentState,
+          documentOverride: isPreview ? previewDocumentState : null,
           showToolbar: false,
           controller: viewerController,
           focusPageIndex: _focusPageIndex,
           focusToken: _focusToken,
           viewerOverlay: DocumentViewerOverlay(
-            highlightBuilder: (path) => buildParagraphHighlights(
-              path: path,
-              assignments: mappingState.assignments,
-              suggestions: const [],
-              hoveredFieldIndex: mappingState.hoveredFieldIndex,
-              activeFieldIndex: mappingState.currentFieldIndex,
-              emphasizedAssignmentId: isMappingReview
-                  ? emphasizedAssignmentId
-                  : null,
-            ),
-            onSelectionChanged: headers.isEmpty
+            highlightBuilder: isPreview
+                ? (_) => const <ParagraphHighlightSegment>[]
+                : (path) => buildParagraphHighlights(
+                    path: path,
+                    assignments: mappingState.assignments,
+                    suggestions: const [],
+                    hoveredFieldIndex: mappingState.hoveredFieldIndex,
+                    activeFieldIndex: mappingState.currentFieldIndex,
+                    emphasizedAssignmentId: emphasizedAssignmentId,
+                  ),
+            onSelectionChanged: isPreview || headers.isEmpty
                 ? (_) {}
                 : _handleSelectionChanged,
           ),
         ),
-        if (selectionState.hasSelection)
+        if (!isPreview && selectionState.hasSelection)
           WorkbenchSelectionTooltip(stackKey: _documentStackKey),
       ],
     );

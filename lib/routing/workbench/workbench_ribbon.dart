@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,8 +12,10 @@ import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provi
 import 'package:forkumentos/features/preview/presentation/preview_state_provider.dart';
 import 'package:forkumentos/features/project/presentation/close_active_project.dart';
 import 'package:forkumentos/features/project/presentation/confirm_close_project_dialog.dart';
+import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
+import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_resource_actions.dart';
@@ -19,16 +23,18 @@ import 'package:forkumentos/routing/workbench/workbench_tab.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_view_tools.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 
 final class WorkbenchRibbon extends ConsumerWidget {
   const WorkbenchRibbon({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final activeTab = ref.watch(workbenchTabProvider);
 
     return Material(
-      color: AppColors.backgroundSecondary,
+      color: colors.backgroundSecondary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -50,7 +56,7 @@ final class WorkbenchRibbon extends ConsumerWidget {
               ),
             ),
           ),
-          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          Divider(height: 1, thickness: 1, color: colors.border),
           SizedBox(
             height: 72,
             child: Padding(
@@ -115,7 +121,7 @@ final class _FileRibbonActions extends ConsumerWidget {
               label: 'Guardar',
               onPressed: project == null || isBusy
                   ? null
-                  : () => saveActiveProject(ref, project),
+                  : () => saveActiveProject(context, ref, project),
             ),
             _RibbonActionButton(
               icon: Icons.save_as_outlined,
@@ -131,6 +137,16 @@ final class _FileRibbonActions extends ConsumerWidget {
             ),
           ],
         ),
+        _RibbonGroup(
+          label: 'Aplicación',
+          children: <Widget>[
+            _RibbonActionButton(
+              icon: Icons.settings_outlined,
+              label: 'Configuración',
+              onPressed: () => showSettingsDialog(context),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -142,7 +158,7 @@ Future<void> _startNewProject(BuildContext context, WidgetRef ref) async {
     return;
   }
 
-  final projectName = await _promptProjectName(context);
+  final projectName = await showCreateProjectDialog(context, ref);
   if (projectName == null || !context.mounted) {
     return;
   }
@@ -150,65 +166,6 @@ Future<void> _startNewProject(BuildContext context, WidgetRef ref) async {
   await ref
       .read(activeProjectProvider.notifier)
       .createProject(name: projectName);
-}
-
-Future<String?> _promptProjectName(BuildContext context) async {
-  final controller = TextEditingController();
-  var showError = false;
-
-  final result = await showDialog<String>(
-    context: context,
-    builder: (BuildContext context) {
-      return StatefulBuilder(
-        builder: (BuildContext context, StateSetter setState) {
-          return AlertDialog(
-            title: const Text('Crear proyecto'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) {
-                final normalizedName = controller.text.trim();
-                if (normalizedName.isEmpty) {
-                  setState(() {
-                    showError = true;
-                  });
-                  return;
-                }
-                Navigator.of(context).pop(normalizedName);
-              },
-              decoration: InputDecoration(
-                labelText: 'Nombre del proyecto',
-                errorText: showError ? 'El nombre no puede estar vacío.' : null,
-              ),
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final normalizedName = controller.text.trim();
-                  if (normalizedName.isEmpty) {
-                    setState(() {
-                      showError = true;
-                    });
-                    return;
-                  }
-                  Navigator.of(context).pop(normalizedName);
-                },
-                child: const Text('Crear proyecto'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-
-  controller.dispose();
-  return result;
 }
 
 Future<void> _openProject(BuildContext context, WidgetRef ref) async {
@@ -224,7 +181,10 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
       case CloseProjectChoice.closeWithoutSaving:
         break;
       case CloseProjectChoice.saveAndClose:
-        final saved = await saveActiveProject(ref, project);
+        if (!context.mounted) {
+          return;
+        }
+        final saved = await saveActiveProject(context, ref, project);
         if (!saved) {
           return;
         }
@@ -234,7 +194,7 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
     dialogTitle: 'Abrir proyecto',
     type: FileType.custom,
-    allowedExtensions: const <String>['json'],
+    allowedExtensions: const <String>['fork'],
   );
   final filePath = selected?.files.single.path;
   if (filePath == null) {
@@ -250,9 +210,7 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Archivo no compatible'),
-          content: const Text(
-            'Selecciona un archivo con extensión .forkumentos.json.',
-          ),
+          content: const Text('Selecciona un archivo con extensión .fork.'),
           actions: <Widget>[
             FilledButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -340,7 +298,11 @@ final class _HomeRibbonActions extends ConsumerWidget {
             ),
           ],
         ),
-        const VerticalDivider(width: 16, thickness: 1, color: AppColors.border),
+        VerticalDivider(
+          width: 16,
+          thickness: 1,
+          color: AppColors.of(context).border,
+        ),
         _RibbonGroup(
           label: 'Campo activo',
           children: <Widget>[
@@ -364,7 +326,7 @@ final class _HomeRibbonActions extends ConsumerWidget {
                       fieldName,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppColors.foregroundPrimary,
+                        color: AppColors.of(context).foregroundPrimary,
                         decoration: TextDecoration.underline,
                         decorationColor: fieldColor,
                         decorationThickness: 2,
@@ -376,7 +338,11 @@ final class _HomeRibbonActions extends ConsumerWidget {
             ),
           ],
         ),
-        const VerticalDivider(width: 16, thickness: 1, color: AppColors.border),
+        VerticalDivider(
+          width: 16,
+          thickness: 1,
+          color: AppColors.of(context).border,
+        ),
         _RibbonGroup(
           label: 'Historial',
           children: <Widget>[
@@ -440,7 +406,11 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
             ),
           ],
         ),
-        const VerticalDivider(width: 16, thickness: 1, color: AppColors.border),
+        VerticalDivider(
+          width: 16,
+          thickness: 1,
+          color: AppColors.of(context).border,
+        ),
         _RibbonGroup(
           label: 'Datos',
           children: <Widget>[
@@ -497,6 +467,12 @@ Future<void> _replaceTemplate(WidgetRef ref) async {
   await ref
       .read(activeTemplateProvider.notifier)
       .importTemplate(filePath: filePath);
+  final path = ref.read(activeTemplateProvider).valueOrNull?.sourcePath;
+  if (path != null) {
+    ref
+        .read(activeProjectProvider.notifier)
+        .setEmbeddedArtifactPaths(templatePath: path);
+  }
 }
 
 Future<void> _replaceDatasource(WidgetRef ref) async {
@@ -513,6 +489,12 @@ Future<void> _replaceDatasource(WidgetRef ref) async {
   await ref
       .read(activeDatasourceProvider.notifier)
       .importDatasource(filePath: filePath);
+  final path = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
+  if (path != null) {
+    ref
+        .read(activeProjectProvider.notifier)
+        .setEmbeddedArtifactPaths(datasourcePath: path);
+  }
 }
 
 Future<void> _showDatasourceInfo(BuildContext context, Datasource datasource) {
@@ -599,7 +581,9 @@ final class _ExportRibbonActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final exportReady = ref.watch(exportReadinessProvider);
+    final project = ref.watch(activeProjectProvider).valueOrNull;
     final readinessText = exportReady
         ? 'Exportación lista'
         : 'Exportación bloqueada — completa el mapeo y la revisión';
@@ -609,15 +593,19 @@ final class _ExportRibbonActions extends ConsumerWidget {
         _RibbonGroup(
           label: 'Exportación',
           children: <Widget>[
-            const _RibbonActionButton(
+            _RibbonActionButton(
               icon: Icons.ios_share_outlined,
               label: 'Exportar',
-              onPressed: null,
+              onPressed: project == null
+                  ? null
+                  : () => _exportToDefaultFolder(ref, project.name),
             ),
-            const _RibbonActionButton(
-              icon: Icons.tune_outlined,
-              label: 'Exportación personalizada',
-              onPressed: null,
+            _RibbonActionButton(
+              icon: Icons.drive_folder_upload_outlined,
+              label: 'Exportar como',
+              onPressed: project == null
+                  ? null
+                  : () => _exportAsFolder(project.name),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -627,8 +615,8 @@ final class _ExportRibbonActions extends ConsumerWidget {
                   readinessText,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: exportReady
-                        ? AppColors.success
-                        : AppColors.foregroundMuted,
+                        ? colors.success
+                        : colors.foregroundMuted,
                   ),
                 ),
               ),
@@ -637,6 +625,33 @@ final class _ExportRibbonActions extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+Future<void> _exportToDefaultFolder(WidgetRef ref, String projectName) async {
+  final paths = ref.read(workspacePathsProvider);
+  if (paths == null) {
+    return;
+  }
+  await paths.ensureExportFolder(projectName);
+  await _openFolder(paths.exportFolder(projectName));
+}
+
+Future<void> _exportAsFolder(String projectName) async {
+  final selected = await FilePicker.platform.getDirectoryPath(
+    dialogTitle: 'Seleccionar carpeta de exportación',
+  );
+  if (selected == null) {
+    return;
+  }
+  final folder = Directory(selected + Platform.pathSeparator + projectName);
+  await folder.create(recursive: true);
+  await _openFolder(folder.path);
+}
+
+Future<void> _openFolder(String folderPath) async {
+  if (Platform.isWindows) {
+    await Process.start('explorer', <String>[folderPath]);
   }
 }
 
@@ -675,7 +690,7 @@ final class _RibbonGroup extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.foregroundMuted,
+              color: AppColors.of(context).foregroundMuted,
               fontSize: 10,
             ),
           ),
@@ -715,7 +730,7 @@ final class _RibbonActionButton extends StatelessWidget {
           : Icon(icon, size: 16),
       label: Text(label),
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.foregroundPrimary,
+        foregroundColor: AppColors.of(context).foregroundPrimary,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         minimumSize: const Size(0, 36),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -749,9 +764,11 @@ final class _RibbonTabButton extends StatelessWidget {
       onPressed: onPressed,
       style: TextButton.styleFrom(
         foregroundColor: isSelected
-            ? AppColors.foregroundPrimary
-            : AppColors.foregroundMuted,
-        backgroundColor: isSelected ? AppColors.surface : Colors.transparent,
+            ? AppColors.of(context).foregroundPrimary
+            : AppColors.of(context).foregroundMuted,
+        backgroundColor: isSelected
+            ? AppColors.of(context).surface
+            : Colors.transparent,
         shape: const RoundedRectangleBorder(),
         padding: const EdgeInsets.symmetric(horizontal: 14),
       ),

@@ -22,10 +22,19 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
   @override
   FutureOr<Datasource?> build() {
     ref
-      ..listen<String?>(
-        activeProjectProvider.select((state) => state.valueOrNull?.id),
-        (String? previousProjectId, String? nextProjectId) {
-          if (previousProjectId == nextProjectId) {
+      ..listen<(String?, String?)>(
+        activeProjectProvider.select(
+          (state) => (
+            state.valueOrNull?.id,
+            state.valueOrNull?.embeddedDatasourcePath,
+          ),
+        ),
+        (previous, next) {
+          final previousId = previous?.$1;
+          final nextId = next.$1;
+          final nextPath = next.$2;
+
+          if (previousId == nextId && previous?.$2 == nextPath) {
             return;
           }
 
@@ -40,9 +49,23 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
               module: 'Datasource',
             );
           }
+
+          if (nextId != null &&
+              nextPath != null &&
+              nextPath.isNotEmpty &&
+              state.valueOrNull?.sourcePath != nextPath) {
+            unawaited(importDatasource(filePath: nextPath));
+          }
         },
       )
-      ..watch(activeProjectProvider.select((state) => state.valueOrNull?.id));
+      ..watch(
+        activeProjectProvider.select(
+          (state) => (
+            state.valueOrNull?.id,
+            state.valueOrNull?.embeddedDatasourcePath,
+          ),
+        ),
+      );
     return null;
   }
 

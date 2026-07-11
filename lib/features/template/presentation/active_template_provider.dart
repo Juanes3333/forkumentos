@@ -26,10 +26,17 @@ final class ActiveTemplateNotifier extends AsyncNotifier<Template?> {
   @override
   FutureOr<Template?> build() {
     ref
-      ..listen<String?>(
-        activeProjectProvider.select((state) => state.valueOrNull?.id),
-        (String? previousProjectId, String? nextProjectId) {
-          if (previousProjectId == nextProjectId) {
+      ..listen<(String?, String?)>(
+        activeProjectProvider.select(
+          (state) =>
+              (state.valueOrNull?.id, state.valueOrNull?.embeddedTemplatePath),
+        ),
+        (previous, next) {
+          final previousId = previous?.$1;
+          final nextId = next.$1;
+          final nextPath = next.$2;
+
+          if (previousId == nextId && previous?.$2 == nextPath) {
             return;
           }
 
@@ -44,9 +51,21 @@ final class ActiveTemplateNotifier extends AsyncNotifier<Template?> {
               module: 'Template',
             );
           }
+
+          if (nextId != null &&
+              nextPath != null &&
+              nextPath.isNotEmpty &&
+              state.valueOrNull?.sourcePath != nextPath) {
+            unawaited(importTemplate(filePath: nextPath));
+          }
         },
       )
-      ..watch(activeProjectProvider.select((state) => state.valueOrNull?.id));
+      ..watch(
+        activeProjectProvider.select(
+          (state) =>
+              (state.valueOrNull?.id, state.valueOrNull?.embeddedTemplatePath),
+        ),
+      );
     return null;
   }
 

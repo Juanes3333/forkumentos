@@ -14,13 +14,14 @@ final class WorkbenchInspector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final datasource = ref.watch(activeDatasourceProvider).valueOrNull;
     final mappingState = ref.watch(activeMappingProvider).state;
     final previewState = ref.watch(previewStateProvider);
     final headers = datasource?.headers ?? const <String>[];
 
     return ColoredBox(
-      color: AppColors.backgroundSecondary,
+      color: colors.backgroundSecondary,
       child: SizedBox(
         width: width,
         child: Column(
@@ -34,7 +35,7 @@ final class WorkbenchInspector extends ConsumerWidget {
                   Text(
                     'Campos',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: AppColors.foregroundPrimary,
+                      color: colors.foregroundPrimary,
                     ),
                   ),
                   if (datasource != null) ...<Widget>[
@@ -43,22 +44,22 @@ final class WorkbenchInspector extends ConsumerWidget {
                       'Fila ${previewState.rowIndex + 1} de '
                       '${datasource.rowCount}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.foregroundMuted,
+                        color: colors.foregroundMuted,
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            const Divider(height: 1, thickness: 1, color: AppColors.border),
+            Divider(height: 1, thickness: 1, color: colors.border),
             Expanded(
               child: headers.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
+                  ? Padding(
+                      padding: const EdgeInsets.all(12),
                       child: Text(
                         'Importa una fuente de datos desde la pestaña '
                         'Plantillas para ver los campos aquí.',
-                        style: TextStyle(color: AppColors.foregroundMuted),
+                        style: TextStyle(color: colors.foregroundMuted),
                       ),
                     )
                   : MappingReviewSidebar(

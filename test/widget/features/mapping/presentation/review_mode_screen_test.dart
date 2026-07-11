@@ -95,15 +95,30 @@ void main() {
 
 final class _FakeProjectRepository implements ProjectRepository {
   @override
-  Future<Project> load(String filePath) async {
-    throw UnimplementedError();
+  Future<Project> load(
+    String filePath, {
+    required String cacheDirectory,
+  }) async {
+    return Project(
+      id: 'default-loaded-id',
+      name: 'Proyecto Cargado',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      filePath: filePath,
+    );
   }
 
   @override
   Future<Project> save({
     required Project project,
     required String filePath,
+    String? templateSourcePath,
+    String? datasourceSourcePath,
+    String? cacheDirectory,
   }) async {
-    return project;
+    return project.copyWith(
+      filePath: filePath,
+      updatedAt: DateTime.now().toUtc(),
+    );
   }
 }

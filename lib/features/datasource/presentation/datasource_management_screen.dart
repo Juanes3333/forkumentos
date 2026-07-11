@@ -90,6 +90,12 @@ Future<void> _pickAndImportDatasource(WidgetRef ref) async {
   await ref
       .read(activeDatasourceProvider.notifier)
       .importDatasource(filePath: filePath);
+  final path = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
+  if (path != null) {
+    ref
+        .read(activeProjectProvider.notifier)
+        .setEmbeddedArtifactPaths(datasourcePath: path);
+  }
 }
 
 String? _resolveErrorMessage(Object? error) {

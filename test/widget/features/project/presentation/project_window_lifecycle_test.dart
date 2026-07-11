@@ -65,7 +65,7 @@ void main() {
         .createProject(name: 'Proyecto Demo');
     await container
         .read(activeProjectProvider.notifier)
-        .saveProject(filePath: '/tmp/proyecto-demo.forkumentos.json');
+        .saveProject(filePath: '/tmp/proyecto-demo.fork');
     await tester.pump();
 
     expect(windowService.lastTitle, 'Forkumentos — Proyecto Demo');
@@ -194,10 +194,13 @@ ProviderContainer _buildContainer(FakeWindowService windowService) {
 
 final class _FakeProjectRepository implements ProjectRepository {
   @override
-  Future<Project> load(String filePath) async {
+  Future<Project> load(
+    String filePath, {
+    required String cacheDirectory,
+  }) async {
     return Project(
-      id: 'loaded-id',
-      name: 'Proyecto cargado',
+      id: 'default-loaded-id',
+      name: 'Proyecto Cargado',
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026),
       filePath: filePath,
@@ -208,11 +211,13 @@ final class _FakeProjectRepository implements ProjectRepository {
   Future<Project> save({
     required Project project,
     required String filePath,
+    String? templateSourcePath,
+    String? datasourceSourcePath,
+    String? cacheDirectory,
   }) async {
     return project.copyWith(
       filePath: filePath,
       updatedAt: DateTime.now().toUtc(),
-      isDirty: false,
     );
   }
 }

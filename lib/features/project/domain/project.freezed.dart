@@ -31,6 +31,10 @@ mixin _$Project {
   String? get filePath => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
   bool get isDirty => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get embeddedTemplatePath => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get embeddedDatasourcePath => throw _privateConstructorUsedError;
 
   /// Serializes this Project to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -54,6 +58,10 @@ abstract class $ProjectCopyWith<$Res> {
     List<Map<String, dynamic>> mappingAssignments,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) bool isDirty,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? embeddedTemplatePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? embeddedDatasourcePath,
   });
 }
 
@@ -79,6 +87,8 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? mappingAssignments = null,
     Object? filePath = freezed,
     Object? isDirty = null,
+    Object? embeddedTemplatePath = freezed,
+    Object? embeddedDatasourcePath = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -110,6 +120,14 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
                 ? _value.isDirty
                 : isDirty // ignore: cast_nullable_to_non_nullable
                       as bool,
+            embeddedTemplatePath: freezed == embeddedTemplatePath
+                ? _value.embeddedTemplatePath
+                : embeddedTemplatePath // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            embeddedDatasourcePath: freezed == embeddedDatasourcePath
+                ? _value.embeddedDatasourcePath
+                : embeddedDatasourcePath // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -132,6 +150,10 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
     List<Map<String, dynamic>> mappingAssignments,
     @JsonKey(includeFromJson: false, includeToJson: false) String? filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) bool isDirty,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? embeddedTemplatePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? embeddedDatasourcePath,
   });
 }
 
@@ -156,6 +178,8 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? mappingAssignments = null,
     Object? filePath = freezed,
     Object? isDirty = null,
+    Object? embeddedTemplatePath = freezed,
+    Object? embeddedDatasourcePath = freezed,
   }) {
     return _then(
       _$ProjectImpl(
@@ -187,6 +211,14 @@ class __$$ProjectImplCopyWithImpl<$Res>
             ? _value.isDirty
             : isDirty // ignore: cast_nullable_to_non_nullable
                   as bool,
+        embeddedTemplatePath: freezed == embeddedTemplatePath
+            ? _value.embeddedTemplatePath
+            : embeddedTemplatePath // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        embeddedDatasourcePath: freezed == embeddedDatasourcePath
+            ? _value.embeddedDatasourcePath
+            : embeddedDatasourcePath // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -204,6 +236,10 @@ class _$ProjectImpl implements _Project {
         const <Map<String, dynamic>>[],
     @JsonKey(includeFromJson: false, includeToJson: false) this.filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) this.isDirty = false,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    this.embeddedTemplatePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    this.embeddedDatasourcePath,
   }) : _mappingAssignments = mappingAssignments;
 
   factory _$ProjectImpl.fromJson(Map<String, dynamic> json) =>
@@ -233,10 +269,16 @@ class _$ProjectImpl implements _Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final bool isDirty;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final String? embeddedTemplatePath;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final String? embeddedDatasourcePath;
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty)';
+    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath)';
   }
 
   @override
@@ -256,7 +298,11 @@ class _$ProjectImpl implements _Project {
             ) &&
             (identical(other.filePath, filePath) ||
                 other.filePath == filePath) &&
-            (identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+            (identical(other.isDirty, isDirty) || other.isDirty == isDirty) &&
+            (identical(other.embeddedTemplatePath, embeddedTemplatePath) ||
+                other.embeddedTemplatePath == embeddedTemplatePath) &&
+            (identical(other.embeddedDatasourcePath, embeddedDatasourcePath) ||
+                other.embeddedDatasourcePath == embeddedDatasourcePath));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -270,6 +316,8 @@ class _$ProjectImpl implements _Project {
     const DeepCollectionEquality().hash(_mappingAssignments),
     filePath,
     isDirty,
+    embeddedTemplatePath,
+    embeddedDatasourcePath,
   );
 
   /// Create a copy of Project
@@ -296,6 +344,10 @@ abstract class _Project implements Project {
     @JsonKey(includeFromJson: false, includeToJson: false)
     final String? filePath,
     @JsonKey(includeFromJson: false, includeToJson: false) final bool isDirty,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final String? embeddedTemplatePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final String? embeddedDatasourcePath,
   }) = _$ProjectImpl;
 
   factory _Project.fromJson(Map<String, dynamic> json) = _$ProjectImpl.fromJson;
@@ -316,6 +368,12 @@ abstract class _Project implements Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   bool get isDirty;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get embeddedTemplatePath;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get embeddedDatasourcePath;
 
   /// Create a copy of Project
   /// with the given fields replaced by the non-null parameter values.

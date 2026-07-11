@@ -230,10 +230,13 @@ Datasource _buildDatasource({
 
 final class _FakeProjectRepository implements ProjectRepository {
   @override
-  Future<Project> load(String filePath) async {
+  Future<Project> load(
+    String filePath, {
+    required String cacheDirectory,
+  }) async {
     return Project(
-      id: 'project-ui',
-      name: 'Proyecto UI',
+      id: 'default-loaded-id',
+      name: 'Proyecto Cargado',
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026),
       filePath: filePath,
@@ -244,6 +247,9 @@ final class _FakeProjectRepository implements ProjectRepository {
   Future<Project> save({
     required Project project,
     required String filePath,
+    String? templateSourcePath,
+    String? datasourceSourcePath,
+    String? cacheDirectory,
   }) async {
     return project.copyWith(
       filePath: filePath,

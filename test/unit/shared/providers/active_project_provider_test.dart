@@ -3,17 +3,32 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
+import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../support/fakes.dart';
 
 void main() {
+  late Directory tempDirectory;
+
+  setUp(() async {
+    tempDirectory = await Directory.systemTemp.createTemp(
+      'forkumentos_active_project_',
+    );
+  });
+
+  tearDown(() async {
+    await tempDirectory.delete(recursive: true);
+  });
+
   test('createProject crea proyecto activo sin filePath', () async {
     final fakeRepository = FakeProjectRepository();
-    final container = _createContainer(fakeRepository);
+    final container = _createContainer(fakeRepository, tempDirectory.path);
     addTearDown(container.dispose);
 
     final notifier = container.read(activeProjectProvider.notifier);
@@ -31,18 +46,17 @@ void main() {
 
   test('saveProject persiste y actualiza ruta de proyecto', () async {
     final fakeRepository = FakeProjectRepository();
-    final container = _createContainer(fakeRepository);
+    final container = _createContainer(fakeRepository, tempDirectory.path);
     addTearDown(container.dispose);
 
     final notifier = container.read(activeProjectProvider.notifier);
     await notifier.createProject(name: 'Proyecto Guardable');
-    await notifier.saveProject(
-      filePath: '/tmp/proyecto_guardable.forkumentos.json',
-    );
+    final filePath = p.join(tempDirectory.path, 'proyecto_guardable.fork');
+    await notifier.saveProject(filePath: filePath);
 
     final project = container.read(activeProjectProvider).valueOrNull;
     expect(project, isNotNull);
-    expect(project?.filePath, '/tmp/proyecto_guardable.forkumentos.json');
+    expect(project?.filePath, filePath);
     expect(project?.isDirty, isFalse);
   });
 
@@ -59,7 +73,7 @@ void main() {
         );
       },
     );
-    final container = _createContainer(fakeRepository);
+    final container = _createContainer(fakeRepository, tempDirectory.path);
     addTearDown(container.dispose);
 
     final notifier = container.read(activeProjectProvider.notifier);
@@ -74,7 +88,7 @@ void main() {
     addTearDown(subscription.close);
 
     await notifier.loadProject(
-      filePath: '/tmp/proyecto_cargado.forkumentos.json',
+      filePath: p.join(tempDirectory.path, 'proyecto_cargado.fork'),
     );
 
     expect(emittedStates.any((state) => state.isLoading), isTrue);
@@ -87,12 +101,14 @@ void main() {
 
   test('markProjectDirty marca el proyecto activo como sin guardar', () async {
     final fakeRepository = FakeProjectRepository();
-    final container = _createContainer(fakeRepository);
+    final container = _createContainer(fakeRepository, tempDirectory.path);
     addTearDown(container.dispose);
 
     final notifier = container.read(activeProjectProvider.notifier);
     await notifier.createProject(name: 'Proyecto Marcable');
-    await notifier.saveProject(filePath: '/tmp/marcable.forkumentos.json');
+    await notifier.saveProject(
+      filePath: p.join(tempDirectory.path, 'marcable.fork'),
+    );
     expect(container.read(activeProjectProvider).valueOrNull?.isDirty, isFalse);
 
     await notifier.markProjectDirty();
@@ -102,7 +118,7 @@ void main() {
 
   test('markProjectDirty no hace nada sin proyecto activo', () async {
     final fakeRepository = FakeProjectRepository();
-    final container = _createContainer(fakeRepository);
+    final container = _createContainer(fakeRepository, tempDirectory.path);
     addTearDown(container.dispose);
 
     final notifier = container.read(activeProjectProvider.notifier);
@@ -117,11 +133,13 @@ void main() {
       final fakeRepository = FakeProjectRepository(
         loadHandler: (_) async => throw const FormatException('json inválido'),
       );
-      final container = _createContainer(fakeRepository);
+      final container = _createContainer(fakeRepository, tempDirectory.path);
       addTearDown(container.dispose);
 
       final notifier = container.read(activeProjectProvider.notifier);
-      await notifier.loadProject(filePath: '/tmp/invalido.forkumentos.json');
+      await notifier.loadProject(
+        filePath: p.join(tempDirectory.path, 'invalido.fork'),
+      );
 
       final failedState = container.read(activeProjectProvider);
       expect(failedState.hasError, isTrue);
@@ -144,7 +162,7 @@ void main() {
               throw const FileSystemException('denegado');
             },
       );
-      final container = _createContainer(fakeRepository);
+      final container = _createContainer(fakeRepository, tempDirectory.path);
       addTearDown(container.dispose);
 
       final notifier = container.read(activeProjectProvider.notifier);
@@ -153,7 +171,9 @@ void main() {
           .read(activeProjectProvider)
           .valueOrNull;
 
-      await notifier.saveProject(filePath: '/tmp/denegado.forkumentos.json');
+      await notifier.saveProject(
+        filePath: p.join(tempDirectory.path, 'denegado.fork'),
+      );
 
       final failedState = container.read(activeProjectProvider);
       expect(failedState.hasError, isTrue);
@@ -169,7 +189,7 @@ void main() {
 
   test('closeProject limpia completamente el estado', () async {
     final fakeRepository = FakeProjectRepository();
-    final container = _createContainer(fakeRepository);
+    final container = _createContainer(fakeRepository, tempDirectory.path);
     addTearDown(container.dispose);
 
     final notifier = container.read(activeProjectProvider.notifier);
@@ -183,11 +203,12 @@ void main() {
   });
 }
 
-ProviderContainer _createContainer(ProjectRepository repository) {
+ProviderContainer _createContainer(ProjectRepository repository, String root) {
   return ProviderContainer(
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(repository),
+      workspacePathsProvider.overrideWithValue(WorkspacePaths(root: root)),
     ],
   );
 }
@@ -203,7 +224,10 @@ final class FakeProjectRepository implements ProjectRepository {
   saveHandler;
 
   @override
-  Future<Project> load(String filePath) async {
+  Future<Project> load(
+    String filePath, {
+    required String cacheDirectory,
+  }) async {
     final handler = loadHandler;
     if (handler != null) {
       return handler(filePath);
@@ -222,6 +246,9 @@ final class FakeProjectRepository implements ProjectRepository {
   Future<Project> save({
     required Project project,
     required String filePath,
+    String? templateSourcePath,
+    String? datasourceSourcePath,
+    String? cacheDirectory,
   }) async {
     final handler = saveHandler;
     if (handler != null) {

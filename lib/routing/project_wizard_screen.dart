@@ -66,7 +66,7 @@ final class ProjectWizardScreen extends ConsumerWidget {
                       Text(
                         'Nombre del proyecto',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.foregroundMuted,
+                          color: AppColors.of(context).foregroundMuted,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -78,7 +78,7 @@ final class ProjectWizardScreen extends ConsumerWidget {
                       Text(
                         'Fecha de creación',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.foregroundMuted,
+                          color: AppColors.of(context).foregroundMuted,
                         ),
                       ),
                       const SizedBox(height: 4),

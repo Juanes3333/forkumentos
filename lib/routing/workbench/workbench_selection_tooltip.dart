@@ -15,8 +15,13 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
   /// into local [Positioned] coordinates.
   final GlobalKey stackKey;
 
+  static const double _gap = 8;
+  static const double _approxWidth = 280;
+  static const double _approxHeight = 140;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     final selectionState = ref.watch(workbenchSelectionProvider);
     final selection = selectionState.selection;
     final anchor = selectionState.anchor;
@@ -34,20 +39,25 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
     final overlapping = mappingNotifier.findConflictingAssignment(selection);
 
     final localAnchor = _toStackLocal(anchor);
-    final mediaSize = MediaQuery.sizeOf(context);
-    final left = localAnchor.dx.clamp(8.0, mediaSize.width - 300);
-    final top = localAnchor.dy.clamp(8.0, mediaSize.height - 160);
+    final stackSize = _stackSize();
+    final position = _resolvePosition(
+      anchor: localAnchor,
+      stackSize: stackSize,
+    );
 
     return Positioned(
-      left: left,
-      top: top,
+      left: position.dx,
+      top: position.dy,
       child: Material(
         elevation: 6,
-        color: AppColors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(6),
         shadowColor: const Color(0x40000000),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 260, maxWidth: 300),
+          constraints: const BoxConstraints(
+            minWidth: 260,
+            maxWidth: _approxWidth,
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
             child: Column(
@@ -57,7 +67,7 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
                 Text(
                   'Asignar campo',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.foregroundPrimary,
+                    color: colors.foregroundPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -65,7 +75,7 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
                   Text(
                     'Importa una fuente de datos para asignar campos.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.foregroundMuted,
+                      color: colors.foregroundMuted,
                     ),
                   )
                 else
@@ -133,6 +143,49 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Anchor is treated as the bottom of the selection; prefer above first.
+  Offset _resolvePosition({required Offset anchor, required Size stackSize}) {
+    final aboveTop = anchor.dy - _approxHeight - _gap;
+    if (aboveTop >= 0) {
+      return Offset(_clampLeft(anchor.dx, stackSize.width), aboveTop);
+    }
+
+    final belowTop = anchor.dy + _gap;
+    if (belowTop + _approxHeight <= stackSize.height) {
+      return Offset(_clampLeft(anchor.dx, stackSize.width), belowTop);
+    }
+
+    final rightLeft = anchor.dx + _gap;
+    if (rightLeft + _approxWidth <= stackSize.width) {
+      return Offset(
+        rightLeft,
+        _clampTop(anchor.dy - _approxHeight / 2, stackSize.height),
+      );
+    }
+
+    final leftLeft = anchor.dx - _approxWidth - _gap;
+    return Offset(
+      leftLeft.clamp(8.0, stackSize.width - _approxWidth - 8),
+      _clampTop(anchor.dy - _approxHeight / 2, stackSize.height),
+    );
+  }
+
+  double _clampLeft(double preferred, double stackWidth) {
+    return preferred.clamp(8.0, stackWidth - _approxWidth - 8);
+  }
+
+  double _clampTop(double preferred, double stackHeight) {
+    return preferred.clamp(8.0, stackHeight - _approxHeight - 8);
+  }
+
+  Size _stackSize() {
+    final box = stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return Size.infinite;
+    }
+    return box.size;
   }
 
   Offset _toStackLocal(Offset globalAnchor) {

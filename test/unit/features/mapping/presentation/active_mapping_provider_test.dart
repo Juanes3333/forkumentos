@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
+import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/mapping/data/mapping_json.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
@@ -10,6 +13,7 @@ import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 
 import '../../../../support/fakes.dart';
 
@@ -122,7 +126,7 @@ void main() {
 
     await container
         .read(activeProjectProvider.notifier)
-        .loadProject(filePath: 'mapped.forkumentos.json');
+        .loadProject(filePath: 'mapped.fork');
 
     final assignments = container.read(activeMappingProvider).state.assignments;
     expect(assignments, hasLength(1));
@@ -169,13 +173,19 @@ ProviderContainer _createContainer() {
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(_FakeProjectRepository()),
+      workspacePathsProvider.overrideWithValue(
+        WorkspacePaths(root: Directory.systemTemp.path),
+      ),
     ],
   );
 }
 
 final class _FakeProjectRepository implements ProjectRepository {
   @override
-  Future<Project> load(String filePath) async {
+  Future<Project> load(
+    String filePath, {
+    required String cacheDirectory,
+  }) async {
     const assignment = FieldAssignment(
       id: 'persisted-1',
       fieldIndex: 0,
@@ -205,6 +215,9 @@ final class _FakeProjectRepository implements ProjectRepository {
   Future<Project> save({
     required Project project,
     required String filePath,
+    String? templateSourcePath,
+    String? datasourceSourcePath,
+    String? cacheDirectory,
   }) async {
     return project.copyWith(
       filePath: filePath,

@@ -61,10 +61,7 @@ void main() {
     await container.read(recentProjectsProvider.future);
     await container
         .read(recentProjectsProvider.notifier)
-        .record(
-          filePath: '/tmp/reciente.forkumentos.json',
-          name: 'Proyecto Reciente',
-        );
+        .record(filePath: '/tmp/reciente.fork', name: 'Proyecto Reciente');
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -75,7 +72,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Proyecto Reciente'), findsOneWidget);
-    expect(find.text('/tmp/reciente.forkumentos.json'), findsOneWidget);
+    expect(find.text('/tmp/reciente.fork'), findsOneWidget);
   });
 
   testWidgets('Workbench inspector muestra el navegador de campos', (
@@ -117,10 +114,13 @@ ProviderContainer _buildContainer() {
 
 final class FakeProjectRepository implements ProjectRepository {
   @override
-  Future<Project> load(String filePath) async {
+  Future<Project> load(
+    String filePath, {
+    required String cacheDirectory,
+  }) async {
     return Project(
-      id: 'loaded-id',
-      name: 'Proyecto cargado',
+      id: 'default-loaded-id',
+      name: 'Proyecto Cargado',
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026),
       filePath: filePath,
@@ -131,6 +131,9 @@ final class FakeProjectRepository implements ProjectRepository {
   Future<Project> save({
     required Project project,
     required String filePath,
+    String? templateSourcePath,
+    String? datasourceSourcePath,
+    String? cacheDirectory,
   }) async {
     return project.copyWith(
       filePath: filePath,

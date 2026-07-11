@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:forkumentos/core/theme/app_colors.dart';
 
 final class AppTypography {
   static const String _uiFontFamily = 'Segoe UI';
@@ -31,12 +30,12 @@ final class AppTypography {
     labelSmall: _uiStyle(11, FontWeight.w600),
   );
 
+  // Colors come from ThemeData.textTheme via AppTheme.apply.
   static TextStyle get monospace => const TextStyle(
     fontFamily: _monoFontFamily,
     fontFamilyFallback: _monoFallback,
     fontSize: 12,
     height: 1.35,
-    color: AppColors.foregroundPrimary,
   );
 
   static TextStyle _uiStyle(double size, FontWeight weight) {
@@ -47,7 +46,6 @@ final class AppTypography {
       height: 1.3,
       letterSpacing: 0.1,
       fontWeight: weight,
-      color: AppColors.foregroundPrimary,
     );
   }
 }
