@@ -8,11 +8,19 @@ typedef ParagraphHighlightBuilder =
 final class DocumentViewerOverlay {
   const DocumentViewerOverlay({
     required this.highlightBuilder,
-    required this.onSelectionChanged,
+    this.onSelectionChanged,
+    this.highlightListenable,
   });
 
   final ParagraphHighlightBuilder highlightBuilder;
-  final void Function(DocumentTextSelection? selection) onSelectionChanged;
+
+  /// Null disables selection (uses [RichText] so [TextSpan] updates apply).
+  /// An empty callback still forces [SelectableText], which can stale spans.
+  final void Function(DocumentTextSelection? selection)? onSelectionChanged;
+
+  /// When notified, paragraphs rebuild highlights without rebuilding
+  /// the document viewer tree.
+  final Listenable? highlightListenable;
 }
 
 final class DocumentTextSelection {

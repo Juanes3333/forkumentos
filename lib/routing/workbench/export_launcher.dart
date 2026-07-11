@@ -105,6 +105,7 @@ Future<void> launchExport(
       datasource.rowCount > 0 ? datasource.rowCount - 1 : 0,
     ),
     missingFieldHeaders: review?.missingFieldHeaders ?? const <String>[],
+    allowDocx: !template.sourcePath.toLowerCase().endsWith('.pdf'),
   );
   if (dialogResult == null || !context.mounted) {
     return;
@@ -118,12 +119,14 @@ Future<void> launchExport(
   );
   final templateBytes = await File(template.sourcePath).readAsBytes();
   final recordRepository = ref.read(previewRecordRepositoryProvider);
+  final rowsByIndex = await recordRepository.readRecords(
+    datasource: datasource,
+    rowIndexes: job.rowIndexes,
+  );
 
-  Future<List<String?>> resolveRow(int rowIndex) {
-    return recordRepository.readRecord(
-      datasource: datasource,
-      rowIndex: rowIndex,
-    );
+  Future<List<String?>> resolveRow(int rowIndex) async {
+    return rowsByIndex[rowIndex] ??
+        List<String?>.filled(datasource.headers.length, null);
   }
 
   Document buildMerged(List<String?> row) {

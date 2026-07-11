@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/features/datasource/data/xlsx_datasource_repository.dart';
+import 'package:forkumentos/features/datasource/data/xlsx_sheet_parser.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:path/path.dart' as p;
 
@@ -55,7 +56,7 @@ void main() {
     expect(datasource.emptyColumnIndexes, isEmpty);
   });
 
-  test('usa la primera hoja del libro', () async {
+  test('usa la primera hoja con encabezados no vacíos', () async {
     final filePath = p.join(tempDirectory.path, 'multiples_hojas.xlsx');
     await _writeWorkbook(
       path: filePath,
@@ -73,6 +74,37 @@ void main() {
 
     expect(datasource.headers, <String>['primera_columna']);
     expect(datasource.previewRow, <String?>['valor_primera_hoja']);
+  });
+
+  test(
+    'omite la primera hoja vacía y usa la siguiente con encabezados',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'primera_vacia.xlsx');
+      await _writeWorkbook(
+        path: filePath,
+        rows: const <List<CellValue?>>[],
+        secondSheetRows: <List<CellValue?>>[
+          <CellValue?>[TextCellValue('nombre'), TextCellValue('edad')],
+          <CellValue?>[TextCellValue('Ana'), TextCellValue('30')],
+        ],
+      );
+
+      final datasource = await repository.load(filePath);
+
+      expect(datasource.headers, <String>['nombre', 'edad']);
+      expect(datasource.previewRow, <String?>['Ana', '30']);
+    },
+  );
+
+  test('acepta bytes List<int> además de Uint8List', () {
+    final encoded = Excel.createExcel().encode();
+    expect(encoded, isNotNull);
+    final asList = List<int>.from(encoded!);
+    expect(XlsxSheetParser.coerceBytes(asList), same(asList));
+    expect(
+      XlsxSheetParser.coerceBytes(Uint8List.fromList(asList)),
+      isA<Uint8List>(),
+    );
   });
 
   test('mantiene comas y saltos de línea en celdas de texto', () async {

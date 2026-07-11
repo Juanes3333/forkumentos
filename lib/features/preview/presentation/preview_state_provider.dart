@@ -20,10 +20,12 @@ final previewRecordProvider = FutureProvider<List<String?>>((ref) async {
     return const <String?>[];
   }
 
-  final previewState = ref.watch(previewStateProvider);
+  final rowIndex = ref.watch(
+    previewStateProvider.select((state) => state.rowIndex),
+  );
   return ref
       .watch(previewRecordRepositoryProvider)
-      .readRecord(datasource: datasource, rowIndex: previewState.rowIndex);
+      .readRecord(datasource: datasource, rowIndex: rowIndex);
 });
 
 final previewDocumentProvider = Provider<AsyncValue<Document?>>((ref) {

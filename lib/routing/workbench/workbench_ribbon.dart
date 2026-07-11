@@ -11,16 +11,17 @@ import 'package:forkumentos/features/preview/presentation/preview_state_provider
 import 'package:forkumentos/features/project/presentation/close_active_project.dart';
 import 'package:forkumentos/features/project/presentation/confirm_close_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
-import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
+import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/routing/workbench/export_launcher.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_resource_actions.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 
 final class WorkbenchRibbon extends ConsumerWidget {
@@ -167,7 +168,9 @@ Future<void> _startNewProject(BuildContext context, WidgetRef ref) async {
 
 Future<void> _openProject(BuildContext context, WidgetRef ref) async {
   final project = ref.read(activeProjectProvider).valueOrNull;
-  if (project != null && project.isDirty) {
+  if (project != null &&
+      project.isDirty &&
+      ref.read(confirmBeforeClosingProvider)) {
     if (!context.mounted) {
       return;
     }
@@ -223,16 +226,7 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
   await ref
       .read(activeProjectProvider.notifier)
       .loadProject(filePath: filePath);
-
-  final state = ref.read(activeProjectProvider);
-  final loaded = state.valueOrNull;
-  if (state.hasError || loaded == null || loaded.filePath == null) {
-    return;
-  }
-
-  await ref
-      .read(recentProjectsProvider.notifier)
-      .record(filePath: loaded.filePath!, name: loaded.name);
+  await afterSuccessfulProjectLoad(ref);
 }
 
 final class _HomeRibbonActions extends ConsumerWidget {
@@ -398,7 +392,12 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
                       sourcePath: template.sourcePath,
                       dialogTitle: 'Exportar plantilla',
                       suggestedFileName: template.fileName,
-                      allowedExtensions: const <String>['docx'],
+                      allowedExtensions: <String>[
+                        if (template.sourcePath.toLowerCase().endsWith('.pdf'))
+                          'pdf'
+                        else
+                          'docx',
+                      ],
                     ),
             ),
           ],
@@ -452,9 +451,9 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
 
 Future<void> _replaceTemplate(WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
-    dialogTitle: 'Seleccionar plantilla DOCX',
+    dialogTitle: 'Seleccionar plantilla DOCX o PDF',
     type: FileType.custom,
-    allowedExtensions: const <String>['docx'],
+    allowedExtensions: const <String>['docx', 'pdf'],
   );
   final filePath = selected?.files.single.path;
   if (filePath == null) {

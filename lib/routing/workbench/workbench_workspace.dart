@@ -27,6 +27,7 @@ final class WorkbenchWorkspace extends ConsumerStatefulWidget {
 
 final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
   final GlobalKey _documentStackKey = GlobalKey();
+  final ValueNotifier<int> _highlightTick = ValueNotifier<int>(0);
   int? _focusPageIndex;
   int _focusToken = 0;
   Timer? _emphasisTimer;
@@ -34,28 +35,52 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
   @override
   void dispose() {
     _emphasisTimer?.cancel();
+    _highlightTick.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<MappingNavigationRequest?>(mappingNavigationProvider, (
-      previous,
-      next,
-    ) {
-      if (next == null) {
-        return;
-      }
-      _handleNavigation(next.target);
-    });
+    ref
+      ..listen<MappingNavigationRequest?>(mappingNavigationProvider, (
+        previous,
+        next,
+      ) {
+        if (next == null) {
+          return;
+        }
+        _handleNavigation(next.target);
+      })
+      // Hover bumps highlight tick only — skips DocumentViewer rebuild.
+      ..listen<int?>(
+        activeMappingProvider.select(
+          (session) => session.state.hoveredFieldIndex,
+        ),
+        (previous, next) {
+          if (previous == next) {
+            return;
+          }
+          _highlightTick.value++;
+        },
+      );
 
     final templateState = ref.watch(activeTemplateProvider);
     final templatePath = templateState.valueOrNull?.sourcePath;
     final reviewMode = ref.watch(workbenchReviewRenderModeProvider);
     final datasource = ref.watch(activeDatasourceProvider).valueOrNull;
     final headers = datasource?.headers ?? const <String>[];
-    final mappingState = ref.watch(activeMappingProvider).state;
+    final assignments = ref.watch(
+      activeMappingProvider.select((session) => session.state.assignments),
+    );
+    final currentFieldIndex = ref.watch(
+      activeMappingProvider.select(
+        (session) => session.state.currentFieldIndex,
+      ),
+    );
     final previewDocumentState = ref.watch(previewDocumentProvider);
+    final previewRowIndex = ref.watch(
+      previewStateProvider.select((state) => state.rowIndex),
+    );
     final selectionState = ref.watch(workbenchSelectionProvider);
     final emphasizedAssignmentId = ref.watch(emphasizedAssignmentIdProvider);
     final viewerController = ref.watch(documentViewerControllerProvider);
@@ -70,9 +95,10 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
       }
 
       return const _CenteredStatus(
-        title: 'Importa una plantilla DOCX para visualizar el documento.',
+        title: 'Importa una plantilla DOCX o PDF para visualizar el documento.',
         description:
-            'Usa la pestaña Plantillas del ribbon para seleccionar un archivo.',
+            'Usa la pestaña Plantillas del ribbon o arrastra un archivo '
+            'a la ventana.',
       );
     }
 
@@ -80,6 +106,7 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
       key: _documentStackKey,
       children: <Widget>[
         DocumentViewerScreen(
+          key: isPreview ? ValueKey<int>(previewRowIndex) : null,
           documentPath: templatePath,
           isSourceLoading:
               templateState.isLoading ||
@@ -93,18 +120,23 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
           focusPageIndex: _focusPageIndex,
           focusToken: _focusToken,
           viewerOverlay: DocumentViewerOverlay(
+            highlightListenable: _highlightTick,
             highlightBuilder: isPreview
                 ? (_) => const <ParagraphHighlightSegment>[]
                 : (path) => buildParagraphHighlights(
                     path: path,
-                    assignments: mappingState.assignments,
+                    assignments: assignments,
                     suggestions: const [],
-                    hoveredFieldIndex: mappingState.hoveredFieldIndex,
-                    activeFieldIndex: mappingState.currentFieldIndex,
+                    hoveredFieldIndex: ref
+                        .read(activeMappingProvider)
+                        .state
+                        .hoveredFieldIndex,
+                    activeFieldIndex: currentFieldIndex,
                     emphasizedAssignmentId: emphasizedAssignmentId,
                   ),
+            // null (not empty callback): SelectableText would stale TextSpans.
             onSelectionChanged: isPreview || headers.isEmpty
-                ? (_) {}
+                ? null
                 : _handleSelectionChanged,
           ),
         ),

@@ -9,7 +9,7 @@ import 'package:forkumentos/features/export/domain/export_result.dart';
 import 'package:forkumentos/features/export/domain/filename_pattern.dart';
 import 'package:path/path.dart' as p;
 
-/// Exports one DOCX per row by mutating the template ZIP in an isolate.
+/// Exports one DOCX per row by mutating a once-decoded template ZIP.
 final class DocxExportCommand extends CancellableCommand<ExportResult> {
   DocxExportCommand({
     required this.templateBytes,
@@ -43,6 +43,8 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
     var skipped = 0;
 
     final total = rowIndexes.length;
+    final pending = <_DocxRowExportJob>[];
+
     for (var index = 0; index < rowIndexes.length; index++) {
       if (isCancelled) {
         skipped += total - index;
@@ -54,13 +56,17 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
         CommandProgressEvent(
           current: index,
           total: total,
-          label: 'Generando DOCX ${index + 1} de $total',
+          label: 'Preparando DOCX ${index + 1} de $total',
           elapsed: DateTime.now().difference(started),
         ),
       );
 
       try {
         final row = await resolveRow(rowIndex);
+        if (isCancelled) {
+          skipped += total - index;
+          break;
+        }
         final baseName = FilenamePattern.dedupe(
           filenamePattern.resolve(row: row, headers: headers),
           _usedNames,
@@ -68,30 +74,49 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
         _usedNames.add(baseName.toLowerCase());
         final outputPath = p.join(destinationFolder, '$baseName.docx');
 
-        final replacements = <DocxTextReplacement>[
-          for (final placeholder in placeholders)
-            DocxTextReplacement(
-              pageIndex: placeholder.pageIndex,
-              steps: placeholder.steps,
-              startOffset: placeholder.startOffset,
-              endOffset: placeholder.endOffset,
-              text: _valueFor(placeholder.fieldIndex, row),
-            ),
-        ];
-
-        await Isolate.run(() {
-          final bytes = const DocxZipExporter().applyReplacements(
-            templateBytes: templateBytes,
-            replacements: replacements,
-          );
-          File(outputPath).writeAsBytesSync(bytes);
-        });
-
-        written.add(outputPath);
-        exported++;
+        pending.add(
+          _DocxRowExportJob(
+            outputPath: outputPath,
+            replacements: <DocxTextReplacement>[
+              for (final placeholder in placeholders)
+                DocxTextReplacement(
+                  pageIndex: placeholder.pageIndex,
+                  steps: placeholder.steps,
+                  startOffset: placeholder.startOffset,
+                  endOffset: placeholder.endOffset,
+                  text: _valueFor(placeholder.fieldIndex, row),
+                ),
+            ],
+          ),
+        );
       } on Object catch (error) {
         failed++;
         errors.add('Fila ${rowIndex + 1}: $error');
+      }
+    }
+
+    if (pending.isNotEmpty) {
+      onProgress?.call(
+        CommandProgressEvent(
+          current: 0,
+          total: total,
+          label: 'Generando ${pending.length} DOCX…',
+          elapsed: DateTime.now().difference(started),
+        ),
+      );
+
+      try {
+        // One Isolate.run for prepare + apply + write: avoids sharing prepared
+        // archive buffers across repeated isolate transfers.
+        final paths = await Isolate.run(
+          () =>
+              _exportPreparedBatch(templateBytes: templateBytes, jobs: pending),
+        );
+        written.addAll(paths);
+        exported += paths.length;
+      } on Object catch (error) {
+        failed += pending.length;
+        errors.add('Lote DOCX: $error');
       }
     }
 
@@ -121,4 +146,34 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
     }
     return row[fieldIndex] ?? '';
   }
+}
+
+final class _DocxRowExportJob {
+  const _DocxRowExportJob({
+    required this.outputPath,
+    required this.replacements,
+  });
+
+  final String outputPath;
+  final List<DocxTextReplacement> replacements;
+}
+
+List<String> _exportPreparedBatch({
+  required Uint8List templateBytes,
+  required List<_DocxRowExportJob> jobs,
+}) {
+  const exporter = DocxZipExporter();
+  final prepared = exporter.prepare(templateBytes);
+  final written = <String>[];
+
+  for (final job in jobs) {
+    final bytes = exporter.applyPrepared(
+      prepared: prepared,
+      replacements: job.replacements,
+    );
+    File(job.outputPath).writeAsBytesSync(bytes);
+    written.add(job.outputPath);
+  }
+
+  return written;
 }

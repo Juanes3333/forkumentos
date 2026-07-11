@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
+import 'package:forkumentos/features/datasource/data/xlsx_sheet_parser.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/domain/datasource_repository.dart';
 import 'package:path/path.dart' as p;
@@ -44,34 +45,12 @@ final class XlsxDatasourceRepository implements DatasourceRepository {
 }
 
 Map<String, Object?> _parseXlsxContent(Map<String, Object?> payload) {
-  final bytes = payload['bytes'];
-  if (bytes is! Uint8List) {
-    throw const FormatException('El archivo XLSX tiene un formato inválido.');
-  }
-
-  final workbook = _decodeWorkbook(bytes);
-  if (workbook.tables.isEmpty) {
-    throw const FormatException(
-      'El archivo XLSX está vacío o no contiene hojas válidas.',
-    );
-  }
-
-  // Se usa siempre la primera hoja disponible del workbook.
-  final firstSheet = workbook.tables.values.first;
-  final rows = firstSheet.rows;
-  if (rows.isEmpty) {
-    throw const FormatException(
-      'El archivo XLSX no contiene una fila de encabezados válida.',
-    );
-  }
+  final bytes = XlsxSheetParser.coerceBytes(payload['bytes']);
+  final workbook = XlsxSheetParser.decodeWorkbook(bytes);
+  final sheet = XlsxSheetParser.firstSheetWithHeaders(workbook);
+  final rows = sheet.rows;
 
   final headerRow = rows.first;
-  if (headerRow.isEmpty) {
-    throw const FormatException(
-      'El archivo XLSX no contiene una fila de encabezados válida.',
-    );
-  }
-
   final headers = headerRow.map(_normalizeHeaderCell).toList(growable: false);
   if (headers.every((String header) => header.isEmpty)) {
     throw const FormatException(
@@ -102,14 +81,6 @@ Map<String, Object?> _parseXlsxContent(Map<String, Object?> payload) {
     'rowCount': dataRows.length,
     'emptyColumnIndexes': emptyColumnIndexes,
   };
-}
-
-Excel _decodeWorkbook(Uint8List bytes) {
-  try {
-    return Excel.decodeBytes(bytes);
-  } catch (_) {
-    throw const FormatException('El archivo XLSX tiene un formato inválido.');
-  }
 }
 
 String _normalizeHeaderCell(Data? cell) {

@@ -146,7 +146,7 @@ final class ActiveTemplateNotifier extends AsyncNotifier<Template?> {
       }
 
       return const TemplateLifecycleException(
-        'El archivo no tiene un formato DOCX válido.',
+        'El archivo no tiene un formato de plantilla válido (.docx o .pdf).',
       );
     }
 

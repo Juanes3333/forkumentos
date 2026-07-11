@@ -9,23 +9,43 @@ Document buildPreviewDocument({
   required List<String> headers,
   required List<String?> row,
 }) {
+  if (assignments.isEmpty) {
+    return document;
+  }
+
   final assignmentsByPath = groupBy<FieldAssignment, DocumentTextPath>(
     assignments,
     (assignment) => assignment.path,
   );
+  final pagesWithAssignments = <int>{
+    for (final assignment in assignments) assignment.path.pageIndex,
+  };
 
-  return document.copyWith(
-    pages: <DocumentPage>[
-      for (var pageIndex = 0; pageIndex < document.pages.length; pageIndex++)
-        _buildPreviewPage(
-          document.pages[pageIndex],
-          pageIndex: pageIndex,
-          assignmentsByPath: assignmentsByPath,
-          headers: headers,
-          row: row,
-        ),
-    ],
-  );
+  var anyPageChanged = false;
+  final pages = List<DocumentPage>.generate(document.pages.length, (pageIndex) {
+    final original = document.pages[pageIndex];
+    if (!pagesWithAssignments.contains(pageIndex)) {
+      return original;
+    }
+
+    final built = _buildPreviewPage(
+      original,
+      pageIndex: pageIndex,
+      assignmentsByPath: assignmentsByPath,
+      headers: headers,
+      row: row,
+    );
+    if (!identical(built, original)) {
+      anyPageChanged = true;
+    }
+    return built;
+  }, growable: false);
+
+  if (!anyPageChanged) {
+    return document;
+  }
+
+  return document.copyWith(pages: pages);
 }
 
 DocumentPage _buildPreviewPage(
@@ -35,20 +55,48 @@ DocumentPage _buildPreviewPage(
   required List<String> headers,
   required List<String?> row,
 }) {
-  return page.copyWith(
-    blocks: <DocumentBlock>[
-      for (var blockIndex = 0; blockIndex < page.blocks.length; blockIndex++)
-        _buildPreviewBlock(
-          page.blocks[blockIndex],
-          pageIndex: pageIndex,
-          rootBlockIndex: blockIndex,
-          prefixSteps: const <DocumentPathStep>[],
-          assignmentsByPath: assignmentsByPath,
-          headers: headers,
-          row: row,
-        ),
-    ],
-  );
+  final rootBlockIndexes = <int>{};
+  for (final path in assignmentsByPath.keys) {
+    if (path.pageIndex != pageIndex || path.steps.isEmpty) {
+      continue;
+    }
+    final first = path.steps.first;
+    if (first is RootDocumentBlockStep) {
+      rootBlockIndexes.add(first.blockIndex);
+    }
+  }
+
+  if (rootBlockIndexes.isEmpty) {
+    return page;
+  }
+
+  var anyBlockChanged = false;
+  final blocks = List<DocumentBlock>.generate(page.blocks.length, (blockIndex) {
+    final original = page.blocks[blockIndex];
+    if (!rootBlockIndexes.contains(blockIndex)) {
+      return original;
+    }
+
+    final built = _buildPreviewBlock(
+      original,
+      pageIndex: pageIndex,
+      rootBlockIndex: blockIndex,
+      prefixSteps: const <DocumentPathStep>[],
+      assignmentsByPath: assignmentsByPath,
+      headers: headers,
+      row: row,
+    );
+    if (!identical(built, original)) {
+      anyBlockChanged = true;
+    }
+    return built;
+  }, growable: false);
+
+  if (!anyBlockChanged) {
+    return page;
+  }
+
+  return page.copyWith(blocks: blocks);
 }
 
 DocumentBlock _buildPreviewBlock(
@@ -61,66 +109,117 @@ DocumentBlock _buildPreviewBlock(
   required List<String?> row,
 }) {
   return switch (block) {
-    DocumentParagraphBlock(:final paragraph) => DocumentBlock.paragraph(
-      _buildPreviewParagraph(
+    DocumentParagraphBlock(:final paragraph) => () {
+      final path = DocumentTextPath(
+        pageIndex: pageIndex,
+        steps: <DocumentPathStep>[
+          DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
+          ...prefixSteps,
+        ],
+      );
+      final built = _buildPreviewParagraph(
         paragraph,
-        path: DocumentTextPath(
-          pageIndex: pageIndex,
-          steps: <DocumentPathStep>[
-            DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
-            ...prefixSteps,
-          ],
-        ),
+        path: path,
         assignmentsByPath: assignmentsByPath,
         headers: headers,
         row: row,
-      ),
-    ),
-    DocumentTableBlock(:final table) => DocumentBlock.table(
-      table.copyWith(
-        rows: <DocumentTableRow>[
-          for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
-            table.rows[rowIndex].copyWith(
-              cells: <DocumentTableCell>[
-                for (
-                  var cellIndex = 0;
-                  cellIndex < table.rows[rowIndex].cells.length;
-                  cellIndex++
-                )
-                  table.rows[rowIndex].cells[cellIndex].copyWith(
-                    blocks: <DocumentBlock>[
-                      for (
-                        var blockIndex = 0;
-                        blockIndex <
-                            table.rows[rowIndex].cells[cellIndex].blocks.length;
-                        blockIndex++
-                      )
-                        _buildPreviewBlock(
-                          table
-                              .rows[rowIndex]
-                              .cells[cellIndex]
-                              .blocks[blockIndex],
-                          pageIndex: pageIndex,
-                          rootBlockIndex: rootBlockIndex,
-                          prefixSteps: <DocumentPathStep>[
-                            DocumentPathStep.cellBlock(
-                              rowIndex: rowIndex,
-                              cellIndex: cellIndex,
-                              blockIndex: blockIndex,
-                            ),
-                          ],
-                          assignmentsByPath: assignmentsByPath,
-                          headers: headers,
-                          row: row,
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-        ],
-      ),
+      );
+      if (identical(built, paragraph)) {
+        return block;
+      }
+      return DocumentBlock.paragraph(built);
+    }(),
+    DocumentTableBlock(:final table) => _buildPreviewTableBlock(
+      block,
+      table: table,
+      pageIndex: pageIndex,
+      rootBlockIndex: rootBlockIndex,
+      assignmentsByPath: assignmentsByPath,
+      headers: headers,
+      row: row,
     ),
   };
+}
+
+DocumentBlock _buildPreviewTableBlock(
+  DocumentBlock original, {
+  required DocumentTable table,
+  required int pageIndex,
+  required int rootBlockIndex,
+  required Map<DocumentTextPath, List<FieldAssignment>> assignmentsByPath,
+  required List<String> headers,
+  required List<String?> row,
+}) {
+  var anyRowChanged = false;
+  final rows = List<DocumentTableRow>.generate(table.rows.length, (rowIndex) {
+    final originalRow = table.rows[rowIndex];
+    var anyCellChanged = false;
+    final cells = List<DocumentTableCell>.generate(originalRow.cells.length, (
+      cellIndex,
+    ) {
+      final originalCell = originalRow.cells[cellIndex];
+      var anyNestedChanged = false;
+      final nestedBlocks = List<DocumentBlock>.generate(
+        originalCell.blocks.length,
+        (blockIndex) {
+          final originalBlock = originalCell.blocks[blockIndex];
+          final path = DocumentTextPath(
+            pageIndex: pageIndex,
+            steps: <DocumentPathStep>[
+              DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
+              DocumentPathStep.cellBlock(
+                rowIndex: rowIndex,
+                cellIndex: cellIndex,
+                blockIndex: blockIndex,
+              ),
+            ],
+          );
+          if (!assignmentsByPath.containsKey(path)) {
+            return originalBlock;
+          }
+
+          final built = _buildPreviewBlock(
+            originalBlock,
+            pageIndex: pageIndex,
+            rootBlockIndex: rootBlockIndex,
+            prefixSteps: <DocumentPathStep>[
+              DocumentPathStep.cellBlock(
+                rowIndex: rowIndex,
+                cellIndex: cellIndex,
+                blockIndex: blockIndex,
+              ),
+            ],
+            assignmentsByPath: assignmentsByPath,
+            headers: headers,
+            row: row,
+          );
+          if (!identical(built, originalBlock)) {
+            anyNestedChanged = true;
+          }
+          return built;
+        },
+        growable: false,
+      );
+
+      if (!anyNestedChanged) {
+        return originalCell;
+      }
+      anyCellChanged = true;
+      return originalCell.copyWith(blocks: nestedBlocks);
+    }, growable: false);
+
+    if (!anyCellChanged) {
+      return originalRow;
+    }
+    anyRowChanged = true;
+    return originalRow.copyWith(cells: cells);
+  }, growable: false);
+
+  if (!anyRowChanged) {
+    return original;
+  }
+
+  return DocumentBlock.table(table.copyWith(rows: rows));
 }
 
 DocumentParagraph _buildPreviewParagraph(

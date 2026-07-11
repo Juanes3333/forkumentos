@@ -17,29 +17,20 @@ final class SettingsStore {
     final defaultRoot = await _defaultRoot();
     final raw = await _storage.read(settingsStorageKey);
     if (raw == null || raw.trim().isEmpty) {
-      return AppSettings(
-        workspaceRoot: defaultRoot,
-        theme: SettingsDefaults.theme,
-      );
+      return AppSettings.defaults(workspaceRoot: defaultRoot);
     }
 
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) {
-        return AppSettings(
-          workspaceRoot: defaultRoot,
-          theme: SettingsDefaults.theme,
-        );
+        return AppSettings.defaults(workspaceRoot: defaultRoot);
       }
       return AppSettings.fromJson(
         decoded.cast<String, dynamic>(),
         defaultWorkspaceRoot: defaultRoot,
       );
     } on FormatException {
-      return AppSettings(
-        workspaceRoot: defaultRoot,
-        theme: SettingsDefaults.theme,
-      );
+      return AppSettings.defaults(workspaceRoot: defaultRoot);
     }
   }
 

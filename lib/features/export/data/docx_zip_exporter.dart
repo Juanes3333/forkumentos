@@ -22,50 +22,89 @@ final class DocxTextReplacement {
   final String text;
 }
 
+/// Decoded DOCX ZIP entries ready for per-row XML mutation without re-decode.
+final class PreparedDocxTemplate {
+  const PreparedDocxTemplate({required this.entries});
+
+  final List<PreparedDocxEntry> entries;
+}
+
+final class PreparedDocxEntry {
+  const PreparedDocxEntry({
+    required this.name,
+    required this.bytes,
+    required this.compress,
+  });
+
+  final String name;
+  final Uint8List bytes;
+  final bool compress;
+}
+
 /// Mutates a template DOCX ZIP: replaces mapped text in `word/document.xml`
 /// (paragraphs + tables) and copies every other entry intact.
 final class DocxZipExporter {
   const DocxZipExporter();
 
-  /// Applies [replacements] to [templateBytes] and returns a new DOCX ZIP.
-  Uint8List applyReplacements({
-    required Uint8List templateBytes,
-    required List<DocxTextReplacement> replacements,
-  }) {
+  /// Decodes [templateBytes] once; reuse with [applyPrepared] per row.
+  PreparedDocxTemplate prepare(Uint8List templateBytes) {
     final archive = _decodeArchive(templateBytes);
-    final output = Archive();
-    var documentXmlUpdated = false;
+    final entries = <PreparedDocxEntry>[];
+    var hasDocumentXml = false;
 
     for (final file in archive.files) {
       if (!file.isFile) {
         continue;
       }
-
+      final content = file.content;
+      // Always copy: archive buffers must not be aliased across Isolate.run /
+      // ZipEncoder mutations when the same prepared template is reused.
+      final bytes = Uint8List.fromList(content as List<int>);
       if (file.name.toLowerCase() == 'word/document.xml') {
-        final xml = utf8.decode(
-          file.content as List<int>,
-          allowMalformed: true,
-        );
+        hasDocumentXml = true;
+      }
+      entries.add(
+        PreparedDocxEntry(
+          name: file.name,
+          bytes: bytes,
+          compress: file.compress,
+        ),
+      );
+    }
+
+    if (!hasDocumentXml) {
+      throw const FormatException('El DOCX no contiene word/document.xml.');
+    }
+
+    return PreparedDocxTemplate(entries: entries);
+  }
+
+  /// Applies [replacements] to a [PreparedDocxTemplate] and returns a new ZIP.
+  Uint8List applyPrepared({
+    required PreparedDocxTemplate prepared,
+    required List<DocxTextReplacement> replacements,
+  }) {
+    final output = Archive();
+
+    for (final entry in prepared.entries) {
+      if (entry.name.toLowerCase() == 'word/document.xml') {
+        final xml = utf8.decode(entry.bytes, allowMalformed: true);
         final updated = _applyToDocumentXml(xml, replacements);
-        final encoded = utf8.encode(updated);
+        final encoded = Uint8List.fromList(utf8.encode(updated));
         output.addFile(
-          ArchiveFile(file.name, encoded.length, encoded)
-            ..compress = file.compress,
+          ArchiveFile(entry.name, encoded.length, encoded)
+            ..compress = entry.compress,
         );
-        documentXmlUpdated = true;
         continue;
       }
 
       // ponytail: headers/footers copied intact — mapping into headers is not
       // in the Document model yet; wire ExportPlaceholder paths when it is.
-      final content = file.content;
+      final copied = Uint8List.fromList(entry.bytes);
       output.addFile(
-        ArchiveFile(file.name, file.size, content)..compress = file.compress,
+        ArchiveFile(entry.name, copied.length, copied)
+          ..compress = entry.compress,
       );
-    }
-
-    if (!documentXmlUpdated) {
-      throw const FormatException('El DOCX no contiene word/document.xml.');
     }
 
     final encoded = ZipEncoder().encode(output);
@@ -73,6 +112,17 @@ final class DocxZipExporter {
       throw const FormatException('No se pudo codificar el DOCX exportado.');
     }
     return Uint8List.fromList(encoded);
+  }
+
+  /// Applies [replacements] to [templateBytes] and returns a new DOCX ZIP.
+  Uint8List applyReplacements({
+    required Uint8List templateBytes,
+    required List<DocxTextReplacement> replacements,
+  }) {
+    return applyPrepared(
+      prepared: prepare(templateBytes),
+      replacements: replacements,
+    );
   }
 }
 

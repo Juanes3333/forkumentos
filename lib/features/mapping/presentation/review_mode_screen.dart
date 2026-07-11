@@ -173,7 +173,6 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
                                   emphasizedAssignmentId:
                                       emphasizedAssignmentId,
                                 ),
-                            onSelectionChanged: (_) {},
                           ),
                   ),
                 ),

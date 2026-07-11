@@ -7,6 +7,7 @@ import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/presentation/confirm_close_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 
 const _appTitle = 'Forkumentos';
 
@@ -70,8 +71,9 @@ final class _ProjectWindowLifecycleState
   Future<void> _handleCloseRequested() async {
     final project = ref.read(activeProjectProvider).valueOrNull;
     final windowService = ref.read(windowServiceProvider);
+    final confirmEnabled = ref.read(confirmBeforeClosingProvider);
 
-    if (project == null || !project.isDirty) {
+    if (project == null || !project.isDirty || !confirmEnabled) {
       await windowService.destroy();
       return;
     }

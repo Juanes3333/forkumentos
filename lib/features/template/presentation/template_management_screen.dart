@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/template/domain/template.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
+import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:intl/intl.dart';
 
-const _docxExtension = 'docx';
+const _templateExtensions = <String>['docx', 'pdf'];
 
 final class TemplateManagementScreen extends ConsumerWidget {
   const TemplateManagementScreen({super.key});
@@ -74,12 +75,12 @@ final class TemplateManagementScreen extends ConsumerWidget {
 
 Future<void> _pickAndImportTemplate(WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
-    dialogTitle: 'Seleccionar plantilla DOCX',
+    dialogTitle: 'Seleccionar plantilla DOCX o PDF',
     type: FileType.custom,
-    allowedExtensions: const <String>[_docxExtension],
+    allowedExtensions: _templateExtensions,
   );
   final filePath = selected?.files.single.path;
-  if (filePath == null) {
+  if (filePath == null || !isTemplatePath(filePath)) {
     return;
   }
 
@@ -140,7 +141,7 @@ final class _TemplateEmptyState extends StatelessWidget {
         Text('Plantilla', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         Text(
-          'Todavía no importaste una plantilla DOCX para este proyecto.',
+          'Todavía no importaste una plantilla DOCX o PDF para este proyecto.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),

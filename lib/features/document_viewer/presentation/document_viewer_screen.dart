@@ -707,9 +707,11 @@ final class _DocumentBlockWidget extends StatelessWidget {
         paragraph: paragraph,
         textStyle: textStyle,
         emptyParagraphHeight: emptyParagraphHeight,
-        highlights:
-            viewerOverlay?.highlightBuilder(_pathForParagraph()) ??
-            const <ParagraphHighlightSegment>[],
+        highlights: const <ParagraphHighlightSegment>[],
+        highlightsBuilder: viewerOverlay == null
+            ? null
+            : () => viewerOverlay!.highlightBuilder(_pathForParagraph()),
+        highlightListenable: viewerOverlay?.highlightListenable,
         onSelectionChanged: viewerOverlay?.onSelectionChanged,
       ),
       DocumentTableBlock(:final table) => Padding(

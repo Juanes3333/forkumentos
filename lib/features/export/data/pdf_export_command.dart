@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:forkumentos/core/commands/cancellable_command.dart';
@@ -71,8 +72,10 @@ final class PdfExportCommand extends CancellableCommand<ExportResult> {
         _usedNames.add(baseName.toLowerCase());
         final outputPath = p.join(destinationFolder, '$baseName.pdf');
 
-        final bytes = await _renderPdf(document);
-        await File(outputPath).writeAsBytes(bytes);
+        await Isolate.run(() async {
+          final bytes = await _renderPdfBytes(document);
+          File(outputPath).writeAsBytesSync(bytes);
+        });
         written.add(outputPath);
         exported++;
       } on Object catch (error) {
@@ -100,79 +103,79 @@ final class PdfExportCommand extends CancellableCommand<ExportResult> {
       errors: errors,
     );
   }
+}
 
-  Future<Uint8List> _renderPdf(Document document) async {
-    final pdf = pw.Document();
-    for (final page in document.pages) {
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat(page.widthPoints, page.heightPoints),
-          margin: pw.EdgeInsets.fromLTRB(
-            page.margins.leftPoints,
-            page.margins.topPoints,
-            page.margins.rightPoints,
-            page.margins.bottomPoints,
-          ),
-          build: (context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: <pw.Widget>[
-                for (final block in page.blocks) _blockWidget(block),
-              ],
-            );
-          },
+Future<Uint8List> _renderPdfBytes(Document document) {
+  final pdf = pw.Document();
+  for (final page in document.pages) {
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(page.widthPoints, page.heightPoints),
+        margin: pw.EdgeInsets.fromLTRB(
+          page.margins.leftPoints,
+          page.margins.topPoints,
+          page.margins.rightPoints,
+          page.margins.bottomPoints,
         ),
-      );
-    }
-    return pdf.save();
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: <pw.Widget>[
+              for (final block in page.blocks) _pdfBlockWidget(block),
+            ],
+          );
+        },
+      ),
+    );
   }
+  return pdf.save();
+}
 
-  pw.Widget _blockWidget(DocumentBlock block) {
-    return switch (block) {
-      DocumentParagraphBlock(:final paragraph) => pw.Padding(
-        padding: const pw.EdgeInsets.only(bottom: 6),
-        child: pw.RichText(
-          text: pw.TextSpan(
-            children: <pw.TextSpan>[
-              for (final run in paragraph.runs)
-                pw.TextSpan(
-                  text: run.text,
-                  style: pw.TextStyle(
-                    fontWeight: run.isBold
-                        ? pw.FontWeight.bold
-                        : pw.FontWeight.normal,
-                    fontStyle: run.isItalic
-                        ? pw.FontStyle.italic
-                        : pw.FontStyle.normal,
-                    decoration: run.isUnderlined
-                        ? pw.TextDecoration.underline
-                        : pw.TextDecoration.none,
+pw.Widget _pdfBlockWidget(DocumentBlock block) {
+  return switch (block) {
+    DocumentParagraphBlock(:final paragraph) => pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 6),
+      child: pw.RichText(
+        text: pw.TextSpan(
+          children: <pw.TextSpan>[
+            for (final run in paragraph.runs)
+              pw.TextSpan(
+                text: run.text,
+                style: pw.TextStyle(
+                  fontWeight: run.isBold
+                      ? pw.FontWeight.bold
+                      : pw.FontWeight.normal,
+                  fontStyle: run.isItalic
+                      ? pw.FontStyle.italic
+                      : pw.FontStyle.normal,
+                  decoration: run.isUnderlined
+                      ? pw.TextDecoration.underline
+                      : pw.TextDecoration.none,
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+    DocumentTableBlock(:final table) => pw.Table(
+      border: pw.TableBorder.all(width: 0.5),
+      children: <pw.TableRow>[
+        for (final row in table.rows)
+          pw.TableRow(
+            children: <pw.Widget>[
+              for (final cell in row.cells)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(4),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: <pw.Widget>[
+                      for (final nested in cell.blocks) _pdfBlockWidget(nested),
+                    ],
                   ),
                 ),
             ],
           ),
-        ),
-      ),
-      DocumentTableBlock(:final table) => pw.Table(
-        border: pw.TableBorder.all(width: 0.5),
-        children: <pw.TableRow>[
-          for (final row in table.rows)
-            pw.TableRow(
-              children: <pw.Widget>[
-                for (final cell in row.cells)
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(4),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: <pw.Widget>[
-                        for (final nested in cell.blocks) _blockWidget(nested),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-        ],
-      ),
-    };
-  }
+      ],
+    ),
+  };
 }

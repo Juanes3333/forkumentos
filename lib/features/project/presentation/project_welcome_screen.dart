@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,22 +8,46 @@ import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/domain/recent_project.dart';
 import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
+import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
 import 'package:intl/intl.dart';
 
-final class ProjectWelcomeScreen extends ConsumerWidget {
+final class ProjectWelcomeScreen extends ConsumerStatefulWidget {
   const ProjectWelcomeScreen({super.key, this.onOpenSettings});
 
   /// Opened by routing (Landing). Keeps settings UI out of this feature.
   final VoidCallback? onOpenSettings;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProjectWelcomeScreen> createState() =>
+      _ProjectWelcomeScreenState();
+}
+
+final class _ProjectWelcomeScreenState
+    extends ConsumerState<ProjectWelcomeScreen> {
+  var _didAutoOpenRecent = false;
+
+  @override
+  Widget build(BuildContext context) {
     final activeProjectState = ref.watch(activeProjectProvider);
     final errorMessage = _resolveErrorMessage(activeProjectState.error);
     final isLoading = activeProjectState.isLoading;
     final recentProjectsState = ref.watch(recentProjectsProvider);
+    final recentLimit = ref.watch(recentProjectsLimitProvider);
+    final openRecentOnStartup = ref.watch(openRecentOnStartupProvider);
+    final recentEntries =
+        (recentProjectsState.valueOrNull ?? const <RecentProject>[])
+            .take(recentLimit)
+            .toList();
+
+    _maybeAutoOpenRecent(
+      openRecentOnStartup: openRecentOnStartup,
+      recentReady: recentProjectsState.hasValue,
+      entries: recentEntries,
+      isLoading: isLoading,
+    );
 
     return Center(
       child: ConstrainedBox(
@@ -50,10 +76,10 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                     ),
-                    if (onOpenSettings != null)
+                    if (widget.onOpenSettings != null)
                       IconButton(
                         tooltip: 'Configuración',
-                        onPressed: isLoading ? null : onOpenSettings,
+                        onPressed: isLoading ? null : widget.onOpenSettings,
                         icon: const Icon(Icons.settings_outlined),
                       ),
                   ],
@@ -94,19 +120,35 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
                   label: const Text('Abrir proyecto'),
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  'Proyectos recientes',
-                  style: Theme.of(context).textTheme.titleSmall,
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        'Proyectos recientes',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    if (recentEntries.isNotEmpty)
+                      TextButton(
+                        onPressed: isLoading
+                            ? null
+                            : () => ref
+                                  .read(recentProjectsProvider.notifier)
+                                  .clear(),
+                        child: const Text('Borrar historial'),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 220),
                   child: _RecentProjectsList(
-                    entries:
-                        recentProjectsState.valueOrNull ??
-                        const <RecentProject>[],
+                    entries: recentEntries,
                     isBusy: isLoading,
                     onSelect: (entry) => _handleOpenRecentProject(ref, entry),
+                    onRemove: (entry) => ref
+                        .read(recentProjectsProvider.notifier)
+                        .remove(entry.filePath),
                   ),
                 ),
               ],
@@ -115,6 +157,29 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _maybeAutoOpenRecent({
+    required bool openRecentOnStartup,
+    required bool recentReady,
+    required List<RecentProject> entries,
+    required bool isLoading,
+  }) {
+    if (_didAutoOpenRecent ||
+        !openRecentOnStartup ||
+        !recentReady ||
+        entries.isEmpty ||
+        isLoading) {
+      return;
+    }
+    _didAutoOpenRecent = true;
+    final entry = entries.first;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _handleOpenRecentProject(ref, entry);
+    });
   }
 
   Future<void> _handleCreateProject(BuildContext context, WidgetRef ref) async {
@@ -150,30 +215,58 @@ final class ProjectWelcomeScreen extends ConsumerWidget {
     await ref
         .read(activeProjectProvider.notifier)
         .loadProject(filePath: filePath);
-    await _recordIfLoaded(ref);
+    await afterSuccessfulProjectLoad(ref);
   }
 
   Future<void> _handleOpenRecentProject(
     WidgetRef ref,
     RecentProject entry,
   ) async {
+    // ignore: avoid_slow_async_io
+    if (!await File(entry.filePath).exists()) {
+      if (!mounted) {
+        return;
+      }
+      final remove = await _showMissingRecentDialog(context, entry);
+      if (remove ?? false) {
+        await ref.read(recentProjectsProvider.notifier).remove(entry.filePath);
+      }
+      return;
+    }
+
     await ref
         .read(activeProjectProvider.notifier)
         .loadProject(filePath: entry.filePath);
-    await _recordIfLoaded(ref);
+    await afterSuccessfulProjectLoad(ref);
   }
 }
 
-Future<void> _recordIfLoaded(WidgetRef ref) async {
-  final state = ref.read(activeProjectProvider);
-  final project = state.valueOrNull;
-  if (state.hasError || project == null || project.filePath == null) {
-    return;
-  }
-
-  await ref
-      .read(recentProjectsProvider.notifier)
-      .record(filePath: project.filePath!, name: project.name);
+Future<bool?> _showMissingRecentDialog(
+  BuildContext context,
+  RecentProject entry,
+) {
+  return showDialog<bool>(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text('Proyecto no encontrado'),
+        content: Text(
+          'No se encontró el archivo:\n${entry.filePath}\n\n'
+          '¿Quieres quitarlo de la lista de recientes?',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Quitar de la lista'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 Future<void> _showUnsupportedFileDialog(BuildContext context) {
@@ -219,11 +312,13 @@ final class _RecentProjectsList extends StatelessWidget {
     required this.entries,
     required this.isBusy,
     required this.onSelect,
+    required this.onRemove,
   });
 
   final List<RecentProject> entries;
   final bool isBusy;
   final ValueChanged<RecentProject> onSelect;
+  final ValueChanged<RecentProject> onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -244,6 +339,7 @@ final class _RecentProjectsList extends StatelessWidget {
         return _RecentProjectTile(
           entry: entry,
           onTap: isBusy ? null : () => onSelect(entry),
+          onRemove: isBusy ? null : () => onRemove(entry),
         );
       },
     );
@@ -251,10 +347,15 @@ final class _RecentProjectsList extends StatelessWidget {
 }
 
 final class _RecentProjectTile extends StatelessWidget {
-  const _RecentProjectTile({required this.entry, required this.onTap});
+  const _RecentProjectTile({
+    required this.entry,
+    required this.onTap,
+    required this.onRemove,
+  });
 
   final RecentProject entry;
   final VoidCallback? onTap;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -274,13 +375,20 @@ final class _RecentProjectTile extends StatelessWidget {
         onSelected: (value) {
           if (value == 'show_in_explorer') {
             showFileInExplorer(entry.filePath);
+          } else if (value == 'remove' && onRemove != null) {
+            onRemove!();
           }
         },
         itemBuilder: (BuildContext context) {
-          return const <PopupMenuEntry<String>>[
-            PopupMenuItem<String>(
+          return <PopupMenuEntry<String>>[
+            const PopupMenuItem<String>(
               value: 'show_in_explorer',
               child: Text('Mostrar en el Explorador'),
+            ),
+            PopupMenuItem<String>(
+              value: 'remove',
+              enabled: onRemove != null,
+              child: const Text('Quitar de la lista'),
             ),
           ];
         },

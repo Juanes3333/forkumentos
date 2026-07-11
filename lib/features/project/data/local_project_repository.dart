@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
@@ -39,77 +41,25 @@ final class LocalProjectRepository implements ProjectRepository {
       );
     }
 
-    late final Archive archive;
-    try {
-      archive = ZipDecoder().decodeBytes(bytes, verify: true);
-    } on Object {
-      throw const FormatException(
-        'El archivo .fork no es un ZIP válido o está dañado.',
-      );
-    }
-
-    final manifestRaw = _readArchiveText(archive, _manifestFileName);
-    if (manifestRaw == null) {
-      throw const FormatException(
-        'El archivo .fork no contiene un manifiesto válido.',
-      );
-    }
-
-    final manifest = _decodeObject(manifestRaw, 'manifiesto');
-    final version = manifest['version'];
-    if (version != _manifestVersion) {
-      throw FormatException('Versión de proyecto no soportada: $version.');
-    }
-
-    final projectRaw = _readArchiveText(archive, _projectFileName);
-    if (projectRaw == null) {
-      throw const FormatException('El archivo .fork no contiene project.json.');
-    }
-
-    final projectJson = _decodeObject(projectRaw, 'project.json');
-    final mappingsRaw = _readArchiveText(archive, _mappingsFileName);
-    final mappingAssignments = <Map<String, dynamic>>[];
-    if (mappingsRaw != null && mappingsRaw.trim().isNotEmpty) {
-      final decoded = jsonDecode(mappingsRaw);
-      if (decoded is! List) {
-        throw const FormatException('mappings.json debe ser una lista JSON.');
-      }
-      for (final item in decoded) {
-        if (item is Map) {
-          mappingAssignments.add(item.cast<String, dynamic>());
-        }
-      }
-    }
-
-    final projectId = projectJson['id'] as String?;
-    if (projectId == null || projectId.isEmpty) {
-      throw const FormatException('project.json no contiene un id válido.');
-    }
-
-    final extractRoot = p.join(cacheDirectory, projectId);
-    await Directory(extractRoot).create(recursive: true);
-
-    final embeddedTemplatePath = await _extractSingleArtifact(
-      archive: archive,
-      dirPrefix: '$_templateDirName/',
-      destinationDir: p.join(extractRoot, _templateDirName),
-    );
-    final embeddedDatasourcePath = await _extractSingleArtifact(
-      archive: archive,
-      dirPrefix: '$_datasourceDirName/',
-      destinationDir: p.join(extractRoot, _datasourceDirName),
+    final extracted = await Isolate.run(
+      () => _decodeAndExtractInIsolate(
+        _IsolateLoadRequest(
+          bytes: Uint8List.fromList(bytes),
+          cacheDirectory: cacheDirectory,
+        ),
+      ),
     );
 
     final project = Project.fromJson({
-      ...projectJson,
-      'mappingAssignments': mappingAssignments,
+      ...extracted.projectJson,
+      'mappingAssignments': extracted.mappingAssignments,
     });
 
     return project.copyWith(
       filePath: filePath,
       isDirty: false,
-      embeddedTemplatePath: embeddedTemplatePath,
-      embeddedDatasourcePath: embeddedDatasourcePath,
+      embeddedTemplatePath: extracted.embeddedTemplatePath,
+      embeddedDatasourcePath: extracted.embeddedDatasourcePath,
     );
   }
 
@@ -229,52 +179,6 @@ final class LocalProjectRepository implements ProjectRepository {
     return false;
   }
 
-  Map<String, dynamic> _decodeObject(String raw, String label) {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
-      throw FormatException('El $label debe ser un objeto JSON.');
-    }
-    return decoded.cast<String, dynamic>();
-  }
-
-  String? _readArchiveText(Archive archive, String name) {
-    final file = archive.findFile(name);
-    if (file == null) {
-      return null;
-    }
-    return utf8.decode(file.content as List<int>);
-  }
-
-  Future<String?> _extractSingleArtifact({
-    required Archive archive,
-    required String dirPrefix,
-    required String destinationDir,
-  }) async {
-    ArchiveFile? match;
-    for (final file in archive.files) {
-      if (!file.isFile) {
-        continue;
-      }
-      if (!file.name.startsWith(dirPrefix)) {
-        continue;
-      }
-      final relative = file.name.substring(dirPrefix.length);
-      if (relative.isEmpty || relative.contains('/')) {
-        continue;
-      }
-      match = file;
-      break;
-    }
-    if (match == null) {
-      return null;
-    }
-
-    await Directory(destinationDir).create(recursive: true);
-    final outPath = p.join(destinationDir, p.basename(match.name));
-    await File(outPath).writeAsBytes(match.content as List<int>, flush: true);
-    return outPath;
-  }
-
   Future<String> _copyIntoCache({
     required String sourcePath,
     required String cacheDirectory,
@@ -334,4 +238,144 @@ final class LocalProjectRepository implements ProjectRepository {
       }
     }
   }
+}
+
+final class _IsolateLoadRequest {
+  const _IsolateLoadRequest({
+    required this.bytes,
+    required this.cacheDirectory,
+  });
+
+  final Uint8List bytes;
+  final String cacheDirectory;
+}
+
+final class _IsolateLoadResult {
+  const _IsolateLoadResult({
+    required this.projectJson,
+    required this.mappingAssignments,
+    this.embeddedTemplatePath,
+    this.embeddedDatasourcePath,
+  });
+
+  final Map<String, dynamic> projectJson;
+  final List<Map<String, dynamic>> mappingAssignments;
+  final String? embeddedTemplatePath;
+  final String? embeddedDatasourcePath;
+}
+
+_IsolateLoadResult _decodeAndExtractInIsolate(_IsolateLoadRequest request) {
+  late final Archive archive;
+  try {
+    archive = ZipDecoder().decodeBytes(request.bytes, verify: true);
+  } on Object {
+    throw const FormatException(
+      'El archivo .fork no es un ZIP válido o está dañado.',
+    );
+  }
+
+  final manifestRaw = _readArchiveText(archive, _manifestFileName);
+  if (manifestRaw == null) {
+    throw const FormatException(
+      'El archivo .fork no contiene un manifiesto válido.',
+    );
+  }
+
+  final manifest = _decodeObject(manifestRaw, 'manifiesto');
+  final version = manifest['version'];
+  if (version != _manifestVersion) {
+    throw FormatException('Versión de proyecto no soportada: $version.');
+  }
+
+  final projectRaw = _readArchiveText(archive, _projectFileName);
+  if (projectRaw == null) {
+    throw const FormatException('El archivo .fork no contiene project.json.');
+  }
+
+  final projectJson = _decodeObject(projectRaw, 'project.json');
+  final mappingsRaw = _readArchiveText(archive, _mappingsFileName);
+  final mappingAssignments = <Map<String, dynamic>>[];
+  if (mappingsRaw != null && mappingsRaw.trim().isNotEmpty) {
+    final decoded = jsonDecode(mappingsRaw);
+    if (decoded is! List) {
+      throw const FormatException('mappings.json debe ser una lista JSON.');
+    }
+    for (final item in decoded) {
+      if (item is Map) {
+        mappingAssignments.add(item.cast<String, dynamic>());
+      }
+    }
+  }
+
+  final projectId = projectJson['id'] as String?;
+  if (projectId == null || projectId.isEmpty) {
+    throw const FormatException('project.json no contiene un id válido.');
+  }
+
+  final extractRoot = p.join(request.cacheDirectory, projectId);
+  Directory(extractRoot).createSync(recursive: true);
+
+  final embeddedTemplatePath = _extractSingleArtifactSync(
+    archive: archive,
+    dirPrefix: '$_templateDirName/',
+    destinationDir: p.join(extractRoot, _templateDirName),
+  );
+  final embeddedDatasourcePath = _extractSingleArtifactSync(
+    archive: archive,
+    dirPrefix: '$_datasourceDirName/',
+    destinationDir: p.join(extractRoot, _datasourceDirName),
+  );
+
+  return _IsolateLoadResult(
+    projectJson: projectJson,
+    mappingAssignments: mappingAssignments,
+    embeddedTemplatePath: embeddedTemplatePath,
+    embeddedDatasourcePath: embeddedDatasourcePath,
+  );
+}
+
+Map<String, dynamic> _decodeObject(String raw, String label) {
+  final decoded = jsonDecode(raw);
+  if (decoded is! Map) {
+    throw FormatException('El $label debe ser un objeto JSON.');
+  }
+  return decoded.cast<String, dynamic>();
+}
+
+String? _readArchiveText(Archive archive, String name) {
+  final file = archive.findFile(name);
+  if (file == null) {
+    return null;
+  }
+  return utf8.decode(file.content as List<int>);
+}
+
+String? _extractSingleArtifactSync({
+  required Archive archive,
+  required String dirPrefix,
+  required String destinationDir,
+}) {
+  ArchiveFile? match;
+  for (final file in archive.files) {
+    if (!file.isFile) {
+      continue;
+    }
+    if (!file.name.startsWith(dirPrefix)) {
+      continue;
+    }
+    final relative = file.name.substring(dirPrefix.length);
+    if (relative.isEmpty || relative.contains('/')) {
+      continue;
+    }
+    match = file;
+    break;
+  }
+  if (match == null) {
+    return null;
+  }
+
+  Directory(destinationDir).createSync(recursive: true);
+  final outPath = p.join(destinationDir, p.basename(match.name));
+  File(outPath).writeAsBytesSync(match.content as List<int>, flush: true);
+  return outPath;
 }

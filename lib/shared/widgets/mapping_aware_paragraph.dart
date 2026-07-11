@@ -26,6 +26,8 @@ final class MappingAwareParagraph extends StatefulWidget {
     required this.textStyle,
     required this.emptyParagraphHeight,
     required this.highlights,
+    this.highlightsBuilder,
+    this.highlightListenable,
     this.onSelectionChanged,
     super.key,
   });
@@ -35,6 +37,10 @@ final class MappingAwareParagraph extends StatefulWidget {
   final TextStyle textStyle;
   final double emptyParagraphHeight;
   final List<ParagraphHighlightSegment> highlights;
+
+  /// When set, called on every build (including listenable ticks).
+  final List<ParagraphHighlightSegment> Function()? highlightsBuilder;
+  final Listenable? highlightListenable;
   final ValueChanged<DocumentTextSelection?>? onSelectionChanged;
 
   @override
@@ -42,6 +48,36 @@ final class MappingAwareParagraph extends StatefulWidget {
 }
 
 final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
+  @override
+  void initState() {
+    super.initState();
+    widget.highlightListenable?.addListener(_onHighlightTick);
+  }
+
+  @override
+  void didUpdateWidget(covariant MappingAwareParagraph oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.highlightListenable != widget.highlightListenable) {
+      oldWidget.highlightListenable?.removeListener(_onHighlightTick);
+      widget.highlightListenable?.addListener(_onHighlightTick);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.highlightListenable?.removeListener(_onHighlightTick);
+    super.dispose();
+  }
+
+  void _onHighlightTick() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  List<ParagraphHighlightSegment> get _resolvedHighlights =>
+      widget.highlightsBuilder?.call() ?? widget.highlights;
+
   @override
   Widget build(BuildContext context) {
     final plainText = widget.paragraph.runs.map((run) => run.text).join();
@@ -143,12 +179,13 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
   }
 
   List<InlineSpan> _buildDecoratedSpans(String plainText) {
-    if (widget.highlights.isEmpty) {
+    final highlights = _resolvedHighlights;
+    if (highlights.isEmpty) {
       return _runSpans();
     }
 
     final boundaries = <int>{0, plainText.length};
-    for (final highlight in widget.highlights) {
+    for (final highlight in highlights) {
       boundaries
         ..add(highlight.startOffset.clamp(0, plainText.length))
         ..add(highlight.endOffset.clamp(0, plainText.length));
@@ -165,7 +202,7 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
       }
 
       final segmentText = plainText.substring(start, end);
-      final highlight = _highlightCovering(start, end);
+      final highlight = _highlightCovering(start, end, highlights);
       spans.add(
         TextSpan(
           text: segmentText,
@@ -177,8 +214,12 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
     return spans;
   }
 
-  ParagraphHighlightSegment? _highlightCovering(int start, int end) {
-    for (final highlight in widget.highlights) {
+  ParagraphHighlightSegment? _highlightCovering(
+    int start,
+    int end,
+    List<ParagraphHighlightSegment> highlights,
+  ) {
+    for (final highlight in highlights) {
       if (start >= highlight.startOffset && end <= highlight.endOffset) {
         return highlight;
       }

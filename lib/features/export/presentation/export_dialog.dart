@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/export/domain/export_job.dart';
 import 'package:forkumentos/features/export/domain/export_row_range.dart';
 import 'package:forkumentos/features/export/domain/filename_pattern.dart';
 import 'package:forkumentos/features/export/presentation/filename_pattern_editor.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 
 /// Options collected before starting an export.
 final class ExportDialogResult {
@@ -12,7 +14,7 @@ final class ExportDialogResult {
 }
 
 /// Export configuration dialog (format, destination, range, filename, ZIP).
-final class ExportDialog extends StatefulWidget {
+final class ExportDialog extends ConsumerStatefulWidget {
   const ExportDialog({
     required this.destinationFolder,
     required this.headers,
@@ -20,6 +22,7 @@ final class ExportDialog extends StatefulWidget {
     required this.rowCount,
     required this.currentRowIndex,
     required this.missingFieldHeaders,
+    this.allowDocx = true,
     super.key,
   });
 
@@ -29,6 +32,7 @@ final class ExportDialog extends StatefulWidget {
   final int rowCount;
   final int currentRowIndex;
   final List<String> missingFieldHeaders;
+  final bool allowDocx;
 
   static Future<ExportDialogResult?> show(
     BuildContext context, {
@@ -38,6 +42,7 @@ final class ExportDialog extends StatefulWidget {
     required int rowCount,
     required int currentRowIndex,
     required List<String> missingFieldHeaders,
+    bool allowDocx = true,
   }) {
     return showDialog<ExportDialogResult>(
       context: context,
@@ -48,22 +53,24 @@ final class ExportDialog extends StatefulWidget {
         rowCount: rowCount,
         currentRowIndex: currentRowIndex,
         missingFieldHeaders: missingFieldHeaders,
+        allowDocx: allowDocx,
       ),
     );
   }
 
   @override
-  State<ExportDialog> createState() => _ExportDialogState();
+  ConsumerState<ExportDialog> createState() => _ExportDialogState();
 }
 
-final class _ExportDialogState extends State<ExportDialog> {
-  ExportFormat _format = ExportFormat.docx;
+final class _ExportDialogState extends ConsumerState<ExportDialog> {
+  late ExportFormat _format;
   ExportRangeMode _rangeMode = ExportRangeMode.single;
   final _rangeController = TextEditingController();
   FilenamePattern _pattern = FilenamePattern.defaultPattern;
-  var _createZip = false;
+  late bool _createZip;
   String? _rangeError;
   var _acknowledgedMissing = false;
+  var _defaultsApplied = false;
 
   @override
   void initState() {
@@ -75,6 +82,24 @@ final class _ExportDialogState extends State<ExportDialog> {
         ],
       );
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_defaultsApplied) {
+      return;
+    }
+    final preferred = _exportFormatFromSetting(
+      ref.read(defaultExportFormatProvider),
+    );
+    _format = widget.allowDocx ? preferred : ExportFormat.pdf;
+    if (!widget.allowDocx &&
+        (_format == ExportFormat.docx || _format == ExportFormat.both)) {
+      _format = ExportFormat.pdf;
+    }
+    _createZip = ref.read(defaultCreateZipProvider);
+    _defaultsApplied = true;
   }
 
   @override
@@ -130,17 +155,41 @@ final class _ExportDialogState extends State<ExportDialog> {
               ],
               Text('Formato', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
-              SegmentedButton<ExportFormat>(
-                segments: const <ButtonSegment<ExportFormat>>[
-                  ButtonSegment(value: ExportFormat.docx, label: Text('DOCX')),
-                  ButtonSegment(value: ExportFormat.pdf, label: Text('PDF')),
-                  ButtonSegment(value: ExportFormat.both, label: Text('Ambos')),
-                ],
-                selected: <ExportFormat>{_format},
-                onSelectionChanged: (selected) {
-                  setState(() => _format = selected.single);
-                },
-              ),
+              if (widget.allowDocx)
+                SegmentedButton<ExportFormat>(
+                  segments: const <ButtonSegment<ExportFormat>>[
+                    ButtonSegment(
+                      value: ExportFormat.docx,
+                      label: Text('DOCX'),
+                    ),
+                    ButtonSegment(value: ExportFormat.pdf, label: Text('PDF')),
+                    ButtonSegment(
+                      value: ExportFormat.both,
+                      label: Text('Ambos'),
+                    ),
+                  ],
+                  selected: <ExportFormat>{_format},
+                  onSelectionChanged: (selected) {
+                    setState(() => _format = selected.single);
+                  },
+                )
+              else ...<Widget>[
+                SegmentedButton<ExportFormat>(
+                  segments: const <ButtonSegment<ExportFormat>>[
+                    ButtonSegment(value: ExportFormat.pdf, label: Text('PDF')),
+                  ],
+                  selected: const <ExportFormat>{ExportFormat.pdf},
+                  onSelectionChanged: (_) {},
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'La plantilla PDF solo permite exportar a PDF '
+                  '(DOCX no está disponible).',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Text('Destino', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
@@ -257,10 +306,12 @@ final class _ExportDialogState extends State<ExportDialog> {
       return;
     }
 
+    final format = widget.allowDocx ? _format : ExportFormat.pdf;
+
     Navigator.of(context).pop(
       ExportDialogResult(
         job: ExportJob(
-          format: _format,
+          format: format,
           destinationFolder: widget.destinationFolder,
           filenamePattern: _pattern,
           rangeMode: _rangeMode,
@@ -273,4 +324,12 @@ final class _ExportDialogState extends State<ExportDialog> {
       ),
     );
   }
+}
+
+ExportFormat _exportFormatFromSetting(String value) {
+  return switch (value) {
+    'pdf' => ExportFormat.pdf,
+    'both' => ExportFormat.both,
+    _ => ExportFormat.docx,
+  };
 }

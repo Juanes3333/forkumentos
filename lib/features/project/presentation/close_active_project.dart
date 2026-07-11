@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/project/presentation/confirm_close_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 
 /// Closes the active project and returns to Landing.
 /// Returns `false` when the user cancels or save fails.
@@ -12,7 +13,9 @@ Future<bool> closeActiveProject(BuildContext context, WidgetRef ref) async {
     return true;
   }
 
-  if (!project.isDirty) {
+  final shouldConfirm =
+      project.isDirty && ref.read(confirmBeforeClosingProvider);
+  if (!shouldConfirm) {
     await ref.read(activeProjectProvider.notifier).closeProject();
     return true;
   }

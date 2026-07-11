@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
 
 /// Brief startup gate with theme-aware logo. Not a route.
@@ -44,13 +45,31 @@ final class _AppSplashState extends State<AppSplash> {
       return widget.child;
     }
 
+    final colors = AppColors.of(context);
+
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
         widget.child,
         ColoredBox(
-          color: Theme.of(context).colorScheme.surface,
-          child: const Center(child: ForkumentosLogo(height: 120)),
+          color: colors.backgroundPrimary,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const ForkumentosLogo(height: 120),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: colors.accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );

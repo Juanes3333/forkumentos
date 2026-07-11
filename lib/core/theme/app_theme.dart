@@ -14,12 +14,18 @@ final class AppTheme {
           brightness: brightness,
         ).copyWith(
           surface: colors.surface,
+          surfaceContainerLowest: colors.backgroundPrimary,
+          surfaceContainerLow: colors.backgroundSecondary,
+          surfaceContainer: colors.surface,
+          surfaceContainerHigh: colors.backgroundSecondary,
+          surfaceContainerHighest: colors.backgroundSecondary,
           error: colors.error,
           outline: colors.border,
           primary: colors.accent,
           secondary: colors.accent,
           tertiary: colors.warning,
           onSurface: colors.foregroundPrimary,
+          onSurfaceVariant: colors.foregroundMuted,
           onPrimary: brightness == Brightness.dark
               ? colors.foregroundPrimary
               : Colors.white,
@@ -37,6 +43,7 @@ final class AppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colors.backgroundPrimary,
+      canvasColor: colors.backgroundPrimary,
       dividerColor: colors.border,
       textTheme: AppTypography.dense.apply(
         bodyColor: colors.foregroundPrimary,
@@ -46,6 +53,11 @@ final class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         color: colors.surface,
+        surfaceTintColor: colors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: panelRadius),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colors.surface,
         surfaceTintColor: colors.surface,
         shape: const RoundedRectangleBorder(borderRadius: panelRadius),
       ),
@@ -85,17 +97,60 @@ final class AppTheme {
         style: OutlinedButton.styleFrom(
           shape: const RoundedRectangleBorder(borderRadius: compactRadius),
           side: BorderSide(color: colors.border),
+          foregroundColor: colors.foregroundPrimary,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           shape: const RoundedRectangleBorder(borderRadius: compactRadius),
+          foregroundColor: colors.accent,
         ),
       ),
       dividerTheme: DividerThemeData(
         color: colors.border,
         thickness: 1,
         space: 1,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return colors.accent;
+          }
+          return colors.foregroundMuted;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return colors.accent.withValues(alpha: 0.35);
+          }
+          return colors.border;
+        }),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return colors.accent;
+          }
+          return Colors.transparent;
+        }),
+        checkColor: WidgetStatePropertyAll(
+          brightness == Brightness.dark
+              ? colors.foregroundPrimary
+              : Colors.white,
+        ),
+        side: BorderSide(color: colors.border),
+      ),
+      listTileTheme: ListTileThemeData(
+        textColor: colors.foregroundPrimary,
+        iconColor: colors.foregroundMuted,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: colors.accent,
+        unselectedLabelColor: colors.foregroundMuted,
+        indicatorColor: colors.accent,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colors.surface,
+        surfaceTintColor: colors.surface,
       ),
     );
   }
