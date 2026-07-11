@@ -1,4 +1,36 @@
-# Forkumentos
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/forkumentosLight.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo/forkumentosDark.png">
+    <img src="assets/logo/forkumentosDark.png" width="180" alt="Forkumentos Logo">
+  </picture>
+</p>
+
+<h1 align="center">
+  Forkumentos
+</h1>
+
+<p align="center">
+  <em>Generate hundreds of personalized documents in seconds.</em>
+</p>
+
+<p align="center">
+
+  <img src="https://img.shields.io/badge/Flutter-Desktop-02569B?style=for-the-badge&logo=flutter&logoColor=white">
+
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
+
+  <img src="https://img.shields.io/badge/Version-1.0-5B8DEF?style=for-the-badge">
+
+  <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
+
+</p>
+
+---
+
+> **Forkumentos** is a desktop application that automates document generation from DOCX or PDF templates using CSV or Excel data sources. Map once, preview instantly and export hundreds of personalized documents in just a few clicks.
+
+---
 
 **Version 1.0.0**
 
