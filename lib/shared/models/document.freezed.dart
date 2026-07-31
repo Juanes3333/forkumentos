@@ -19,6 +19,8 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$Document {
   List<DocumentPage> get pages => throw _privateConstructorUsedError;
   Set<DocumentOmission> get omissions => throw _privateConstructorUsedError;
+  List<DocumentBlock> get header => throw _privateConstructorUsedError;
+  List<DocumentBlock> get footer => throw _privateConstructorUsedError;
 
   /// Create a copy of Document
   /// with the given fields replaced by the non-null parameter values.
@@ -32,7 +34,12 @@ abstract class $DocumentCopyWith<$Res> {
   factory $DocumentCopyWith(Document value, $Res Function(Document) then) =
       _$DocumentCopyWithImpl<$Res, Document>;
   @useResult
-  $Res call({List<DocumentPage> pages, Set<DocumentOmission> omissions});
+  $Res call({
+    List<DocumentPage> pages,
+    Set<DocumentOmission> omissions,
+    List<DocumentBlock> header,
+    List<DocumentBlock> footer,
+  });
 }
 
 /// @nodoc
@@ -49,7 +56,12 @@ class _$DocumentCopyWithImpl<$Res, $Val extends Document>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? pages = null, Object? omissions = null}) {
+  $Res call({
+    Object? pages = null,
+    Object? omissions = null,
+    Object? header = null,
+    Object? footer = null,
+  }) {
     return _then(
       _value.copyWith(
             pages: null == pages
@@ -60,6 +72,14 @@ class _$DocumentCopyWithImpl<$Res, $Val extends Document>
                 ? _value.omissions
                 : omissions // ignore: cast_nullable_to_non_nullable
                       as Set<DocumentOmission>,
+            header: null == header
+                ? _value.header
+                : header // ignore: cast_nullable_to_non_nullable
+                      as List<DocumentBlock>,
+            footer: null == footer
+                ? _value.footer
+                : footer // ignore: cast_nullable_to_non_nullable
+                      as List<DocumentBlock>,
           )
           as $Val,
     );
@@ -75,7 +95,12 @@ abstract class _$$DocumentImplCopyWith<$Res>
   ) = __$$DocumentImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({List<DocumentPage> pages, Set<DocumentOmission> omissions});
+  $Res call({
+    List<DocumentPage> pages,
+    Set<DocumentOmission> omissions,
+    List<DocumentBlock> header,
+    List<DocumentBlock> footer,
+  });
 }
 
 /// @nodoc
@@ -91,7 +116,12 @@ class __$$DocumentImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? pages = null, Object? omissions = null}) {
+  $Res call({
+    Object? pages = null,
+    Object? omissions = null,
+    Object? header = null,
+    Object? footer = null,
+  }) {
     return _then(
       _$DocumentImpl(
         pages: null == pages
@@ -102,6 +132,14 @@ class __$$DocumentImplCopyWithImpl<$Res>
             ? _value._omissions
             : omissions // ignore: cast_nullable_to_non_nullable
                   as Set<DocumentOmission>,
+        header: null == header
+            ? _value._header
+            : header // ignore: cast_nullable_to_non_nullable
+                  as List<DocumentBlock>,
+        footer: null == footer
+            ? _value._footer
+            : footer // ignore: cast_nullable_to_non_nullable
+                  as List<DocumentBlock>,
       ),
     );
   }
@@ -113,8 +151,12 @@ class _$DocumentImpl implements _Document {
   const _$DocumentImpl({
     required final List<DocumentPage> pages,
     required final Set<DocumentOmission> omissions,
+    final List<DocumentBlock> header = const <DocumentBlock>[],
+    final List<DocumentBlock> footer = const <DocumentBlock>[],
   }) : _pages = pages,
-       _omissions = omissions;
+       _omissions = omissions,
+       _header = header,
+       _footer = footer;
 
   final List<DocumentPage> _pages;
   @override
@@ -132,9 +174,27 @@ class _$DocumentImpl implements _Document {
     return EqualUnmodifiableSetView(_omissions);
   }
 
+  final List<DocumentBlock> _header;
+  @override
+  @JsonKey()
+  List<DocumentBlock> get header {
+    if (_header is EqualUnmodifiableListView) return _header;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_header);
+  }
+
+  final List<DocumentBlock> _footer;
+  @override
+  @JsonKey()
+  List<DocumentBlock> get footer {
+    if (_footer is EqualUnmodifiableListView) return _footer;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_footer);
+  }
+
   @override
   String toString() {
-    return 'Document(pages: $pages, omissions: $omissions)';
+    return 'Document(pages: $pages, omissions: $omissions, header: $header, footer: $footer)';
   }
 
   @override
@@ -146,7 +206,9 @@ class _$DocumentImpl implements _Document {
             const DeepCollectionEquality().equals(
               other._omissions,
               _omissions,
-            ));
+            ) &&
+            const DeepCollectionEquality().equals(other._header, _header) &&
+            const DeepCollectionEquality().equals(other._footer, _footer));
   }
 
   @override
@@ -154,6 +216,8 @@ class _$DocumentImpl implements _Document {
     runtimeType,
     const DeepCollectionEquality().hash(_pages),
     const DeepCollectionEquality().hash(_omissions),
+    const DeepCollectionEquality().hash(_header),
+    const DeepCollectionEquality().hash(_footer),
   );
 
   /// Create a copy of Document
@@ -169,12 +233,18 @@ abstract class _Document implements Document {
   const factory _Document({
     required final List<DocumentPage> pages,
     required final Set<DocumentOmission> omissions,
+    final List<DocumentBlock> header,
+    final List<DocumentBlock> footer,
   }) = _$DocumentImpl;
 
   @override
   List<DocumentPage> get pages;
   @override
   Set<DocumentOmission> get omissions;
+  @override
+  List<DocumentBlock> get header;
+  @override
+  List<DocumentBlock> get footer;
 
   /// Create a copy of Document
   /// with the given fields replaced by the non-null parameter values.

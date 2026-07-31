@@ -69,8 +69,32 @@ Map<String, Object?> _parseDocxContent(Map<String, Object?> payload) {
   );
   final document = _parseDocumentXml(documentXml);
   final body = _findBody(document);
-  final sectionMetrics = _parseSectionMetrics(body);
+  final sectionProperties = _findSectionProperties(body);
+  final sectionMetrics = _parseSectionMetrics(sectionProperties);
   final pages = _extractPages(body, omissions);
+
+  final headerSegments = _resolveSectionReferenceBlocks(
+    sectionProperties,
+    archiveEntries,
+    omissions,
+    referenceLocalName: 'headerReference',
+  );
+  final footerSegments = _resolveSectionReferenceBlocks(
+    sectionProperties,
+    archiveEntries,
+    omissions,
+    referenceLocalName: 'footerReference',
+  );
+  // ponytail: si ni header ni footer se pudieron resolver pero el ZIP sí
+  // contiene esos archivos, se conserva la omisión honesta existente. Si se
+  // resolvió al menos uno, se asume que hay suficiente contenido mostrable y
+  // no se marca como omitido. Resolución parcial (uno sí, otro no) no genera
+  // una omisión separada; techo aceptado por simplicidad.
+  if (headerSegments == null &&
+      footerSegments == null &&
+      _hasHeaderOrFooterEntries(archiveEntries)) {
+    omissions.add(DocumentOmission.headerFooter);
+  }
 
   final sortedOmissions = omissions.toList()
     ..sort((a, b) => a.index.compareTo(b.index));
@@ -89,6 +113,14 @@ Map<String, Object?> _parseDocxContent(Map<String, Object?> payload) {
         <Object?>[
           for (final block in page) <String, Object?>{...block},
         ],
+    ],
+    'header': <Object?>[
+      for (final segment in headerSegments ?? const <_SerializedBlockSegment>[])
+        <String, Object?>{...segment.block},
+    ],
+    'footer': <Object?>[
+      for (final segment in footerSegments ?? const <_SerializedBlockSegment>[])
+        <String, Object?>{...segment.block},
     ],
     'omissions': <Object?>[
       for (final omission in sortedOmissions) omission.name,
@@ -150,7 +182,28 @@ Document _documentFromPayload(Map<String, Object?> payload) {
       },
   };
 
-  return Document(pages: pages, omissions: omissions);
+  final headerRaw = payload['header'];
+  final headerBlocksRaw = headerRaw is List<Object?>
+      ? headerRaw
+      : const <Object?>[];
+  final header = <DocumentBlock>[
+    for (final blockRaw in headerBlocksRaw) _blockFromPayload(blockRaw),
+  ];
+
+  final footerRaw = payload['footer'];
+  final footerBlocksRaw = footerRaw is List<Object?>
+      ? footerRaw
+      : const <Object?>[];
+  final footer = <DocumentBlock>[
+    for (final blockRaw in footerBlocksRaw) _blockFromPayload(blockRaw),
+  ];
+
+  return Document(
+    pages: pages,
+    omissions: omissions,
+    header: header,
+    footer: footer,
+  );
 }
 
 DocumentBlock _blockFromPayload(Object? blockRaw) {
@@ -284,22 +337,20 @@ void _collectArchiveOmissions(
   Map<String, ArchiveFile> entries,
   Set<DocumentOmission> omissions,
 ) {
-  final entryPaths = entries.keys;
-  final hasHeaderOrFooter = entryPaths.any((path) {
-    final isHeader = path.startsWith('word/header') && path.endsWith('.xml');
-    final isFooter = path.startsWith('word/footer') && path.endsWith('.xml');
-    return isHeader || isFooter;
-  });
-  if (hasHeaderOrFooter) {
-    omissions.add(DocumentOmission.headerFooter);
-  }
-
   final hasFootnotes =
       entries.containsKey('word/footnotes.xml') ||
       entries.containsKey('word/endnotes.xml');
   if (hasFootnotes) {
     omissions.add(DocumentOmission.footnote);
   }
+}
+
+bool _hasHeaderOrFooterEntries(Map<String, ArchiveFile> entries) {
+  return entries.keys.any((path) {
+    final isHeader = path.startsWith('word/header') && path.endsWith('.xml');
+    final isFooter = path.startsWith('word/footer') && path.endsWith('.xml');
+    return isHeader || isFooter;
+  });
 }
 
 XmlDocument _parseDocumentXml(String xmlContent) {
@@ -319,15 +370,20 @@ XmlElement _findBody(XmlDocument document) {
   throw const FormatException(_invalidDocumentXmlMessage);
 }
 
-_SectionMetrics _parseSectionMetrics(XmlElement body) {
-  XmlElement? sectionProperties;
+// ponytail: se toma el PRIMER sectPr del documento (documentos de una sola
+// sección). Documentos multi-sección con encabezados/pies distintos por
+// sección quedan fuera de alcance, igual que ya lo estaba el tamaño de
+// página; el techo es el mismo de siempre, ahora compartido por ambos usos.
+XmlElement? _findSectionProperties(XmlElement body) {
   for (final element in body.descendants.whereType<XmlElement>()) {
     if (element.name.local == 'sectPr') {
-      sectionProperties = element;
-      break;
+      return element;
     }
   }
+  return null;
+}
 
+_SectionMetrics _parseSectionMetrics(XmlElement? sectionProperties) {
   XmlElement? pageSize;
   XmlElement? pageMargins;
   if (sectionProperties != null) {
@@ -381,6 +437,103 @@ _SectionMetrics _parseSectionMetrics(XmlElement body) {
   );
 }
 
+// ponytail: resuelve header/footer únicamente vía `w:type="default"` (o el
+// primer `headerReference`/`footerReference` si no hay uno "default").
+// first/even quedan fuera de alcance — mismo criterio de simplicidad que ya
+// aplica al resto del parser. Retorna null si cualquier paso de la cadena
+// (referencia -> relación -> archivo -> XML) no se puede resolver, para que
+// el llamador decida si eso amerita la omisión `headerFooter`.
+List<_SerializedBlockSegment>? _resolveSectionReferenceBlocks(
+  XmlElement? sectionProperties,
+  Map<String, ArchiveFile> archiveEntries,
+  Set<DocumentOmission> omissions, {
+  required String referenceLocalName,
+}) {
+  if (sectionProperties == null) {
+    return null;
+  }
+
+  final relationshipId = _findReferenceRelationshipId(
+    sectionProperties,
+    referenceLocalName,
+  );
+  if (relationshipId == null) {
+    return null;
+  }
+
+  final target = _resolveRelationshipTarget(relationshipId, archiveEntries);
+  if (target == null) {
+    return null;
+  }
+
+  final normalizedTarget =
+      (target.startsWith('word/') ? target : 'word/$target').toLowerCase();
+  final entry = archiveEntries[normalizedTarget];
+  if (entry == null) {
+    return null;
+  }
+
+  XmlDocument parsed;
+  try {
+    parsed = XmlDocument.parse(_archiveEntryAsString(entry));
+  } catch (_) {
+    return null;
+  }
+
+  return _parseContainerBlocks(parsed.rootElement, omissions);
+}
+
+String? _findReferenceRelationshipId(
+  XmlElement sectionProperties,
+  String referenceLocalName,
+) {
+  XmlElement? defaultReference;
+  XmlElement? firstReference;
+  for (final child in sectionProperties.childElements) {
+    if (child.name.local != referenceLocalName) {
+      continue;
+    }
+    firstReference ??= child;
+    if (_attributeValue(child, 'type') == 'default') {
+      defaultReference = child;
+      break;
+    }
+  }
+
+  final reference = defaultReference ?? firstReference;
+  if (reference == null) {
+    return null;
+  }
+  return _attributeValue(reference, 'id');
+}
+
+String? _resolveRelationshipTarget(
+  String relationshipId,
+  Map<String, ArchiveFile> archiveEntries,
+) {
+  final relsEntry = archiveEntries['word/_rels/document.xml.rels'];
+  if (relsEntry == null) {
+    return null;
+  }
+
+  XmlDocument relsDocument;
+  try {
+    relsDocument = XmlDocument.parse(_archiveEntryAsString(relsEntry));
+  } catch (_) {
+    return null;
+  }
+
+  for (final relationship in relsDocument.descendants.whereType<XmlElement>()) {
+    if (relationship.name.local != 'Relationship') {
+      continue;
+    }
+    if (_attributeValue(relationship, 'Id') == relationshipId) {
+      return _attributeValue(relationship, 'Target');
+    }
+  }
+  return null;
+}
+
 double _pointsFromTwipsAttribute(
   XmlElement? element, {
   required String attributeLocalName,
@@ -409,13 +562,13 @@ String? _attributeValue(XmlElement element, String localName) {
 }
 
 // ponytail: la paginación se basa únicamente en marcadores explícitos
-// (`w:br type="page"` / `w:lastRenderedPageBreak`) presentes en el XML. No se
-// reproduce el reflow automático de Word (que depende de métricas de fuente
-// y layout reales). Un documento sin marcadores explícitos se muestra como
-// una sola página, cuyo alto visual puede exceder el tamaño nominal de
-// página si el contenido no cabe. El techo: fidelidad de paginación
-// automática requeriría un motor tipográfico OOXML completo, fuera de
-// alcance de este sprint.
+// (`w:br type="page"` / `w:lastRenderedPageBreak` / `w:pageBreakBefore`)
+// presentes en el XML. No se reproduce el reflow automático de Word (que
+// depende de métricas de fuente y layout reales). Un documento sin
+// marcadores explícitos se muestra como una sola página, cuyo alto visual
+// puede exceder el tamaño nominal de página si el contenido no cabe. El
+// techo: fidelidad de paginación automática requeriría un motor tipográfico
+// OOXML completo, fuera de alcance de este sprint.
 List<_SerializedPage> _extractPages(
   XmlElement body,
   Set<DocumentOmission> omissions,
@@ -423,7 +576,11 @@ List<_SerializedPage> _extractPages(
   final pages = <_SerializedPage>[];
   var currentPageBlocks = <_SerializedBlock>[];
 
-  for (final segment in _parseContainerBlocks(body, omissions)) {
+  for (final segment in _parseContainerBlocks(
+    body,
+    omissions,
+    respectPageBreakBefore: true,
+  )) {
     currentPageBlocks = <_SerializedBlock>[
       ...currentPageBlocks,
       <String, Object?>{...segment.block},
@@ -448,13 +605,24 @@ List<_SerializedPage> _extractPages(
 
 List<_SerializedBlockSegment> _parseContainerBlocks(
   XmlElement container,
-  Set<DocumentOmission> omissions,
-) {
+  Set<DocumentOmission> omissions, {
+  bool respectPageBreakBefore = false,
+}) {
   final segments = <_SerializedBlockSegment>[];
 
   for (final child in container.childElements) {
     final localName = child.name.local;
     if (localName == 'p') {
+      if (respectPageBreakBefore &&
+          segments.isNotEmpty &&
+          _hasPageBreakBefore(child)) {
+        final lastIndex = segments.length - 1;
+        segments[lastIndex] = _SerializedBlockSegment(
+          block: segments[lastIndex].block,
+          endsWithPageBreak: true,
+        );
+      }
+
       final chunks = _splitParagraphByPageBreak(child, omissions);
       for (final chunk in chunks) {
         segments.add(
@@ -642,6 +810,29 @@ bool _hasTrackedChangeAncestor(XmlElement run) {
 bool _isPageBreak(XmlElement breakElement) {
   final breakType = _attributeValue(breakElement, 'type');
   return breakType == 'page';
+}
+
+bool _hasPageBreakBefore(XmlElement paragraph) {
+  XmlElement? paragraphProperties;
+  for (final child in paragraph.childElements) {
+    if (child.name.local == 'pPr') {
+      paragraphProperties = child;
+      break;
+    }
+  }
+  if (paragraphProperties == null) {
+    return false;
+  }
+
+  XmlElement? pageBreakBefore;
+  for (final child in paragraphProperties.childElements) {
+    if (child.name.local == 'pageBreakBefore') {
+      pageBreakBefore = child;
+      break;
+    }
+  }
+
+  return _isEnabledProperty(pageBreakBefore);
 }
 
 _RunStyle _resolveRunStyle(XmlElement run) {

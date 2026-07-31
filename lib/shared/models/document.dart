@@ -9,6 +9,8 @@ class Document with _$Document {
   const factory Document({
     required List<DocumentPage> pages,
     required Set<DocumentOmission> omissions,
+    @Default(<DocumentBlock>[]) List<DocumentBlock> header,
+    @Default(<DocumentBlock>[]) List<DocumentBlock> footer,
   }) = _Document;
 }
 

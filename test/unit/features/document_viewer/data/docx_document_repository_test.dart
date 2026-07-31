@@ -93,6 +93,187 @@ void main() {
     expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Después');
   });
 
+  test(
+    'w:lastRenderedPageBreak en un run separado divide el contenido',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'lastrendered_run.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:t>Antes</w:t></w:r>
+  <w:r><w:lastRenderedPageBreak /></w:r>
+  <w:r><w:t>Después</w:t></w:r>
+</w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(2));
+      expect(_paragraphs(document.pages[0]).single.runs.single.text, 'Antes');
+      expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Después');
+    },
+  );
+
+  test(
+    'w:lastRenderedPageBreak al inicio de un run con texto divide la página',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'lastrendered_inicio.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:lastRenderedPageBreak /><w:t>Después</w:t></w:r>
+</w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(2));
+      expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Después');
+    },
+  );
+
+  test('w:lastRenderedPageBreak en medio de un run divide el texto', () async {
+    final filePath = p.join(tempDirectory.path, 'lastrendered_medio.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:t>Antes</w:t><w:lastRenderedPageBreak /><w:t>Después</w:t></w:r>
+</w:p>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages, hasLength(2));
+    expect(_paragraphs(document.pages[0]).single.runs.single.text, 'Antes');
+    expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Después');
+  });
+
+  test(
+    'w:lastRenderedPageBreak al final de un run no genera página fantasma',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'lastrendered_final.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:t>Antes</w:t></w:r>
+  <w:r><w:t>Después</w:t></w:r>
+  <w:r><w:lastRenderedPageBreak /></w:r>
+</w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(1));
+      final runs = _paragraphs(document.pages[0]).single.runs;
+      expect(runs.map((run) => run.text), <String>['Antes', 'Después']);
+    },
+  );
+
+  test('run que solo contiene w:lastRenderedPageBreak sin texto no rompe el '
+      'parseo', () async {
+    final filePath = p.join(tempDirectory.path, 'lastrendered_solo.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:lastRenderedPageBreak /></w:r>
+</w:p>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages, hasLength(1));
+  });
+
+  test(
+    'w:pageBreakBefore en pPr divide el contenido en páginas correctas',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'pagebreakbefore.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+<w:p>
+  <w:pPr><w:pageBreakBefore /></w:pPr>
+  <w:r><w:t>Después</w:t></w:r>
+</w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(2));
+      expect(_paragraphs(document.pages[0]).single.runs.single.text, 'Antes');
+      expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Después');
+    },
+  );
+
+  test(
+    'w:pageBreakBefore en el primer párrafo no genera página vacía inicial',
+    () async {
+      final filePath = p.join(
+        tempDirectory.path,
+        'pagebreakbefore_primero.docx',
+      );
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p>
+  <w:pPr><w:pageBreakBefore /></w:pPr>
+  <w:r><w:t>Único</w:t></w:r>
+</w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(1));
+      expect(
+        _paragraphs(document.pages.single).single.runs.single.text,
+        'Único',
+      );
+    },
+  );
+
+  test('w:pageBreakBefore con w:val=false se ignora', () async {
+    final filePath = p.join(tempDirectory.path, 'pagebreakbefore_false.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+<w:p>
+  <w:pPr><w:pageBreakBefore w:val="false" /></w:pPr>
+  <w:r><w:t>Después</w:t></w:r>
+</w:p>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages, hasLength(1));
+    final paragraphs = _paragraphs(document.pages.single);
+    expect(paragraphs, hasLength(2));
+    expect(paragraphs[0].runs.single.text, 'Antes');
+    expect(paragraphs[1].runs.single.text, 'Después');
+  });
+
   test('salto de página final no genera una página fantasma vacía', () async {
     final filePath = p.join(tempDirectory.path, 'salto_final.docx');
     await File(filePath).writeAsBytes(
@@ -226,6 +407,87 @@ void main() {
 
     expect(document.omissions.contains(DocumentOmission.headerFooter), isTrue);
     expect(document.omissions.contains(DocumentOmission.footnote), isTrue);
+  });
+
+  test('header/footer resolubles vía sectPr+rels se exponen y no agregan '
+      'omisión', () async {
+    final filePath = p.join(tempDirectory.path, 'header_footer_ok.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: '''
+<w:document
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:r><w:t>Cuerpo</w:t></w:r></w:p>
+    <w:sectPr>
+      <w:headerReference w:type="default" r:id="rId1" />
+      <w:footerReference w:type="default" r:id="rId2" />
+    </w:sectPr>
+  </w:body>
+</w:document>
+''',
+        extraEntries: <String, String>{
+          'word/header1.xml': '''
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t>Encabezado</w:t></w:r></w:p>
+</w:hdr>
+''',
+          'word/footer1.xml': '''
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t>Pie</w:t></w:r></w:p>
+</w:ftr>
+''',
+          'word/_rels/document.xml.rels': '''
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml" />
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml" />
+</Relationships>
+''',
+        },
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.omissions.contains(DocumentOmission.headerFooter), isFalse);
+    expect(
+      (document.header.single as DocumentParagraphBlock)
+          .paragraph
+          .runs
+          .single
+          .text,
+      'Encabezado',
+    );
+    expect(
+      (document.footer.single as DocumentParagraphBlock)
+          .paragraph
+          .runs
+          .single
+          .text,
+      'Pie',
+    );
+  });
+
+  test('header presente en el ZIP sin sectPr/rels mantiene la omisión '
+      'headerFooter', () async {
+    final filePath = p.join(tempDirectory.path, 'header_footer_falla.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody(
+          '<w:p><w:r><w:t>Cuerpo</w:t></w:r></w:p>',
+        ),
+        extraEntries: <String, String>{
+          'word/header1.xml': '<w:hdr xmlns:w="x"></w:hdr>',
+        },
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.omissions.contains(DocumentOmission.headerFooter), isTrue);
+    expect(document.header, isEmpty);
+    expect(document.footer, isEmpty);
   });
 
   test('convierte pgSz/pgMar de twentieths-of-point a points', () async {
