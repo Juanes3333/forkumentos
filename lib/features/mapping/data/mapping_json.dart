@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 
@@ -42,6 +43,7 @@ Map<String, dynamic> documentTextPathToJson(DocumentTextPath path) {
   return <String, dynamic>{
     'pageIndex': path.pageIndex,
     'steps': path.steps.map(documentPathStepToJson).toList(),
+    'region': path.region.name,
   };
 }
 
@@ -52,6 +54,11 @@ DocumentTextPath documentTextPathFromJson(Map<String, dynamic> json) {
         .whereType<Map<Object?, Object?>>()
         .map((raw) => documentPathStepFromJson(raw.cast<String, dynamic>()))
         .toList(),
+    region:
+        DocumentTextRegion.values.firstWhereOrNull(
+          (region) => region.name == json['region'],
+        ) ??
+        DocumentTextRegion.body,
   );
 }
 

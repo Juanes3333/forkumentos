@@ -34,7 +34,17 @@ final class _MultipleOccurrencesDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Coincidencias adicionales'),
+      title: Row(
+        children: <Widget>[
+          const Expanded(child: Text('Coincidencias adicionales')),
+          IconButton(
+            tooltip: 'Cancelar',
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(24, 16, 8, 0),
       content: SizedBox(
         width: 480,
         child: Column(
@@ -70,10 +80,10 @@ final class _MultipleOccurrencesDialogState
       ),
       actions: <Widget>[
         TextButton(
-          onPressed: () => Navigator.of(context).pop(<TextOccurrence>[]),
-          child: const Text('Omitir'),
+          onPressed: () => Navigator.of(context).pop(const <TextOccurrence>[]),
+          child: const Text('Solo la actual'),
         ),
-        TextButton(
+        OutlinedButton(
           onPressed: () {
             final selected = <TextOccurrence>[];
             for (var index = 0; index < widget.occurrences.length; index++) {

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
@@ -21,6 +22,25 @@ const _defaultPageWidthPoints = 612.0;
 const _defaultPageHeightPoints = 792.0;
 const _defaultMarginPoints = 72.0;
 const _twipsPerPoint = 20.0;
+
+// ponytail: estimación heurística por caracteres/líneas, NO reflow real.
+// Fuente de cuerpo asumida ~11pt con interlineado ~1.15 — el "Normal" por
+// defecto de Word/Office modernos (Calibri/Aptos 11), NO el 14pt/1.3 de
+// AppTypography.dense (tipografía de chrome de la app: botones, etiquetas de
+// UI, sin relación con el cuerpo de un documento real). Calibrado para
+// coincidir con el tamaño de "cuerpo de documento simulado" que
+// document_viewer_screen.dart usa al renderizar, independiente del tema de
+// la app, para que la heurística y lo que se ve en pantalla sean
+// consistentes (WYSIWYG). Ancho promedio de carácter como la mitad del
+// tamaño de fuente (misma fracción típica para fuentes proporcionales).
+// Techo conocido: sin métricas de fuente reales esto puede sobre/sub-estimar
+// cuánto contenido cabe por página; es un relleno de huecos para texto sin
+// ningún marcador explícito, no un motor tipográfico. Mejora futura: medir
+// con las métricas reales de la fuente del documento.
+const _estimatedFontSizePoints = 11.0;
+const _lineHeightRatio = 1.15;
+const _charWidthRatio = 0.5;
+const _estimatedLineHeightPoints = _estimatedFontSizePoints * _lineHeightRatio;
 
 final class DocxDocumentRepository implements DocumentRepository {
   const DocxDocumentRepository();
@@ -64,6 +84,8 @@ Map<String, Object?> _parseDocxContent(Map<String, Object?> payload) {
   final omissions = <DocumentOmission>{};
   _collectArchiveOmissions(archiveEntries, omissions);
 
+  final stylesTable = _parseStylesTable(archiveEntries);
+
   final documentXml = _archiveEntryAsString(
     archiveEntries['word/document.xml']!,
   );
@@ -71,18 +93,20 @@ Map<String, Object?> _parseDocxContent(Map<String, Object?> payload) {
   final body = _findBody(document);
   final sectionProperties = _findSectionProperties(body);
   final sectionMetrics = _parseSectionMetrics(sectionProperties);
-  final pages = _extractPages(body, omissions);
+  final pages = _extractPages(body, omissions, sectionMetrics, stylesTable);
 
   final headerSegments = _resolveSectionReferenceBlocks(
     sectionProperties,
     archiveEntries,
     omissions,
+    stylesTable,
     referenceLocalName: 'headerReference',
   );
   final footerSegments = _resolveSectionReferenceBlocks(
     sectionProperties,
     archiveEntries,
     omissions,
+    stylesTable,
     referenceLocalName: 'footerReference',
   );
   // ponytail: si ni header ni footer se pudieron resolver pero el ZIP sí
@@ -223,6 +247,9 @@ DocumentBlock _blockFromPayload(Object? blockRaw) {
       runs: <DocumentRun>[
         for (final runRaw in runsList) _runFromPayload(runRaw),
       ],
+      spacingBeforePoints: _asDouble(blockMap['spacingBeforePoints'], 0),
+      spacingAfterPoints: _asDouble(blockMap['spacingAfterPoints'], 0),
+      keepWithNext: blockMap['keepWithNext'] as bool? ?? false,
     ),
   );
 }
@@ -273,6 +300,8 @@ DocumentRun _runFromPayload(Object? runRaw) {
     isBold: runMap['isBold'] as bool? ?? false,
     isItalic: runMap['isItalic'] as bool? ?? false,
     isUnderlined: runMap['isUnderlined'] as bool? ?? false,
+    colorHex: runMap['colorHex'] as String?,
+    fontSizePoints: _asNullableDouble(runMap['fontSizePoints']),
   );
 }
 
@@ -282,6 +311,9 @@ double _asDouble(Object? value, double fallback) {
   }
   return fallback;
 }
+
+double? _asNullableDouble(Object? value) =>
+    value is num ? value.toDouble() : null;
 
 Archive _decodeArchive(Uint8List bytes) {
   if (!_looksLikeZip(bytes)) {
@@ -446,7 +478,8 @@ _SectionMetrics _parseSectionMetrics(XmlElement? sectionProperties) {
 List<_SerializedBlockSegment>? _resolveSectionReferenceBlocks(
   XmlElement? sectionProperties,
   Map<String, ArchiveFile> archiveEntries,
-  Set<DocumentOmission> omissions, {
+  Set<DocumentOmission> omissions,
+  _StylesTable stylesTable, {
   required String referenceLocalName,
 }) {
   if (sectionProperties == null) {
@@ -480,7 +513,7 @@ List<_SerializedBlockSegment>? _resolveSectionReferenceBlocks(
     return null;
   }
 
-  return _parseContainerBlocks(parsed.rootElement, omissions);
+  return _parseContainerBlocks(parsed.rootElement, omissions, stylesTable);
 }
 
 String? _findReferenceRelationshipId(
@@ -561,34 +594,66 @@ String? _attributeValue(XmlElement element, String localName) {
   return null;
 }
 
-// ponytail: la paginación se basa únicamente en marcadores explícitos
-// (`w:br type="page"` / `w:lastRenderedPageBreak` / `w:pageBreakBefore`)
-// presentes en el XML. No se reproduce el reflow automático de Word (que
-// depende de métricas de fuente y layout reales). Un documento sin
-// marcadores explícitos se muestra como una sola página, cuyo alto visual
-// puede exceder el tamaño nominal de página si el contenido no cabe. El
-// techo: fidelidad de paginación automática requeriría un motor tipográfico
-// OOXML completo, fuera de alcance de este sprint.
+// ponytail: la paginación se basa primero en marcadores explícitos
+// (`w:br type="page"` / `w:lastRenderedPageBreak` / `w:pageBreakBefore` /
+// fin de sección intermedia). Cuando ninguna señal explícita cae en un
+// tramo del documento, una heurística de caracteres/líneas (ver constantes
+// `_estimated*`) rellena el hueco para que texto continuo largo no colapse
+// en una sola página kilométrica. No se reproduce el reflow automático de
+// Word (que depende de métricas de fuente y layout reales); el techo:
+// fidelidad de paginación automática requeriría un motor tipográfico OOXML
+// completo, fuera de alcance de este sprint.
 List<_SerializedPage> _extractPages(
   XmlElement body,
   Set<DocumentOmission> omissions,
+  _SectionMetrics sectionMetrics,
+  _StylesTable stylesTable,
 ) {
   final pages = <_SerializedPage>[];
   var currentPageBlocks = <_SerializedBlock>[];
+  var currentPageHeightPoints = 0.0;
+
+  final contentWidthPoints =
+      sectionMetrics.widthPoints -
+      sectionMetrics.margins.leftPoints -
+      sectionMetrics.margins.rightPoints;
+  final contentHeightPoints =
+      sectionMetrics.heightPoints -
+      sectionMetrics.margins.topPoints -
+      sectionMetrics.margins.bottomPoints;
 
   for (final segment in _parseContainerBlocks(
     body,
     omissions,
+    stylesTable,
     respectPageBreakBefore: true,
   )) {
+    final segmentHeightPoints = _estimatedSegmentHeightPoints(
+      segment.block,
+      contentWidthPoints,
+    );
+
+    // La heurística solo actúa cuando aún no hay una señal explícita que ya
+    // haya cortado esta zona: si excede el presupuesto vertical estimado,
+    // corta ANTES de este segmento (nunca a mitad de un chunk ya troceado
+    // por saltos explícitos).
+    if (currentPageBlocks.isNotEmpty &&
+        currentPageHeightPoints + segmentHeightPoints > contentHeightPoints) {
+      pages.add(currentPageBlocks);
+      currentPageBlocks = <_SerializedBlock>[];
+      currentPageHeightPoints = 0;
+    }
+
     currentPageBlocks = <_SerializedBlock>[
       ...currentPageBlocks,
       <String, Object?>{...segment.block},
     ];
+    currentPageHeightPoints += segmentHeightPoints;
 
     if (segment.endsWithPageBreak) {
       pages.add(currentPageBlocks);
       currentPageBlocks = <_SerializedBlock>[];
+      currentPageHeightPoints = 0;
     }
   }
 
@@ -603,9 +668,69 @@ List<_SerializedPage> _extractPages(
   return <_SerializedPage>[...pages, currentPageBlocks];
 }
 
+// ponytail: estimación simple de altura por bloque para la heurística de
+// relleno. Párrafos: (líneas estimadas * alto de línea) + spacing
+// before/after del párrafo (de la cascada de estilos). Líneas = longitud de
+// texto / caracteres-por-línea, ambos derivados del fontSizePoints REAL del
+// párrafo (heredado de w:pStyle) cuando existe, o el tamaño de cuerpo
+// asumido si no. Tablas: una línea por fila al tamaño de cuerpo asumido (sin
+// layout de columnas real) — techo aceptado, ver comentario de
+// `_serializeTable` sobre gridSpan/vMerge.
+double _estimatedSegmentHeightPoints(
+  _SerializedBlock block,
+  double contentWidthPoints,
+) {
+  if (block['kind'] == 'table') {
+    final rows = block['rows'];
+    final rowCount = rows is List<Object?> && rows.isNotEmpty ? rows.length : 1;
+    return rowCount * _estimatedLineHeightPoints;
+  }
+
+  final fontSizePoints = _blockFontSizePoints(block);
+  final lineHeightPoints = fontSizePoints * _lineHeightRatio;
+  final charWidthPoints = fontSizePoints * _charWidthRatio;
+  final charsPerLine = math.max(1, contentWidthPoints / charWidthPoints);
+
+  final runsRaw = block['runs'];
+  final runs = runsRaw is List<Object?> ? runsRaw : const <Object?>[];
+  var textLength = 0;
+  for (final runRaw in runs) {
+    if (runRaw is Map<String, Object?>) {
+      final text = runRaw['text'];
+      if (text is String) {
+        textLength += text.length;
+      }
+    }
+  }
+
+  final lines = textLength == 0
+      ? 1
+      : math.max(1, (textLength / charsPerLine).ceil());
+
+  final spacingBeforePoints = _asDouble(block['spacingBeforePoints'], 0);
+  final spacingAfterPoints = _asDouble(block['spacingAfterPoints'], 0);
+
+  return lines * lineHeightPoints + spacingBeforePoints + spacingAfterPoints;
+}
+
+double _blockFontSizePoints(_SerializedBlock block) {
+  final runsRaw = block['runs'];
+  final runs = runsRaw is List<Object?> ? runsRaw : const <Object?>[];
+  for (final runRaw in runs) {
+    if (runRaw is Map<String, Object?>) {
+      final fontSize = runRaw['fontSizePoints'];
+      if (fontSize is num) {
+        return fontSize.toDouble();
+      }
+    }
+  }
+  return _estimatedFontSizePoints;
+}
+
 List<_SerializedBlockSegment> _parseContainerBlocks(
   XmlElement container,
-  Set<DocumentOmission> omissions, {
+  Set<DocumentOmission> omissions,
+  _StylesTable stylesTable, {
   bool respectPageBreakBefore = false,
 }) {
   final segments = <_SerializedBlockSegment>[];
@@ -623,8 +748,17 @@ List<_SerializedBlockSegment> _parseContainerBlocks(
         );
       }
 
-      final chunks = _splitParagraphByPageBreak(child, omissions);
-      for (final chunk in chunks) {
+      final chunks = _splitParagraphByPageBreak(child, omissions, stylesTable);
+      // Un sectPr embebido en pPr marca fin de sección intermedia, que por
+      // defecto en OOXML SIEMPRE implica salto de página. Se aplica al
+      // ÚLTIMO chunk generado por este párrafo (el corte ocurre después de
+      // su contenido), y solo al nivel del body (no dentro de celdas de
+      // tabla ni de header/footer), igual que pageBreakBefore.
+      final forcesSectionBreak =
+          respectPageBreakBefore && _paragraphSectionBreakEndsPage(child);
+      for (var index = 0; index < chunks.length; index++) {
+        final chunk = chunks[index];
+        final isLastChunk = index == chunks.length - 1;
         segments.add(
           _SerializedBlockSegment(
             block: <String, Object?>{
@@ -632,8 +766,12 @@ List<_SerializedBlockSegment> _parseContainerBlocks(
               'runs': <Object?>[
                 for (final run in chunk.runs) <String, Object?>{...run},
               ],
+              'spacingBeforePoints': chunk.spacingBeforePoints,
+              'spacingAfterPoints': chunk.spacingAfterPoints,
+              'keepWithNext': chunk.keepWithNext,
             },
-            endsWithPageBreak: chunk.endsWithPageBreak,
+            endsWithPageBreak:
+                chunk.endsWithPageBreak || (isLastChunk && forcesSectionBreak),
           ),
         );
       }
@@ -643,7 +781,7 @@ List<_SerializedBlockSegment> _parseContainerBlocks(
     if (localName == 'tbl') {
       segments.add(
         _SerializedBlockSegment(
-          block: _serializeTable(child, omissions),
+          block: _serializeTable(child, omissions, stylesTable),
           endsWithPageBreak: false,
         ),
       );
@@ -656,6 +794,7 @@ List<_SerializedBlockSegment> _parseContainerBlocks(
 _SerializedBlock _serializeTable(
   XmlElement tableElement,
   Set<DocumentOmission> omissions,
+  _StylesTable stylesTable,
 ) {
   final rows = <Object?>[];
 
@@ -674,7 +813,11 @@ _SerializedBlock _serializeTable(
         continue;
       }
 
-      final nestedSegments = _parseContainerBlocks(cellElement, omissions);
+      final nestedSegments = _parseContainerBlocks(
+        cellElement,
+        omissions,
+        stylesTable,
+      );
       cells.add(<String, Object?>{
         'blocks': <Object?>[
           for (final segment in nestedSegments)
@@ -689,9 +832,58 @@ _SerializedBlock _serializeTable(
   return <String, Object?>{'kind': 'table', 'rows': rows};
 }
 
+// Resuelve el estilo del párrafo una sola vez y lo aplica en cascada: cada
+// run gana con su propia propiedad inline (w:b/w:i/w:u/w:color/w:sz) cuando
+// la tiene, si no hereda del párrafo. El spacing before/after y keepWithNext
+// del párrafo se atan al PRIMER/ÚLTIMO chunk respectivamente — un párrafo
+// solo se fragmenta en varios chunks cuando trae un salto de página
+// explícito en medio, caso raro; en el caso común (un solo chunk) ambos
+// caen en el mismo chunk, que es lo correcto.
 List<_ParagraphChunk> _splitParagraphByPageBreak(
   XmlElement paragraph,
   Set<DocumentOmission> omissions,
+  _StylesTable stylesTable,
+) {
+  final paragraphStyle = stylesTable.resolve(_paragraphStyleId(paragraph));
+  final rawChunks = _collectRawParagraphChunks(
+    paragraph,
+    omissions,
+    paragraphStyle,
+  );
+
+  return <_ParagraphChunk>[
+    for (var index = 0; index < rawChunks.length; index++)
+      _ParagraphChunk(
+        runs: rawChunks[index].runs,
+        endsWithPageBreak: rawChunks[index].endsWithPageBreak,
+        spacingBeforePoints: index == 0
+            ? paragraphStyle.spacingBeforePoints
+            : 0,
+        spacingAfterPoints: index == rawChunks.length - 1
+            ? paragraphStyle.spacingAfterPoints
+            : 0,
+        keepWithNext:
+            index == rawChunks.length - 1 && paragraphStyle.keepWithNext,
+      ),
+  ];
+}
+
+String? _paragraphStyleId(XmlElement paragraph) {
+  final paragraphProperties = _firstChildByLocalName(paragraph, 'pPr');
+  if (paragraphProperties == null) {
+    return null;
+  }
+  final pStyle = _firstChildByLocalName(paragraphProperties, 'pStyle');
+  if (pStyle == null) {
+    return null;
+  }
+  return _attributeValue(pStyle, 'val');
+}
+
+List<_ParagraphChunk> _collectRawParagraphChunks(
+  XmlElement paragraph,
+  Set<DocumentOmission> omissions,
+  _ResolvedParagraphStyle paragraphStyle,
 ) {
   final chunks = <_ParagraphChunk>[];
   var currentRuns = <_SerializedRun>[];
@@ -725,9 +917,12 @@ List<_ParagraphChunk> _splitParagraphByPageBreak(
         ...currentRuns,
         <String, Object?>{
           'text': text,
-          'isBold': runStyle.isBold,
-          'isItalic': runStyle.isItalic,
-          'isUnderlined': runStyle.isUnderlined,
+          'isBold': runStyle.isBold ?? paragraphStyle.isBold,
+          'isItalic': runStyle.isItalic ?? paragraphStyle.isItalic,
+          'isUnderlined': runStyle.isUnderlined ?? paragraphStyle.isUnderlined,
+          'colorHex': runStyle.colorHex ?? paragraphStyle.colorHex,
+          'fontSizePoints':
+              runStyle.fontSizePoints ?? paragraphStyle.fontSizePoints,
         },
       ];
       sawVisibleToken = true;
@@ -835,42 +1030,253 @@ bool _hasPageBreakBefore(XmlElement paragraph) {
   return _isEnabledProperty(pageBreakBefore);
 }
 
-_RunStyle _resolveRunStyle(XmlElement run) {
-  XmlElement? runProperties;
-  for (final child in run.childElements) {
-    if (child.name.local == 'rPr') {
-      runProperties = child;
+// ponytail: un sectPr hijo directo de pPr marca el fin de una sección
+// intermedia (el sectPr final del documento es hijo directo de body, y ese
+// ya se maneja aparte en `_findSectionProperties`). Por spec OOXML el salto
+// de sección siempre implica salto de página salvo `w:type` "continuous" o
+// "nextColumn"; la ausencia de `w:type` es el default "nextPage", que SÍ
+// rompe página.
+bool _paragraphSectionBreakEndsPage(XmlElement paragraph) {
+  XmlElement? paragraphProperties;
+  for (final child in paragraph.childElements) {
+    if (child.name.local == 'pPr') {
+      paragraphProperties = child;
       break;
     }
   }
+  if (paragraphProperties == null) {
+    return false;
+  }
+
+  XmlElement? sectionProperties;
+  for (final child in paragraphProperties.childElements) {
+    if (child.name.local == 'sectPr') {
+      sectionProperties = child;
+      break;
+    }
+  }
+  if (sectionProperties == null) {
+    return false;
+  }
+
+  XmlElement? sectionType;
+  for (final child in sectionProperties.childElements) {
+    if (child.name.local == 'type') {
+      sectionType = child;
+      break;
+    }
+  }
+  if (sectionType == null) {
+    return true;
+  }
+
+  final typeValue = _attributeValue(sectionType, 'val');
+  return typeValue != 'continuous' && typeValue != 'nextColumn';
+}
+
+_RunStyle _resolveRunStyle(XmlElement run) {
+  final runProperties = _firstChildByLocalName(run, 'rPr');
   if (runProperties == null) {
     return const _RunStyle();
   }
 
-  XmlElement? boldProperty;
-  XmlElement? italicProperty;
-  XmlElement? underlineProperty;
-  var hasVanish = false;
+  final parsed = _parseRunProperties(runProperties);
+  final hasVanish = _firstChildByLocalName(runProperties, 'vanish') != null;
 
-  for (final property in runProperties.childElements) {
-    final localName = property.name.local;
-    if (localName == 'b') {
-      boldProperty = property;
-    } else if (localName == 'i') {
-      italicProperty = property;
-    } else if (localName == 'u') {
-      underlineProperty = property;
-    } else if (localName == 'vanish') {
-      hasVanish = true;
+  return _RunStyle(
+    isBold: parsed.isBold,
+    isItalic: parsed.isItalic,
+    isUnderlined: parsed.isUnderlined,
+    colorHex: parsed.colorHex,
+    fontSizePoints: parsed.fontSizePoints,
+    isHidden: hasVanish,
+  );
+}
+
+XmlElement? _firstChildByLocalName(XmlElement parent, String localName) {
+  for (final child in parent.childElements) {
+    if (child.name.local == localName) {
+      return child;
+    }
+  }
+  return null;
+}
+
+// Parseo compartido de un `<w:rPr>` (de un run inline o de la definición de
+// un estilo con nombre en styles.xml): mismas propiedades, mismo shape.
+// null en un campo = "no especificado aquí", para que el llamador decida
+// cómo hacer cascada (inline gana sobre estilo, estilo gana sobre
+// docDefaults).
+_RunPropertiesRaw _parseRunProperties(XmlElement? rPr) {
+  if (rPr == null) {
+    return const _RunPropertiesRaw();
+  }
+
+  bool? isBold;
+  bool? isItalic;
+  bool? isUnderlined;
+  String? colorHex;
+  double? fontSizePoints;
+
+  for (final property in rPr.childElements) {
+    switch (property.name.local) {
+      case 'b':
+        isBold = _isEnabledProperty(property);
+      case 'i':
+        isItalic = _isEnabledProperty(property);
+      case 'u':
+        isUnderlined = _isUnderlineEnabled(property);
+      case 'color':
+        colorHex = _colorHexFromProperty(property);
+      case 'sz':
+        fontSizePoints = _fontSizePointsFromProperty(property);
     }
   }
 
-  return _RunStyle(
-    isBold: _isEnabledProperty(boldProperty),
-    isItalic: _isEnabledProperty(italicProperty),
-    isUnderlined: _isUnderlineEnabled(underlineProperty),
-    isHidden: hasVanish,
+  return _RunPropertiesRaw(
+    isBold: isBold,
+    isItalic: isItalic,
+    isUnderlined: isUnderlined,
+    colorHex: colorHex,
+    fontSizePoints: fontSizePoints,
   );
+}
+
+String? _colorHexFromProperty(XmlElement colorElement) {
+  final value = _attributeValue(colorElement, 'val');
+  if (value == null || value.isEmpty || value.toLowerCase() == 'auto') {
+    return null;
+  }
+  return value.toUpperCase();
+}
+
+double? _fontSizePointsFromProperty(XmlElement szElement) {
+  final halfPoints = int.tryParse(_attributeValue(szElement, 'val') ?? '');
+  if (halfPoints == null) {
+    return null;
+  }
+  return halfPoints / 2;
+}
+
+// Parseo compartido de un `<w:pPr>` para las propiedades que participan en
+// la cascada de estilos de párrafo (spacing before/after, keepNext). Igual
+// que `_parseRunProperties`: null = "no especificado aquí".
+_ParagraphPropertiesRaw _parseParagraphSpacingProperties(XmlElement? pPr) {
+  if (pPr == null) {
+    return const _ParagraphPropertiesRaw();
+  }
+
+  double? spacingBeforePoints;
+  double? spacingAfterPoints;
+  bool? keepWithNext;
+
+  for (final property in pPr.childElements) {
+    if (property.name.local == 'spacing') {
+      final beforeTwips = int.tryParse(
+        _attributeValue(property, 'before') ?? '',
+      );
+      final afterTwips = int.tryParse(_attributeValue(property, 'after') ?? '');
+      if (beforeTwips != null) {
+        spacingBeforePoints = beforeTwips / _twipsPerPoint;
+      }
+      if (afterTwips != null) {
+        spacingAfterPoints = afterTwips / _twipsPerPoint;
+      }
+    } else if (property.name.local == 'keepNext') {
+      keepWithNext = _isEnabledProperty(property);
+    }
+  }
+
+  return _ParagraphPropertiesRaw(
+    spacingBeforePoints: spacingBeforePoints,
+    spacingAfterPoints: spacingAfterPoints,
+    keepWithNext: keepWithNext,
+  );
+}
+
+// Indexa `word/styles.xml`: docDefaults resuelto de una vez, y cada estilo
+// de párrafo SIN resolver su cadena w:basedOn todavía (eso lo hace
+// `_StylesTable.resolve`, con memoización, la primera vez que se pide).
+// Ausencia total de styles.xml (o de la entrada) -> tabla vacía, que resuelve
+// siempre al docDefaults por defecto (todo false/0/null): mismo
+// comportamiento que antes de esta función para documentos sin estilos.
+_StylesTable _parseStylesTable(Map<String, ArchiveFile> archiveEntries) {
+  final entry = archiveEntries['word/styles.xml'];
+  if (entry == null) {
+    return _StylesTable(
+      docDefaults: const _ResolvedParagraphStyle(),
+      rawStyles: const <String, _RawParagraphStyle>{},
+    );
+  }
+
+  XmlElement root;
+  try {
+    root = XmlDocument.parse(_archiveEntryAsString(entry)).rootElement;
+  } catch (_) {
+    return _StylesTable(
+      docDefaults: const _ResolvedParagraphStyle(),
+      rawStyles: const <String, _RawParagraphStyle>{},
+    );
+  }
+
+  var docDefaults = const _ResolvedParagraphStyle();
+  final docDefaultsElement = _firstChildByLocalName(root, 'docDefaults');
+  if (docDefaultsElement != null) {
+    final rPrDefault = _firstChildByLocalName(docDefaultsElement, 'rPrDefault');
+    final pPrDefault = _firstChildByLocalName(docDefaultsElement, 'pPrDefault');
+    final runProps = _parseRunProperties(
+      rPrDefault == null ? null : _firstChildByLocalName(rPrDefault, 'rPr'),
+    );
+    final paragraphProps = _parseParagraphSpacingProperties(
+      pPrDefault == null ? null : _firstChildByLocalName(pPrDefault, 'pPr'),
+    );
+    docDefaults = _ResolvedParagraphStyle(
+      isBold: runProps.isBold ?? false,
+      isItalic: runProps.isItalic ?? false,
+      isUnderlined: runProps.isUnderlined ?? false,
+      colorHex: runProps.colorHex,
+      fontSizePoints: runProps.fontSizePoints,
+      spacingBeforePoints: paragraphProps.spacingBeforePoints ?? 0,
+      spacingAfterPoints: paragraphProps.spacingAfterPoints ?? 0,
+      keepWithNext: paragraphProps.keepWithNext ?? false,
+    );
+  }
+
+  final rawStyles = <String, _RawParagraphStyle>{};
+  for (final element in root.childElements) {
+    if (element.name.local != 'style' ||
+        _attributeValue(element, 'type') != 'paragraph') {
+      continue;
+    }
+    final styleId = _attributeValue(element, 'styleId');
+    if (styleId == null) {
+      continue;
+    }
+
+    final basedOnElement = _firstChildByLocalName(element, 'basedOn');
+    final runProps = _parseRunProperties(
+      _firstChildByLocalName(element, 'rPr'),
+    );
+    final paragraphProps = _parseParagraphSpacingProperties(
+      _firstChildByLocalName(element, 'pPr'),
+    );
+
+    rawStyles[styleId] = _RawParagraphStyle(
+      basedOn: basedOnElement == null
+          ? null
+          : _attributeValue(basedOnElement, 'val'),
+      isBold: runProps.isBold,
+      isItalic: runProps.isItalic,
+      isUnderlined: runProps.isUnderlined,
+      colorHex: runProps.colorHex,
+      fontSizePoints: runProps.fontSizePoints,
+      spacingBeforePoints: paragraphProps.spacingBeforePoints,
+      spacingAfterPoints: paragraphProps.spacingAfterPoints,
+      keepWithNext: paragraphProps.keepWithNext,
+    );
+  }
+
+  return _StylesTable(docDefaults: docDefaults, rawStyles: rawStyles);
 }
 
 bool _isEnabledProperty(XmlElement? property) {
@@ -903,25 +1309,186 @@ final class _SectionMetrics {
   final DocumentMargins margins;
 }
 
+// Propiedades inline de un run individual. null = "no especificado en este
+// run", para que el llamador haga cascada hacia el estilo del párrafo.
 final class _RunStyle {
   const _RunStyle({
+    this.isBold,
+    this.isItalic,
+    this.isUnderlined,
+    this.colorHex,
+    this.fontSizePoints,
+    this.isHidden = false,
+  });
+
+  final bool? isBold;
+  final bool? isItalic;
+  final bool? isUnderlined;
+  final String? colorHex;
+  final double? fontSizePoints;
+  final bool isHidden;
+}
+
+final class _RunPropertiesRaw {
+  const _RunPropertiesRaw({
+    this.isBold,
+    this.isItalic,
+    this.isUnderlined,
+    this.colorHex,
+    this.fontSizePoints,
+  });
+
+  final bool? isBold;
+  final bool? isItalic;
+  final bool? isUnderlined;
+  final String? colorHex;
+  final double? fontSizePoints;
+}
+
+final class _ParagraphPropertiesRaw {
+  const _ParagraphPropertiesRaw({
+    this.spacingBeforePoints,
+    this.spacingAfterPoints,
+    this.keepWithNext,
+  });
+
+  final double? spacingBeforePoints;
+  final double? spacingAfterPoints;
+  final bool? keepWithNext;
+}
+
+// Estilo de párrafo con nombre, tal como aparece en styles.xml, SIN resolver
+// su cadena w:basedOn. null en un campo = ese estilo no lo define, hereda
+// del padre en la cascada.
+final class _RawParagraphStyle {
+  const _RawParagraphStyle({
+    this.basedOn,
+    this.isBold,
+    this.isItalic,
+    this.isUnderlined,
+    this.colorHex,
+    this.fontSizePoints,
+    this.spacingBeforePoints,
+    this.spacingAfterPoints,
+    this.keepWithNext,
+  });
+
+  final String? basedOn;
+  final bool? isBold;
+  final bool? isItalic;
+  final bool? isUnderlined;
+  final String? colorHex;
+  final double? fontSizePoints;
+  final double? spacingBeforePoints;
+  final double? spacingAfterPoints;
+  final bool? keepWithNext;
+}
+
+// Estilo de párrafo YA resuelto (cascada docDefaults -> basedOn* -> estilo
+// específico aplicada). Todos los campos concretos: bool con default false,
+// spacing con default 0, colorHex/fontSizePoints null cuando ningún nivel de
+// la cascada los definió (el renderer aplica su propio default en ese caso).
+final class _ResolvedParagraphStyle {
+  const _ResolvedParagraphStyle({
     this.isBold = false,
     this.isItalic = false,
     this.isUnderlined = false,
-    this.isHidden = false,
+    this.colorHex,
+    this.fontSizePoints,
+    this.spacingBeforePoints = 0,
+    this.spacingAfterPoints = 0,
+    this.keepWithNext = false,
   });
 
   final bool isBold;
   final bool isItalic;
   final bool isUnderlined;
-  final bool isHidden;
+  final String? colorHex;
+  final double? fontSizePoints;
+  final double spacingBeforePoints;
+  final double spacingAfterPoints;
+  final bool keepWithNext;
+}
+
+// Tabla de estilos de un documento: docDefaults ya resuelto + estilos con
+// nombre sin resolver, resueltos bajo demanda y memoizados en `resolve`.
+final class _StylesTable {
+  _StylesTable({required this.docDefaults, required this._rawStyles});
+
+  final _ResolvedParagraphStyle docDefaults;
+  final Map<String, _RawParagraphStyle> _rawStyles;
+  final Map<String, _ResolvedParagraphStyle> _cache =
+      <String, _ResolvedParagraphStyle>{};
+
+  // pStyleId null -> usa "Normal" si existe (el comportamiento por defecto
+  // de OOXML para un párrafo sin w:pStyle explícito), o docDefaults si ni
+  // siquiera hay un estilo "Normal" definido.
+  _ResolvedParagraphStyle resolve(String? pStyleId) {
+    final effectiveId =
+        pStyleId ?? (_rawStyles.containsKey('Normal') ? 'Normal' : null);
+    if (effectiveId == null) {
+      return docDefaults;
+    }
+
+    final cached = _cache[effectiveId];
+    if (cached != null) {
+      return cached;
+    }
+
+    // Cadena w:basedOn del más específico al más lejano, con guardia
+    // anti-ciclo y tope de profundidad: cadenas reales son 1-2 niveles, 5 es
+    // margen amplio sin soportar herencia arbitrariamente larga.
+    final chain = <_RawParagraphStyle>[];
+    final visited = <String>{};
+    var currentId = effectiveId;
+    while (chain.length < 5 && visited.add(currentId)) {
+      final raw = _rawStyles[currentId];
+      if (raw == null) {
+        break;
+      }
+      chain.add(raw);
+      final basedOn = raw.basedOn;
+      if (basedOn == null) {
+        break;
+      }
+      currentId = basedOn;
+    }
+
+    var resolved = docDefaults;
+    for (final raw in chain.reversed) {
+      resolved = _ResolvedParagraphStyle(
+        isBold: raw.isBold ?? resolved.isBold,
+        isItalic: raw.isItalic ?? resolved.isItalic,
+        isUnderlined: raw.isUnderlined ?? resolved.isUnderlined,
+        colorHex: raw.colorHex ?? resolved.colorHex,
+        fontSizePoints: raw.fontSizePoints ?? resolved.fontSizePoints,
+        spacingBeforePoints:
+            raw.spacingBeforePoints ?? resolved.spacingBeforePoints,
+        spacingAfterPoints:
+            raw.spacingAfterPoints ?? resolved.spacingAfterPoints,
+        keepWithNext: raw.keepWithNext ?? resolved.keepWithNext,
+      );
+    }
+
+    _cache[effectiveId] = resolved;
+    return resolved;
+  }
 }
 
 final class _ParagraphChunk {
-  const _ParagraphChunk({required this.runs, required this.endsWithPageBreak});
+  const _ParagraphChunk({
+    required this.runs,
+    required this.endsWithPageBreak,
+    this.spacingBeforePoints = 0,
+    this.spacingAfterPoints = 0,
+    this.keepWithNext = false,
+  });
 
   final _SerializedParagraph runs;
   final bool endsWithPageBreak;
+  final double spacingBeforePoints;
+  final double spacingAfterPoints;
+  final bool keepWithNext;
 }
 
 final class _SerializedBlockSegment {

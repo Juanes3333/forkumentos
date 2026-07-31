@@ -13,8 +13,7 @@ import 'package:pdf/widgets.dart' as pw;
 /// Renders a merged [Document] to PDF.
 ///
 /// ponytail: fidelity ceiling vs DOCX — simple paragraphs/tables only; no
-/// headers, images, or Word layout. Upgrade with richer pdf widgets when
-/// needed.
+/// images or Word layout. Upgrade with richer pdf widgets when needed.
 final class PdfExportCommand extends CancellableCommand<ExportResult> {
   PdfExportCommand({
     required this.destinationFolder,
@@ -23,6 +22,7 @@ final class PdfExportCommand extends CancellableCommand<ExportResult> {
     required this.buildDocument,
     required this.resolveRow,
     required this.headers,
+    this.pageIndexes,
   });
 
   final String destinationFolder;
@@ -31,6 +31,10 @@ final class PdfExportCommand extends CancellableCommand<ExportResult> {
   final Document Function(List<String?> row) buildDocument;
   final Future<List<String?>> Function(int rowIndex) resolveRow;
   final List<String> headers;
+
+  /// 0-based page indexes to export, in document order. `null` or empty
+  /// exports every page.
+  final List<int>? pageIndexes;
 
   final Set<String> _usedNames = <String>{};
 
@@ -73,7 +77,7 @@ final class PdfExportCommand extends CancellableCommand<ExportResult> {
         final outputPath = p.join(destinationFolder, '$baseName.pdf');
 
         await Isolate.run(() async {
-          final bytes = await _renderPdfBytes(document);
+          final bytes = await _renderPdfBytes(document, pageIndexes);
           File(outputPath).writeAsBytesSync(bytes);
         });
         written.add(outputPath);
@@ -105,36 +109,72 @@ final class PdfExportCommand extends CancellableCommand<ExportResult> {
   }
 }
 
-Future<Uint8List> _renderPdfBytes(Document document) {
+Future<Uint8List> _renderPdfBytes(Document document, List<int>? pageIndexes) {
   final pdf = pw.Document();
-  for (final page in document.pages) {
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat(page.widthPoints, page.heightPoints),
-        margin: pw.EdgeInsets.fromLTRB(
-          page.margins.leftPoints,
-          page.margins.topPoints,
-          page.margins.rightPoints,
-          page.margins.bottomPoints,
-        ),
-        build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: <pw.Widget>[
-              for (final block in page.blocks) _pdfBlockWidget(block),
-            ],
-          );
-        },
-      ),
-    );
+  final selectedPages = pageIndexes == null || pageIndexes.isEmpty
+      ? document.pages
+      : <DocumentPage>[
+          for (final index in pageIndexes)
+            if (index >= 0 && index < document.pages.length)
+              document.pages[index],
+        ];
+
+  final header = document.header.isEmpty
+      ? null
+      : _pdfHeaderFooterBuilder(document.header);
+  final footer = document.footer.isEmpty
+      ? null
+      : _pdfHeaderFooterBuilder(document.footer);
+
+  if (selectedPages.isEmpty) {
+    return pdf.save();
   }
+  final firstPage = selectedPages.first;
+
+  // ponytail: un solo MultiPage para todo el documento. Un MultiPage por
+  // DocumentPage forzaba doble paginación (nuestra + la de pdf) y hojas
+  // casi en blanco. Ceiling: pageFormat/margins salen de la primera página
+  // seleccionada; si un doc mezcla tamaños, hay que volver a per-page.
+  pdf.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat(firstPage.widthPoints, firstPage.heightPoints),
+      margin: pw.EdgeInsets.fromLTRB(
+        firstPage.margins.leftPoints,
+        firstPage.margins.topPoints,
+        firstPage.margins.rightPoints,
+        firstPage.margins.bottomPoints,
+      ),
+      header: header,
+      footer: footer,
+      build: (context) => <pw.Widget>[
+        for (final page in selectedPages)
+          for (final block in page.blocks) _pdfBlockWidget(block),
+      ],
+    ),
+  );
+
   return pdf.save();
+}
+
+pw.Widget Function(pw.Context) _pdfHeaderFooterBuilder(
+  List<DocumentBlock> blocks,
+) {
+  return (context) => pw.DefaultTextStyle.merge(
+    style: const pw.TextStyle(fontSize: 9),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: <pw.Widget>[for (final block in blocks) _pdfBlockWidget(block)],
+    ),
+  );
 }
 
 pw.Widget _pdfBlockWidget(DocumentBlock block) {
   return switch (block) {
     DocumentParagraphBlock(:final paragraph) => pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 6),
+      padding: pw.EdgeInsets.only(
+        top: paragraph.spacingBeforePoints,
+        bottom: paragraph.spacingAfterPoints,
+      ),
       child: pw.RichText(
         text: pw.TextSpan(
           children: <pw.TextSpan>[
@@ -151,31 +191,65 @@ pw.Widget _pdfBlockWidget(DocumentBlock block) {
                   decoration: run.isUnderlined
                       ? pw.TextDecoration.underline
                       : pw.TextDecoration.none,
+                  color: _pdfRunColor(run),
+                  fontSize: run.fontSizePoints,
                 ),
               ),
           ],
         ),
       ),
     ),
-    DocumentTableBlock(:final table) => pw.Table(
-      border: pw.TableBorder.all(width: 0.5),
-      children: <pw.TableRow>[
-        for (final row in table.rows)
-          pw.TableRow(
-            children: <pw.Widget>[
-              for (final cell in row.cells)
+    DocumentTableBlock(:final table) => _pdfTableWidget(table),
+  };
+}
+
+PdfColor? _pdfRunColor(DocumentRun run) {
+  final hex = run.colorHex;
+  if (hex == null) {
+    return null;
+  }
+  final value = int.tryParse(hex, radix: 16);
+  return value == null ? null : PdfColor.fromInt(0xFF000000 | value);
+}
+
+// ponytail: the DOCX parser doesn't interpret gridSpan/vMerge (see
+// docx_document_repository.dart's _serializeTable comment), so a table with
+// merged cells in the original produces rows of unequal length here.
+// pw.Table requires every row to have the same number of children, so short
+// rows are padded to maxColumns with empty cells instead of crashing.
+pw.Widget _pdfTableWidget(DocumentTable table) {
+  var maxColumns = 0;
+  for (final row in table.rows) {
+    if (row.cells.length > maxColumns) {
+      maxColumns = row.cells.length;
+    }
+  }
+  if (maxColumns == 0) {
+    return pw.SizedBox.shrink();
+  }
+
+  return pw.Table(
+    border: pw.TableBorder.all(width: 0.5),
+    children: <pw.TableRow>[
+      for (final row in table.rows)
+        pw.TableRow(
+          children: <pw.Widget>[
+            for (var cellIndex = 0; cellIndex < maxColumns; cellIndex++)
+              if (cellIndex < row.cells.length)
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(4),
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: <pw.Widget>[
-                      for (final nested in cell.blocks) _pdfBlockWidget(nested),
+                      for (final nested in row.cells[cellIndex].blocks)
+                        _pdfBlockWidget(nested),
                     ],
                   ),
-                ),
-            ],
-          ),
-      ],
-    ),
-  };
+                )
+              else
+                pw.SizedBox.shrink(),
+          ],
+        ),
+    ],
+  );
 }

@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Forkumentos"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Juan Restrepo"
 #define MyAppURL "https://github.com/Juanes3333/forkumentos"
 #define MyAppExeName "forkumentos.exe"
@@ -38,7 +38,7 @@ LicenseFile=C:\Users\juane\Documents\forkumentos\LICENSE
 ; Remove the following line to run in administrative install mode (install for all users).
 PrivilegesRequired=lowest
 OutputDir=C:\Users\juane\Documents\forkumentos\installer
-OutputBaseFilename=ForkumentosSetup_v1.0.0
+OutputBaseFilename=ForkumentosSetup_v1.1.0
 SetupIconFile=C:\Users\juane\Documents\forkumentos\assets\icons\forkumentosLight.ico
 SolidCompression=yes
 WizardStyle=modern windows11
@@ -50,13 +50,8 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\dartjni.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\desktop_drop_plugin.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\flutter_windows.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\forkumentos.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\screen_retriever_windows_plugin.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\window_manager_plugin.dll"; DestDir: "{app}"; Flags: ignoreversion
+; Flutter Windows Release incluye exe, DLLs y la carpeta data/ (assets).
+Source: "C:\Users\juane\Documents\forkumentos\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Registry]

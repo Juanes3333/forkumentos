@@ -174,9 +174,7 @@ bool _stillMatchesDocument(
     return true;
   }
 
-  final paragraphText = documentTexts.entries
-      .firstWhereOrNull((entry) => _pathsEqual(entry.key, assignment.path))
-      ?.value;
+  final paragraphText = documentTexts[assignment.path];
   if (paragraphText == null || assignment.endOffset > paragraphText.length) {
     return false;
   }
@@ -186,41 +184,4 @@ bool _stillMatchesDocument(
         assignment.endOffset,
       ) ==
       assignment.selectedText;
-}
-
-bool _pathsEqual(DocumentTextPath left, DocumentTextPath right) {
-  if (left.pageIndex != right.pageIndex ||
-      left.steps.length != right.steps.length) {
-    return false;
-  }
-
-  for (var index = 0; index < left.steps.length; index++) {
-    final leftStep = left.steps[index];
-    final rightStep = right.steps[index];
-    if (leftStep.runtimeType != rightStep.runtimeType) {
-      return false;
-    }
-
-    if (leftStep is RootDocumentBlockStep &&
-        rightStep is RootDocumentBlockStep) {
-      if (leftStep.blockIndex != rightStep.blockIndex) {
-        return false;
-      }
-      continue;
-    }
-
-    if (leftStep is DocumentTableCellBlockStep &&
-        rightStep is DocumentTableCellBlockStep) {
-      if (leftStep.rowIndex != rightStep.rowIndex ||
-          leftStep.cellIndex != rightStep.cellIndex ||
-          leftStep.blockIndex != rightStep.blockIndex) {
-        return false;
-      }
-      continue;
-    }
-
-    return false;
-  }
-
-  return true;
 }

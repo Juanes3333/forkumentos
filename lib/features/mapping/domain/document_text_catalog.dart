@@ -25,7 +25,34 @@ List<ParagraphTextEntry> enumerateParagraphTexts(Document document) {
     }
   }
 
+  _collectRegionParagraphTexts(
+    blocks: document.header,
+    region: DocumentTextRegion.header,
+    entries: entries,
+  );
+  _collectRegionParagraphTexts(
+    blocks: document.footer,
+    region: DocumentTextRegion.footer,
+    entries: entries,
+  );
+
   return entries;
+}
+
+void _collectRegionParagraphTexts({
+  required List<DocumentBlock> blocks,
+  required DocumentTextRegion region,
+  required List<ParagraphTextEntry> entries,
+}) {
+  for (var blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+    _collectParagraphTexts(
+      pageIndex: 0,
+      rootBlockIndex: blockIndex,
+      block: blocks[blockIndex],
+      entries: entries,
+      region: region,
+    );
+  }
 }
 
 List<ParagraphTextEntry> extractDocumentTextPlaceholders(Document document) {
@@ -40,6 +67,7 @@ void _collectParagraphTexts({
   required DocumentBlock block,
   required List<ParagraphTextEntry> entries,
   List<DocumentPathStep> prefixSteps = const <DocumentPathStep>[],
+  DocumentTextRegion region = DocumentTextRegion.body,
 }) {
   switch (block) {
     case DocumentParagraphBlock(:final paragraph):
@@ -51,6 +79,7 @@ void _collectParagraphTexts({
               DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
               ...prefixSteps,
             ],
+            region: region,
           ),
           text: paragraphPlainText(paragraph),
         ),
@@ -70,6 +99,7 @@ void _collectParagraphTexts({
               rootBlockIndex: rootBlockIndex,
               block: cell.blocks[innerBlockIndex],
               entries: entries,
+              region: region,
               prefixSteps: <DocumentPathStep>[
                 ...prefixSteps,
                 DocumentPathStep.cellBlock(
@@ -129,7 +159,7 @@ FieldAssignment? findOverlappingAssignment({
   required int endOffset,
 }) {
   for (final assignment in assignments) {
-    if (!_pathsEqual(assignment.path, path)) {
+    if (assignment.path != path) {
       continue;
     }
 
@@ -144,50 +174,13 @@ FieldAssignment? findOverlappingAssignment({
   return null;
 }
 
-bool _pathsEqual(DocumentTextPath left, DocumentTextPath right) {
-  if (left.pageIndex != right.pageIndex ||
-      left.steps.length != right.steps.length) {
-    return false;
-  }
-
-  for (var index = 0; index < left.steps.length; index++) {
-    final leftStep = left.steps[index];
-    final rightStep = right.steps[index];
-    if (leftStep.runtimeType != rightStep.runtimeType) {
-      return false;
-    }
-
-    if (leftStep is RootDocumentBlockStep &&
-        rightStep is RootDocumentBlockStep) {
-      if (leftStep.blockIndex != rightStep.blockIndex) {
-        return false;
-      }
-      continue;
-    }
-
-    if (leftStep is DocumentTableCellBlockStep &&
-        rightStep is DocumentTableCellBlockStep) {
-      if (leftStep.rowIndex != rightStep.rowIndex ||
-          leftStep.cellIndex != rightStep.cellIndex ||
-          leftStep.blockIndex != rightStep.blockIndex) {
-        return false;
-      }
-      continue;
-    }
-
-    return false;
-  }
-
-  return true;
-}
-
 bool occurrencesMatch({
   required TextOccurrence occurrence,
   required DocumentTextPath path,
   required int startOffset,
   required int endOffset,
 }) {
-  return _pathsEqual(occurrence.path, path) &&
+  return occurrence.path == path &&
       occurrence.startOffset == startOffset &&
       occurrence.endOffset == endOffset;
 }

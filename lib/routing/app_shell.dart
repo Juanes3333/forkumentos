@@ -18,9 +18,9 @@ final class AppShell extends ConsumerWidget {
 
     return ProjectWindowLifecycle(
       child: AppDropTarget(
-        child: ColoredBox(
-          color: AppColors.of(context).backgroundPrimary,
-          child: switch (phase) {
+        child: Scaffold(
+          backgroundColor: AppColors.of(context).backgroundPrimary,
+          body: switch (phase) {
             AppPhase.landing => ProjectWelcomeScreen(
               onOpenSettings: () => showSettingsDialog(context),
             ),

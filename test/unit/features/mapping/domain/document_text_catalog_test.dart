@@ -27,6 +27,46 @@ void main() {
         isEmpty,
       );
     });
+
+    test('encuentra coincidencias en el header y las marca con su region', () {
+      final document = _documentWithTexts(<String>[
+        'Cuerpo',
+      ]).copyWith(header: <DocumentBlock>[_paragraphBlock('Ana en el header')]);
+
+      final occurrences = findExactTextOccurrences(
+        document: document,
+        needle: 'Ana',
+      );
+
+      expect(occurrences, hasLength(1));
+      expect(occurrences.single.path.region, DocumentTextRegion.header);
+      expect(occurrences.single.path.pageIndex, 0);
+    });
+
+    test('encuentra coincidencias en el footer y las marca con su region', () {
+      final document = _documentWithTexts(<String>[
+        'Cuerpo',
+      ]).copyWith(footer: <DocumentBlock>[_paragraphBlock('Ana en el footer')]);
+
+      final occurrences = findExactTextOccurrences(
+        document: document,
+        needle: 'Ana',
+      );
+
+      expect(occurrences, hasLength(1));
+      expect(occurrences.single.path.region, DocumentTextRegion.footer);
+    });
+
+    test('el texto del cuerpo sigue usando region body por defecto', () {
+      final document = _documentWithTexts(<String>['Hola Ana']);
+
+      final occurrences = findExactTextOccurrences(
+        document: document,
+        needle: 'Ana',
+      );
+
+      expect(occurrences.single.path.region, DocumentTextRegion.body);
+    });
   });
 
   group('findOverlappingAssignment', () {
@@ -104,22 +144,25 @@ Document _documentWithTexts(List<String> texts) {
           leftPoints: 72,
         ),
         blocks: <DocumentBlock>[
-          for (final text in texts)
-            DocumentBlock.paragraph(
-              DocumentParagraph(
-                runs: <DocumentRun>[
-                  DocumentRun(
-                    text: text,
-                    isBold: false,
-                    isItalic: false,
-                    isUnderlined: false,
-                  ),
-                ],
-              ),
-            ),
+          for (final text in texts) _paragraphBlock(text),
         ],
       ),
     ],
     omissions: const <DocumentOmission>{},
+  );
+}
+
+DocumentBlock _paragraphBlock(String text) {
+  return DocumentBlock.paragraph(
+    DocumentParagraph(
+      runs: <DocumentRun>[
+        DocumentRun(
+          text: text,
+          isBold: false,
+          isItalic: false,
+          isUnderlined: false,
+        ),
+      ],
+    ),
   );
 }

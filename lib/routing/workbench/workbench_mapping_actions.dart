@@ -59,6 +59,9 @@ Future<void> assignWorkbenchSelection(
     if (!context.mounted) {
       return;
     }
+    if (extras == null) {
+      return;
+    }
 
     mappingNotifier.replaceAssignment(
       existingAssignment: conflict,
@@ -89,6 +92,9 @@ Future<void> assignWorkbenchSelection(
   if (!context.mounted) {
     return;
   }
+  if (extras == null) {
+    return;
+  }
 
   mappingNotifier.confirmAssignment(
     selection: selection,
@@ -100,7 +106,7 @@ Future<void> assignWorkbenchSelection(
   ref.read(workbenchSelectionProvider.notifier).clearSelection();
 }
 
-Future<List<TextOccurrence>> _resolveExtraOccurrences(
+Future<List<TextOccurrence>?> _resolveExtraOccurrences(
   BuildContext context,
   WidgetRef ref,
   Document document,
@@ -116,11 +122,7 @@ Future<List<TextOccurrence>> _resolveExtraOccurrences(
     return const <TextOccurrence>[];
   }
 
-  final selected = await MultipleOccurrencesDialog.show(
-    context,
-    occurrences: additional,
-  );
-  return selected ?? const <TextOccurrence>[];
+  return MultipleOccurrencesDialog.show(context, occurrences: additional);
 }
 
 Future<bool> _askReplaceAssignment(

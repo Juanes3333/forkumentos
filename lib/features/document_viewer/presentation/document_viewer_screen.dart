@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_controller.dart';
 import 'package:forkumentos/shared/models/document.dart';
@@ -13,6 +15,19 @@ const _zoomSteps = <double>[0.5, 0.75, 1, 1.25, 1.5, 2];
 const _defaultZoomStepIndex = 2;
 const _pageSpacing = 24.0;
 const _viewportPadding = 24.0;
+// Coincide con la opacidad de Colors.black54 (0x8A / 0xFF): el header/footer
+// se pinta con el mismo negro que el cuerpo (MappingAwareParagraph lo fija
+// así) y se atenúa como capa completa en vez de por color de texto.
+const _headerFooterOpacity = 0.54;
+
+// Tipografía del "papel" simulado, independiente del tema de chrome de la
+// app (AppTypography.dense). El chrome usa 13pt/1.3 pensado para legibilidad
+// de UI de escritorio; el documento simulado usa estos valores porque son
+// los mismos que la heurística de paginación del parser (IngestionAgent,
+// docx_document_repository.dart) asume al estimar cuántas líneas caben por
+// página — deben mantenerse sincronizados entre ambos lados.
+const _documentBodyFontSize = 11.0;
+const _documentBodyLineHeight = 1.15;
 
 enum _ZoomMode { manual, fitWidth, fitPage }
 
@@ -224,43 +239,56 @@ final class _DocumentViewerScreenState
                   widestPageWidth + (_viewportPadding * 2),
                 );
 
-                return ColoredBox(
-                  key: _scrollViewportKey,
-                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: contentWidth,
-                      child: Scrollbar(
-                        controller: _scrollController,
-                        child: SingleChildScrollView(
+                return Listener(
+                  onPointerSignal: (event) {
+                    if (event is! PointerScrollEvent) return;
+                    if (!HardwareKeyboard.instance.isControlPressed) return;
+                    if (event.scrollDelta.dy < 0) {
+                      _zoomIn();
+                    } else if (event.scrollDelta.dy > 0) {
+                      _zoomOut();
+                    }
+                  },
+                  child: ColoredBox(
+                    key: _scrollViewportKey,
+                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: contentWidth,
+                        child: Scrollbar(
                           controller: _scrollController,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: _viewportPadding,
-                              vertical: _viewportPadding,
-                            ),
-                            child: Column(
-                              children: <Widget>[
-                                for (
-                                  var index = 0;
-                                  index < document.pages.length;
-                                  index++
-                                ) ...<Widget>[
-                                  Align(
-                                    key: _pageKeys[index],
-                                    alignment: Alignment.topCenter,
-                                    child: _DocumentPageSheet(
-                                      pageIndex: index,
-                                      page: document.pages[index],
-                                      scale: effectiveScale,
-                                      viewerOverlay: widget.viewerOverlay,
+                          child: SingleChildScrollView(
+                            controller: _scrollController,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: _viewportPadding,
+                                vertical: _viewportPadding,
+                              ),
+                              child: Column(
+                                children: <Widget>[
+                                  for (
+                                    var index = 0;
+                                    index < document.pages.length;
+                                    index++
+                                  ) ...<Widget>[
+                                    Align(
+                                      key: _pageKeys[index],
+                                      alignment: Alignment.topCenter,
+                                      child: _DocumentPageSheet(
+                                        pageIndex: index,
+                                        page: document.pages[index],
+                                        header: document.header,
+                                        footer: document.footer,
+                                        scale: effectiveScale,
+                                        viewerOverlay: widget.viewerOverlay,
+                                      ),
                                     ),
-                                  ),
-                                  if (index < document.pages.length - 1)
-                                    const SizedBox(height: _pageSpacing),
+                                    if (index < document.pages.length - 1)
+                                      const SizedBox(height: _pageSpacing),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
@@ -356,11 +384,16 @@ final class _DocumentViewerScreenState
       return;
     }
 
+    // `keepVisibleAtStart` only ever moves the offset *backward* (its
+    // `ensureVisible` implementation clamps the target to the current
+    // position whenever the computed target is greater than `pixels`), so it
+    // silently no-ops for the common case of a target further down than the
+    // current scroll position. The default `explicit` policy with alignment
+    // 0 aligns the page's top edge to the viewport's top in both directions.
     await Scrollable.ensureVisible(
       pageContext,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeInOut,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
     );
 
     if (!mounted) {
@@ -603,25 +636,42 @@ final class _DocumentPageSheet extends StatelessWidget {
   const _DocumentPageSheet({
     required this.pageIndex,
     required this.page,
+    required this.header,
+    required this.footer,
     required this.scale,
     this.viewerOverlay,
   });
 
   final int pageIndex;
   final DocumentPage page;
+  final List<DocumentBlock> header;
+  final List<DocumentBlock> footer;
   final double scale;
   final DocumentViewerOverlay? viewerOverlay;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final bodyStyle =
-        Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+    // La hoja es papel simulado, no chrome de la app: su tipografía no debe
+    // moverse si el usuario cambia el tema de la interfaz, por eso parte de
+    // un TextStyle explícito en vez de Theme.of(context).textTheme.bodyMedium.
+    const bodyStyle = TextStyle(
+      fontSize: _documentBodyFontSize,
+      height: _documentBodyLineHeight,
+    );
     final scaledBodyStyle = bodyStyle.copyWith(
-      fontSize: (bodyStyle.fontSize ?? 14) * scale,
+      fontSize: bodyStyle.fontSize! * scale,
     );
     final scaledLineHeight =
         (scaledBodyStyle.fontSize ?? 14) * (scaledBodyStyle.height ?? 1.3);
+    // El header/footer se distingue del cuerpo por tamaño y opacidad de
+    // sección (ver _headerFooterOpacity). El color de texto en sí lo fija
+    // MappingAwareParagraph siempre en negro, sin importar el tema, porque
+    // la hoja simulada siempre es blanca.
+    final headerFooterStyle = scaledBodyStyle.copyWith(
+      fontSize: (scaledBodyStyle.fontSize ?? 14) * 0.85,
+    );
+    final sectionGap = scaledLineHeight * 0.4;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -649,6 +699,33 @@ final class _DocumentPageSheet extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              if (header.isNotEmpty) ...<Widget>[
+                Opacity(
+                  opacity: _headerFooterOpacity,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      for (
+                        var blockIndex = 0;
+                        blockIndex < header.length;
+                        blockIndex++
+                      )
+                        _DocumentBlockWidget(
+                          pageIndex: 0,
+                          region: DocumentTextRegion.header,
+                          rootBlockIndex: blockIndex,
+                          block: header[blockIndex],
+                          textStyle: headerFooterStyle,
+                          emptyParagraphHeight: scaledLineHeight,
+                          viewerOverlay: viewerOverlay,
+                        ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: sectionGap),
+                const Divider(height: 1, thickness: 1, color: Colors.black12),
+                SizedBox(height: sectionGap),
+              ],
               for (
                 var blockIndex = 0;
                 blockIndex < page.blocks.length;
@@ -662,6 +739,33 @@ final class _DocumentPageSheet extends StatelessWidget {
                   emptyParagraphHeight: scaledLineHeight,
                   viewerOverlay: viewerOverlay,
                 ),
+              if (footer.isNotEmpty) ...<Widget>[
+                SizedBox(height: sectionGap),
+                const Divider(height: 1, thickness: 1, color: Colors.black12),
+                SizedBox(height: sectionGap),
+                Opacity(
+                  opacity: _headerFooterOpacity,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      for (
+                        var blockIndex = 0;
+                        blockIndex < footer.length;
+                        blockIndex++
+                      )
+                        _DocumentBlockWidget(
+                          pageIndex: 0,
+                          region: DocumentTextRegion.footer,
+                          rootBlockIndex: blockIndex,
+                          block: footer[blockIndex],
+                          textStyle: headerFooterStyle,
+                          emptyParagraphHeight: scaledLineHeight,
+                          viewerOverlay: viewerOverlay,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -677,6 +781,7 @@ final class _DocumentBlockWidget extends StatelessWidget {
     required this.block,
     required this.textStyle,
     required this.emptyParagraphHeight,
+    this.region = DocumentTextRegion.body,
     this.viewerOverlay,
     this.prefixSteps = const <DocumentPathStep>[],
   });
@@ -686,12 +791,14 @@ final class _DocumentBlockWidget extends StatelessWidget {
   final DocumentBlock block;
   final TextStyle textStyle;
   final double emptyParagraphHeight;
+  final DocumentTextRegion region;
   final DocumentViewerOverlay? viewerOverlay;
   final List<DocumentPathStep> prefixSteps;
 
   DocumentTextPath _pathForParagraph() {
     return DocumentTextPath(
       pageIndex: pageIndex,
+      region: region,
       steps: <DocumentPathStep>[
         DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
         ...prefixSteps,
@@ -726,6 +833,7 @@ final class _DocumentBlockWidget extends StatelessWidget {
           table: table,
           textStyle: textStyle,
           emptyParagraphHeight: emptyParagraphHeight,
+          region: region,
           viewerOverlay: viewerOverlay,
         ),
       ),
@@ -740,6 +848,7 @@ final class _DocumentTableWidget extends StatelessWidget {
     required this.table,
     required this.textStyle,
     required this.emptyParagraphHeight,
+    this.region = DocumentTextRegion.body,
     this.viewerOverlay,
   });
 
@@ -748,6 +857,7 @@ final class _DocumentTableWidget extends StatelessWidget {
   final DocumentTable table;
   final TextStyle textStyle;
   final double emptyParagraphHeight;
+  final DocumentTextRegion region;
   final DocumentViewerOverlay? viewerOverlay;
 
   @override
@@ -794,6 +904,7 @@ final class _DocumentTableWidget extends StatelessWidget {
                                 .blocks[innerBlockIndex],
                             textStyle: textStyle,
                             emptyParagraphHeight: emptyParagraphHeight,
+                            region: region,
                             viewerOverlay: viewerOverlay,
                             prefixSteps: <DocumentPathStep>[
                               DocumentPathStep.cellBlock(

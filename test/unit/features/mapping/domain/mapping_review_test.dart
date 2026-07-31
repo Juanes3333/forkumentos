@@ -67,6 +67,61 @@ void main() {
       expect(snapshot.documentPlaceholders, hasLength(2));
       expect(snapshot.documentPlaceholders.first.text, 'Ana');
     });
+
+    test(
+      'un mismo pageIndex/steps en body y header no se confunden entre si',
+      () {
+        final document = _documentWithTexts(<String>['Otro']).copyWith(
+          header: <DocumentBlock>[
+            const DocumentBlock.paragraph(
+              DocumentParagraph(
+                runs: <DocumentRun>[
+                  DocumentRun(
+                    text: 'Ana',
+                    isBold: false,
+                    isItalic: false,
+                    isUnderlined: false,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+        // La asignación apunta a region body con el mismo pageIndex/steps
+        // que la entrada de header ('Ana'), pero el texto del body en esa
+        // ruta es 'Otro': debe marcarse inválida en vez de casar por error
+        // contra el header.
+        final snapshot = buildMappingReviewSnapshot(
+          assignments: <FieldAssignment>[_assignment(id: 'a1', fieldIndex: 0)],
+          datasourceHeaders: <String>['nombre'],
+          document: document,
+        );
+
+        expect(snapshot.invalidAssignments, hasLength(1));
+
+        // La misma asignación, pero apuntando a region header, sí es válida.
+        final headerSnapshot = buildMappingReviewSnapshot(
+          assignments: <FieldAssignment>[
+            _assignment(
+              id: 'a1',
+              fieldIndex: 0,
+              path: const DocumentTextPath(
+                pageIndex: 0,
+                steps: <DocumentPathStep>[
+                  DocumentPathStep.rootBlock(blockIndex: 0),
+                ],
+                region: DocumentTextRegion.header,
+              ),
+            ),
+          ],
+          datasourceHeaders: <String>['nombre'],
+          document: document,
+        );
+
+        expect(headerSnapshot.invalidAssignments, isEmpty);
+      },
+    );
   });
 }
 

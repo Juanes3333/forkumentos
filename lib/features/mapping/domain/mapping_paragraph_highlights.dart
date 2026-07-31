@@ -15,7 +15,7 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
   final highlights = <ParagraphHighlightSegment>[];
 
   for (final assignment in assignments) {
-    if (!_pathsEqual(assignment.path, path)) {
+    if (assignment.path != path) {
       continue;
     }
 
@@ -34,7 +34,7 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
   }
 
   for (final suggestion in suggestions) {
-    if (!_pathsEqual(suggestion.path, path)) {
+    if (suggestion.path != path) {
       continue;
     }
 
@@ -49,41 +49,4 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
   }
 
   return highlights;
-}
-
-bool _pathsEqual(DocumentTextPath left, DocumentTextPath right) {
-  if (left.pageIndex != right.pageIndex ||
-      left.steps.length != right.steps.length) {
-    return false;
-  }
-
-  for (var index = 0; index < left.steps.length; index++) {
-    final leftStep = left.steps[index];
-    final rightStep = right.steps[index];
-    if (leftStep.runtimeType != rightStep.runtimeType) {
-      return false;
-    }
-
-    if (leftStep is RootDocumentBlockStep &&
-        rightStep is RootDocumentBlockStep) {
-      if (leftStep.blockIndex != rightStep.blockIndex) {
-        return false;
-      }
-      continue;
-    }
-
-    if (leftStep is DocumentTableCellBlockStep &&
-        rightStep is DocumentTableCellBlockStep) {
-      if (leftStep.rowIndex != rightStep.rowIndex ||
-          leftStep.cellIndex != rightStep.cellIndex ||
-          leftStep.blockIndex != rightStep.blockIndex) {
-        return false;
-      }
-      continue;
-    }
-
-    return false;
-  }
-
-  return true;
 }

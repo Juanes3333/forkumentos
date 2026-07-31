@@ -274,6 +274,111 @@ void main() {
     expect(paragraphs[1].runs.single.text, 'Después');
   });
 
+  test('sectPr embebido en pPr (fin de sección, w:type nextPage) divide la '
+      'página', () async {
+    final filePath = p.join(tempDirectory.path, 'seccion_nextpage.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Seccion1</w:t></w:r></w:p>
+<w:p>
+  <w:pPr>
+    <w:sectPr><w:type w:val="nextPage" /></w:sectPr>
+  </w:pPr>
+</w:p>
+<w:p><w:r><w:t>Seccion2</w:t></w:r></w:p>
+<w:sectPr />
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages, hasLength(2));
+    final page0Paragraphs = _paragraphs(document.pages[0]);
+    expect(page0Paragraphs, hasLength(2));
+    expect(page0Paragraphs[0].runs.single.text, 'Seccion1');
+    expect(page0Paragraphs[1].runs, isEmpty);
+    expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Seccion2');
+  });
+
+  test('sectPr embebido en pPr sin w:type usa el default nextPage y divide la '
+      'página', () async {
+    final filePath = p.join(tempDirectory.path, 'seccion_default.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Seccion1</w:t></w:r></w:p>
+<w:p>
+  <w:pPr><w:sectPr /></w:pPr>
+</w:p>
+<w:p><w:r><w:t>Seccion2</w:t></w:r></w:p>
+<w:sectPr />
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages, hasLength(2));
+  });
+
+  test(
+    'sectPr embebido en pPr con w:type continuous NO divide la página',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'seccion_continuous.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Seccion1</w:t></w:r></w:p>
+<w:p>
+  <w:pPr>
+    <w:sectPr><w:type w:val="continuous" /></w:sectPr>
+  </w:pPr>
+</w:p>
+<w:p><w:r><w:t>Seccion2</w:t></w:r></w:p>
+<w:sectPr />
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(1));
+      final paragraphs = _paragraphs(document.pages.single);
+      expect(paragraphs, hasLength(3));
+      expect(paragraphs[0].runs.single.text, 'Seccion1');
+      expect(paragraphs[1].runs, isEmpty);
+      expect(paragraphs[2].runs.single.text, 'Seccion2');
+    },
+  );
+
+  test('texto continuo largo sin marcadores explícitos se reparte en varias '
+      'páginas por la heurística de relleno', () async {
+    final filePath = p.join(tempDirectory.path, 'texto_largo.docx');
+    // 600 caracteres por párrafo: con la calibración 11pt/1.15 (~85
+    // caracteres/línea, ~51 líneas/página en tamaño carta) esto sigue
+    // partiendo en varias páginas con margen amplio, a diferencia de un
+    // párrafo corto que ahora cabría en una sola línea.
+    final longParagraph = 'A' * 600;
+    final body = List<String>.generate(
+      50,
+      (_) => '<w:p><w:r><w:t>$longParagraph</w:t></w:r></w:p>',
+    ).join('\n');
+    await File(
+      filePath,
+    ).writeAsBytes(_buildDocxBytes(documentXml: _documentWithBody(body)));
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages.length, greaterThan(1));
+    final totalParagraphs = document.pages.fold<int>(
+      0,
+      (sum, page) => sum + _paragraphs(page).length,
+    );
+    expect(totalParagraphs, 50);
+  });
+
   test('salto de página final no genera una página fantasma vacía', () async {
     final filePath = p.join(tempDirectory.path, 'salto_final.docx');
     await File(filePath).writeAsBytes(
@@ -568,6 +673,64 @@ void main() {
     );
   });
 
+  test(
+    'párrafo con w:pStyle hereda color/negrita/tamaño/spacing del estilo con '
+    'nombre',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'estilo_heading.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p>
+  <w:pPr><w:pStyle w:val="Heading1" /></w:pPr>
+  <w:r><w:t>Cláusula 1</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Cuerpo normal</w:t></w:r></w:p>
+'''),
+          extraEntries: <String, String>{'word/styles.xml': _stylesXml},
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      final paragraphs = _paragraphs(document.pages.single);
+      final headingRun = paragraphs[0].runs.single;
+      expect(headingRun.colorHex, '365F91');
+      expect(headingRun.isBold, isTrue);
+      expect(headingRun.fontSizePoints, 14);
+      expect(paragraphs[0].spacingBeforePoints, 24);
+      expect(paragraphs[0].spacingAfterPoints, 0);
+
+      // Un párrafo sin pStyle no se ve afectado por el estilo con nombre.
+      final normalRun = paragraphs[1].runs.single;
+      expect(normalRun.colorHex, isNull);
+      expect(normalRun.isBold, isFalse);
+    },
+  );
+
+  test('propiedad inline en el run gana sobre el color heredado del estilo '
+      'del párrafo', () async {
+    final filePath = p.join(tempDirectory.path, 'estilo_override.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:pPr><w:pStyle w:val="Heading1" /></w:pPr>
+  <w:r><w:rPr><w:color w:val="FF0000" /></w:rPr><w:t>Rojo inline</w:t></w:r>
+</w:p>
+'''),
+        extraEntries: <String, String>{'word/styles.xml': _stylesXml},
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final run = _paragraphs(document.pages.single).single.runs.single;
+    expect(run.colorHex, 'FF0000');
+    // isBold no tiene override inline: sigue heredando del estilo.
+    expect(run.isBold, isTrue);
+  });
+
   test('falla con bytes corruptos no ZIP', () async {
     final filePath = p.join(tempDirectory.path, 'corrupto.docx');
     await File(filePath).writeAsBytes(<int>[0, 1, 2, 3, 4, 5, 6]);
@@ -591,6 +754,27 @@ List<DocumentParagraph> _paragraphs(DocumentPage page) {
       if (block case DocumentParagraphBlock(:final paragraph)) paragraph,
   ];
 }
+
+// Inspirado en el word/styles.xml real de un DOCX generado por Word: Heading1
+// basedOn Normal, con color/negrita/tamaño en w:rPr y spacing before en
+// w:pPr. w:sz está en medios-puntos (28 -> 14pt); w:before/after en twips
+// (480 -> 24pt).
+const _stylesXml = '''
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:rPr><w:sz w:val="22" /></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:basedOn w:val="Normal" />
+    <w:pPr><w:spacing w:before="480" w:after="0" /></w:pPr>
+    <w:rPr>
+      <w:b />
+      <w:color w:val="365F91" />
+      <w:sz w:val="28" />
+    </w:rPr>
+  </w:style>
+</w:styles>
+''';
 
 String _documentWithBody(String bodyContent) {
   return '''

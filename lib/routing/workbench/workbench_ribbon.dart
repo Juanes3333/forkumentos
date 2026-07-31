@@ -583,7 +583,7 @@ final class _ExportRibbonActions extends ConsumerWidget {
             ),
             _RibbonActionButton(
               icon: Icons.drive_folder_upload_outlined,
-              label: 'Exportar como',
+              label: 'Exportar a carpeta',
               onPressed: project == null
                   ? null
                   : () => launchExport(context, ref, pickDestination: true),

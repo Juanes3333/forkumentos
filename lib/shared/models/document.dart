@@ -63,8 +63,16 @@ class DocumentTableCell with _$DocumentTableCell {
 
 @freezed
 class DocumentParagraph with _$DocumentParagraph {
-  const factory DocumentParagraph({required List<DocumentRun> runs}) =
-      _DocumentParagraph;
+  const factory DocumentParagraph({
+    required List<DocumentRun> runs,
+    @Default(0) double spacingBeforePoints,
+    @Default(0) double spacingAfterPoints,
+    // ponytail: guardado desde la cascada de estilos pero sin consumidor
+    // todavía — no se usa como restricción dura sobre dónde cortar página.
+    // Mejora futura: evitar que _extractPages corte justo después de un
+    // párrafo con keepWithNext=true.
+    @Default(false) bool keepWithNext,
+  }) = _DocumentParagraph;
 }
 
 @freezed
@@ -74,5 +82,7 @@ class DocumentRun with _$DocumentRun {
     required bool isBold,
     required bool isItalic,
     required bool isUnderlined,
+    String? colorHex,
+    double? fontSizePoints,
   }) = _DocumentRun;
 }

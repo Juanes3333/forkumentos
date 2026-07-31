@@ -95,7 +95,11 @@ List<String> _buildHeaders(List<dynamic> headerRow) {
 
   final headers = headerRow
       .map((Object? cell) => cell == null ? '' : cell.toString())
-      .toList(growable: false);
+      .toList(growable: true);
+  
+  while (headers.isNotEmpty && headers.last.trim().isEmpty) {
+    headers.removeLast();
+  }
   if (headers.every((String header) => header.isEmpty)) {
     throw const FormatException(_missingHeaderMessage);
   }

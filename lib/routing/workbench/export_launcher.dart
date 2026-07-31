@@ -94,6 +94,17 @@ Future<void> launchExport(
     return;
   }
 
+  // Loaded before the dialog so pageCount is known up front, letting the
+  // user pick which pages to export. Paid even if the dialog is cancelled.
+  final baseDocument = await ref.read(
+    documentContentProvider(template.sourcePath).future,
+  );
+  final templateBytes = await File(template.sourcePath).readAsBytes();
+
+  if (!context.mounted) {
+    return;
+  }
+
   final dialogResult = await ExportDialog.show(
     context,
     destinationFolder: destinationFolder,
@@ -105,6 +116,7 @@ Future<void> launchExport(
       datasource.rowCount > 0 ? datasource.rowCount - 1 : 0,
     ),
     missingFieldHeaders: review?.missingFieldHeaders ?? const <String>[],
+    pageCount: baseDocument.pages.length,
     allowDocx: !template.sourcePath.toLowerCase().endsWith('.pdf'),
   );
   if (dialogResult == null || !context.mounted) {
@@ -114,10 +126,6 @@ Future<void> launchExport(
   final job = dialogResult.job;
   final assignments = ref.read(activeMappingProvider).state.assignments;
   final placeholders = assignments.map(_toPlaceholder).toList();
-  final baseDocument = await ref.read(
-    documentContentProvider(template.sourcePath).future,
-  );
-  final templateBytes = await File(template.sourcePath).readAsBytes();
   final recordRepository = ref.read(previewRecordRepositoryProvider);
   final rowsByIndex = await recordRepository.readRecords(
     datasource: datasource,
@@ -306,6 +314,7 @@ final class ExportSession {
           buildDocument: buildDocument,
           resolveRow: resolveRow,
           headers: headers,
+          pageIndexes: job.pageIndexes,
         );
         _active = command;
         final baseOffset = formats.first == _FormatKind.docx

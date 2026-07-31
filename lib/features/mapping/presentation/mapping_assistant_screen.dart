@@ -277,6 +277,10 @@ final class _MappingAssistantScreenState
         endOffset: selection.endOffset,
       );
       final extras = await _resolveExtraOccurrences(document, primary);
+      if (extras == null) {
+        _clearPendingSelection();
+        return;
+      }
 
       mappingNotifier.replaceAssignment(
         existingAssignment: conflict,
@@ -299,6 +303,10 @@ final class _MappingAssistantScreenState
       endOffset: selection.endOffset,
     );
     final extras = await _resolveExtraOccurrences(document, primary);
+    if (extras == null) {
+      _clearPendingSelection();
+      return;
+    }
 
     mappingNotifier.confirmAssignment(
       selection: selection,
@@ -310,7 +318,7 @@ final class _MappingAssistantScreenState
     _clearPendingSelection();
   }
 
-  Future<List<TextOccurrence>> _resolveExtraOccurrences(
+  Future<List<TextOccurrence>?> _resolveExtraOccurrences(
     Document document,
     FieldAssignment primary,
   ) async {
@@ -325,14 +333,10 @@ final class _MappingAssistantScreenState
     }
 
     if (!mounted) {
-      return const <TextOccurrence>[];
+      return null;
     }
 
-    final selected = await MultipleOccurrencesDialog.show(
-      context,
-      occurrences: additional,
-    );
-    return selected ?? const <TextOccurrence>[];
+    return MultipleOccurrencesDialog.show(context, occurrences: additional);
   }
 
   Future<bool> _askReplaceAssignment(FieldAssignment existing) async {

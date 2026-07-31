@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/shared/models/document.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
@@ -48,6 +49,11 @@ final class MappingAwareParagraph extends StatefulWidget {
 }
 
 final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
+  // Attached to the text widget itself (not the outer Padding) so that
+  // findRenderObject() below keeps returning the text's own render box even
+  // after wrapping it for spacingBeforePoints/spacingAfterPoints.
+  final _textKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -85,66 +91,82 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
       return SizedBox(height: widget.emptyParagraphHeight);
     }
 
+    final spacingPadding = EdgeInsets.only(
+      top: widget.paragraph.spacingBeforePoints,
+      bottom: widget.paragraph.spacingAfterPoints,
+    );
+
     if (widget.onSelectionChanged == null) {
-      return RichText(
-        text: TextSpan(
-          style: widget.textStyle.copyWith(color: Colors.black),
-          children: _buildDecoratedSpans(plainText),
+      return Padding(
+        padding: spacingPadding,
+        child: RichText(
+          text: TextSpan(
+            style: widget.textStyle,
+            children: _buildDecoratedSpans(plainText),
+          ),
         ),
       );
     }
 
-    return SelectableText.rich(
-      TextSpan(
-        style: widget.textStyle.copyWith(color: Colors.black),
-        children: _buildDecoratedSpans(plainText),
+    return Padding(
+      padding: spacingPadding,
+      child: SelectableText.rich(
+        key: _textKey,
+        TextSpan(
+          style: widget.textStyle,
+          children: _buildDecoratedSpans(plainText),
+        ),
+        onSelectionChanged: (selection, _) {
+          if (!selection.isValid || selection.isCollapsed) {
+            widget.onSelectionChanged?.call(null);
+            return;
+          }
+
+          final selectedText = plainText.substring(
+            selection.start,
+            selection.end,
+          );
+          if (selectedText.trim().isEmpty) {
+            widget.onSelectionChanged?.call(null);
+            return;
+          }
+
+          // Uses _textKey's own context (not the outer Padding's) so
+          // coordinates stay relative to the text, unaffected by the
+          // spacingBeforePoints/spacingAfterPoints padding around it.
+          final renderBox =
+              _textKey.currentContext?.findRenderObject() as RenderBox?;
+          final localBounds = _selectionLocalBounds(
+            plainText: plainText,
+            selection: selection,
+            maxWidth: renderBox?.size.width ?? 0,
+          );
+          final globalBounds = renderBox == null || localBounds == null
+              ? null
+              : Rect.fromPoints(
+                  renderBox.localToGlobal(localBounds.topLeft),
+                  renderBox.localToGlobal(localBounds.bottomRight),
+                );
+          // Bottom-left of the selection so the tooltip clears the text and
+          // left-aligns with the selection start.
+          final globalAnchor =
+              globalBounds?.bottomLeft ??
+              (renderBox == null
+                  ? const Offset(120, 80)
+                  : renderBox.localToGlobal(Offset(0, renderBox.size.height)));
+
+          widget.onSelectionChanged?.call(
+            DocumentTextSelection(
+              path: widget.path,
+              startOffset: selection.start,
+              endOffset: selection.end,
+              selectedText: selectedText,
+              anchor: globalAnchor,
+              bounds: globalBounds,
+            ),
+          );
+        },
       ),
-      onSelectionChanged: (selection, _) {
-        if (!selection.isValid || selection.isCollapsed) {
-          widget.onSelectionChanged?.call(null);
-          return;
-        }
-
-        final selectedText = plainText.substring(
-          selection.start,
-          selection.end,
-        );
-        if (selectedText.trim().isEmpty) {
-          widget.onSelectionChanged?.call(null);
-          return;
-        }
-
-        final renderBox = context.findRenderObject() as RenderBox?;
-        final localBounds = _selectionLocalBounds(
-          plainText: plainText,
-          selection: selection,
-          maxWidth: renderBox?.size.width ?? 0,
-        );
-        final globalBounds = renderBox == null || localBounds == null
-            ? null
-            : Rect.fromPoints(
-                renderBox.localToGlobal(localBounds.topLeft),
-                renderBox.localToGlobal(localBounds.bottomRight),
-              );
-        // Bottom-left of the selection so the tooltip clears the text and
-        // left-aligns with the selection start.
-        final globalAnchor =
-            globalBounds?.bottomLeft ??
-            (renderBox == null
-                ? const Offset(120, 80)
-                : renderBox.localToGlobal(Offset(0, renderBox.size.height)));
-
-        widget.onSelectionChanged?.call(
-          DocumentTextSelection(
-            path: widget.path,
-            startOffset: selection.start,
-            endOffset: selection.end,
-            selectedText: selectedText,
-            anchor: globalAnchor,
-            bounds: globalBounds,
-          ),
-        );
-      },
     );
   }
 
@@ -159,7 +181,7 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
 
     final painter = TextPainter(
       text: TextSpan(
-        style: widget.textStyle.copyWith(color: Colors.black),
+        style: widget.textStyle,
         children: _buildDecoratedSpans(plainText),
       ),
       textDirection: TextDirection.ltr,
@@ -237,9 +259,18 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
       return runStyle;
     }
 
-    final alpha = highlight.emphasize ? 0.45 : 0.28;
+    if (highlight.emphasize) {
+      final accent = AppColors.of(context).accent;
+      return runStyle.copyWith(
+        backgroundColor: accent.withValues(alpha: 0.55),
+        decoration: TextDecoration.underline,
+        decorationColor: accent,
+        decorationThickness: 2.4,
+      );
+    }
+
     return runStyle.copyWith(
-      backgroundColor: highlight.color.withValues(alpha: alpha),
+      backgroundColor: highlight.color.withValues(alpha: 0.28),
       decoration: highlight.isSuggestion
           ? TextDecoration.underline
           : TextDecoration.combine(<TextDecoration>[
@@ -267,7 +298,8 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
         decoration: run.isUnderlined
             ? TextDecoration.underline
             : TextDecoration.none,
-        fontSize: widget.textStyle.fontSize,
+        color: _runColor(run),
+        fontSize: _runFontSize(run) ?? widget.textStyle.fontSize,
         height: widget.textStyle.height,
       );
     }
@@ -286,8 +318,35 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
             decoration: run.isUnderlined
                 ? TextDecoration.underline
                 : TextDecoration.none,
+            color: _runColor(run),
+            fontSize: _runFontSize(run),
           ),
         ),
     ];
   }
+
+  Color? _runColor(DocumentRun run) {
+    final hex = run.colorHex;
+    if (hex == null) {
+      return null;
+    }
+    final value = int.tryParse(hex, radix: 16);
+    return value == null ? null : Color(0xFF000000 | value);
+  }
+
+  // ponytail: duplica el body font size sin zoom de _documentBodyFontSize en
+  // document_viewer_screen.dart para escalar el fontSizePoints de un run al
+  // mismo nivel de zoom que widget.textStyle, sin enhebrar un parámetro de
+  // escala nuevo por todo el árbol de widgets. Si uno cambia, actualizar
+  // el otro.
+  double? _runFontSize(DocumentRun run) {
+    final points = run.fontSizePoints;
+    final baseFontSize = widget.textStyle.fontSize;
+    if (points == null || baseFontSize == null) {
+      return null;
+    }
+    return points * (baseFontSize / _unzoomedBodyFontSizePoints);
+  }
 }
+
+const _unzoomedBodyFontSizePoints = 11.0;

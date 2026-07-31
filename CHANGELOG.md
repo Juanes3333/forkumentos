@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0
+
+### Added
+- Extracción de estilos tipográficos desde DOCX: `colorHex`, `fontSizePoints`, `spacingBeforePoints` y `spacingAfterPoints`.
+- Renderizado WYSIWYG en el visor: color, tamaño de fuente y espaciado de párrafo del documento original.
+- Export PDF con los mismos estilos tipográficos y espaciado.
+- Header/footer en la exportación PDF y selección opcional de páginas.
+
+### Fixed
+- Doble paginación en PDF (`pw.MultiPage` por página del documento) que generaba hojas casi en blanco y un conteo inflado de páginas.
+
 ## 1.0.0
 
 ### Added

@@ -1531,6 +1531,13 @@ abstract class _DocumentTableCell implements DocumentTableCell {
 /// @nodoc
 mixin _$DocumentParagraph {
   List<DocumentRun> get runs => throw _privateConstructorUsedError;
+  double get spacingBeforePoints => throw _privateConstructorUsedError;
+  double get spacingAfterPoints =>
+      throw _privateConstructorUsedError; // ponytail: guardado desde la cascada de estilos pero sin consumidor
+  // todavía — no se usa como restricción dura sobre dónde cortar página.
+  // Mejora futura: evitar que _extractPages corte justo después de un
+  // párrafo con keepWithNext=true.
+  bool get keepWithNext => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentParagraph
   /// with the given fields replaced by the non-null parameter values.
@@ -1546,7 +1553,12 @@ abstract class $DocumentParagraphCopyWith<$Res> {
     $Res Function(DocumentParagraph) then,
   ) = _$DocumentParagraphCopyWithImpl<$Res, DocumentParagraph>;
   @useResult
-  $Res call({List<DocumentRun> runs});
+  $Res call({
+    List<DocumentRun> runs,
+    double spacingBeforePoints,
+    double spacingAfterPoints,
+    bool keepWithNext,
+  });
 }
 
 /// @nodoc
@@ -1563,13 +1575,30 @@ class _$DocumentParagraphCopyWithImpl<$Res, $Val extends DocumentParagraph>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? runs = null}) {
+  $Res call({
+    Object? runs = null,
+    Object? spacingBeforePoints = null,
+    Object? spacingAfterPoints = null,
+    Object? keepWithNext = null,
+  }) {
     return _then(
       _value.copyWith(
             runs: null == runs
                 ? _value.runs
                 : runs // ignore: cast_nullable_to_non_nullable
                       as List<DocumentRun>,
+            spacingBeforePoints: null == spacingBeforePoints
+                ? _value.spacingBeforePoints
+                : spacingBeforePoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            spacingAfterPoints: null == spacingAfterPoints
+                ? _value.spacingAfterPoints
+                : spacingAfterPoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            keepWithNext: null == keepWithNext
+                ? _value.keepWithNext
+                : keepWithNext // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -1585,7 +1614,12 @@ abstract class _$$DocumentParagraphImplCopyWith<$Res>
   ) = __$$DocumentParagraphImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({List<DocumentRun> runs});
+  $Res call({
+    List<DocumentRun> runs,
+    double spacingBeforePoints,
+    double spacingAfterPoints,
+    bool keepWithNext,
+  });
 }
 
 /// @nodoc
@@ -1601,13 +1635,30 @@ class __$$DocumentParagraphImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? runs = null}) {
+  $Res call({
+    Object? runs = null,
+    Object? spacingBeforePoints = null,
+    Object? spacingAfterPoints = null,
+    Object? keepWithNext = null,
+  }) {
     return _then(
       _$DocumentParagraphImpl(
         runs: null == runs
             ? _value._runs
             : runs // ignore: cast_nullable_to_non_nullable
                   as List<DocumentRun>,
+        spacingBeforePoints: null == spacingBeforePoints
+            ? _value.spacingBeforePoints
+            : spacingBeforePoints // ignore: cast_nullable_to_non_nullable
+                  as double,
+        spacingAfterPoints: null == spacingAfterPoints
+            ? _value.spacingAfterPoints
+            : spacingAfterPoints // ignore: cast_nullable_to_non_nullable
+                  as double,
+        keepWithNext: null == keepWithNext
+            ? _value.keepWithNext
+            : keepWithNext // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -1616,8 +1667,12 @@ class __$$DocumentParagraphImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$DocumentParagraphImpl implements _DocumentParagraph {
-  const _$DocumentParagraphImpl({required final List<DocumentRun> runs})
-    : _runs = runs;
+  const _$DocumentParagraphImpl({
+    required final List<DocumentRun> runs,
+    this.spacingBeforePoints = 0,
+    this.spacingAfterPoints = 0,
+    this.keepWithNext = false,
+  }) : _runs = runs;
 
   final List<DocumentRun> _runs;
   @override
@@ -1628,8 +1683,22 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
   }
 
   @override
+  @JsonKey()
+  final double spacingBeforePoints;
+  @override
+  @JsonKey()
+  final double spacingAfterPoints;
+  // ponytail: guardado desde la cascada de estilos pero sin consumidor
+  // todavía — no se usa como restricción dura sobre dónde cortar página.
+  // Mejora futura: evitar que _extractPages corte justo después de un
+  // párrafo con keepWithNext=true.
+  @override
+  @JsonKey()
+  final bool keepWithNext;
+
+  @override
   String toString() {
-    return 'DocumentParagraph(runs: $runs)';
+    return 'DocumentParagraph(runs: $runs, spacingBeforePoints: $spacingBeforePoints, spacingAfterPoints: $spacingAfterPoints, keepWithNext: $keepWithNext)';
   }
 
   @override
@@ -1637,12 +1706,23 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$DocumentParagraphImpl &&
-            const DeepCollectionEquality().equals(other._runs, _runs));
+            const DeepCollectionEquality().equals(other._runs, _runs) &&
+            (identical(other.spacingBeforePoints, spacingBeforePoints) ||
+                other.spacingBeforePoints == spacingBeforePoints) &&
+            (identical(other.spacingAfterPoints, spacingAfterPoints) ||
+                other.spacingAfterPoints == spacingAfterPoints) &&
+            (identical(other.keepWithNext, keepWithNext) ||
+                other.keepWithNext == keepWithNext));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, const DeepCollectionEquality().hash(_runs));
+  int get hashCode => Object.hash(
+    runtimeType,
+    const DeepCollectionEquality().hash(_runs),
+    spacingBeforePoints,
+    spacingAfterPoints,
+    keepWithNext,
+  );
 
   /// Create a copy of DocumentParagraph
   /// with the given fields replaced by the non-null parameter values.
@@ -1657,11 +1737,24 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
 }
 
 abstract class _DocumentParagraph implements DocumentParagraph {
-  const factory _DocumentParagraph({required final List<DocumentRun> runs}) =
-      _$DocumentParagraphImpl;
+  const factory _DocumentParagraph({
+    required final List<DocumentRun> runs,
+    final double spacingBeforePoints,
+    final double spacingAfterPoints,
+    final bool keepWithNext,
+  }) = _$DocumentParagraphImpl;
 
   @override
   List<DocumentRun> get runs;
+  @override
+  double get spacingBeforePoints;
+  @override
+  double get spacingAfterPoints; // ponytail: guardado desde la cascada de estilos pero sin consumidor
+  // todavía — no se usa como restricción dura sobre dónde cortar página.
+  // Mejora futura: evitar que _extractPages corte justo después de un
+  // párrafo con keepWithNext=true.
+  @override
+  bool get keepWithNext;
 
   /// Create a copy of DocumentParagraph
   /// with the given fields replaced by the non-null parameter values.
@@ -1677,6 +1770,8 @@ mixin _$DocumentRun {
   bool get isBold => throw _privateConstructorUsedError;
   bool get isItalic => throw _privateConstructorUsedError;
   bool get isUnderlined => throw _privateConstructorUsedError;
+  String? get colorHex => throw _privateConstructorUsedError;
+  double? get fontSizePoints => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentRun
   /// with the given fields replaced by the non-null parameter values.
@@ -1692,7 +1787,14 @@ abstract class $DocumentRunCopyWith<$Res> {
     $Res Function(DocumentRun) then,
   ) = _$DocumentRunCopyWithImpl<$Res, DocumentRun>;
   @useResult
-  $Res call({String text, bool isBold, bool isItalic, bool isUnderlined});
+  $Res call({
+    String text,
+    bool isBold,
+    bool isItalic,
+    bool isUnderlined,
+    String? colorHex,
+    double? fontSizePoints,
+  });
 }
 
 /// @nodoc
@@ -1714,6 +1816,8 @@ class _$DocumentRunCopyWithImpl<$Res, $Val extends DocumentRun>
     Object? isBold = null,
     Object? isItalic = null,
     Object? isUnderlined = null,
+    Object? colorHex = freezed,
+    Object? fontSizePoints = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -1733,6 +1837,14 @@ class _$DocumentRunCopyWithImpl<$Res, $Val extends DocumentRun>
                 ? _value.isUnderlined
                 : isUnderlined // ignore: cast_nullable_to_non_nullable
                       as bool,
+            colorHex: freezed == colorHex
+                ? _value.colorHex
+                : colorHex // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            fontSizePoints: freezed == fontSizePoints
+                ? _value.fontSizePoints
+                : fontSizePoints // ignore: cast_nullable_to_non_nullable
+                      as double?,
           )
           as $Val,
     );
@@ -1748,7 +1860,14 @@ abstract class _$$DocumentRunImplCopyWith<$Res>
   ) = __$$DocumentRunImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String text, bool isBold, bool isItalic, bool isUnderlined});
+  $Res call({
+    String text,
+    bool isBold,
+    bool isItalic,
+    bool isUnderlined,
+    String? colorHex,
+    double? fontSizePoints,
+  });
 }
 
 /// @nodoc
@@ -1769,6 +1888,8 @@ class __$$DocumentRunImplCopyWithImpl<$Res>
     Object? isBold = null,
     Object? isItalic = null,
     Object? isUnderlined = null,
+    Object? colorHex = freezed,
+    Object? fontSizePoints = freezed,
   }) {
     return _then(
       _$DocumentRunImpl(
@@ -1788,6 +1909,14 @@ class __$$DocumentRunImplCopyWithImpl<$Res>
             ? _value.isUnderlined
             : isUnderlined // ignore: cast_nullable_to_non_nullable
                   as bool,
+        colorHex: freezed == colorHex
+            ? _value.colorHex
+            : colorHex // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        fontSizePoints: freezed == fontSizePoints
+            ? _value.fontSizePoints
+            : fontSizePoints // ignore: cast_nullable_to_non_nullable
+                  as double?,
       ),
     );
   }
@@ -1801,6 +1930,8 @@ class _$DocumentRunImpl implements _DocumentRun {
     required this.isBold,
     required this.isItalic,
     required this.isUnderlined,
+    this.colorHex,
+    this.fontSizePoints,
   });
 
   @override
@@ -1811,10 +1942,14 @@ class _$DocumentRunImpl implements _DocumentRun {
   final bool isItalic;
   @override
   final bool isUnderlined;
+  @override
+  final String? colorHex;
+  @override
+  final double? fontSizePoints;
 
   @override
   String toString() {
-    return 'DocumentRun(text: $text, isBold: $isBold, isItalic: $isItalic, isUnderlined: $isUnderlined)';
+    return 'DocumentRun(text: $text, isBold: $isBold, isItalic: $isItalic, isUnderlined: $isUnderlined, colorHex: $colorHex, fontSizePoints: $fontSizePoints)';
   }
 
   @override
@@ -1827,12 +1962,23 @@ class _$DocumentRunImpl implements _DocumentRun {
             (identical(other.isItalic, isItalic) ||
                 other.isItalic == isItalic) &&
             (identical(other.isUnderlined, isUnderlined) ||
-                other.isUnderlined == isUnderlined));
+                other.isUnderlined == isUnderlined) &&
+            (identical(other.colorHex, colorHex) ||
+                other.colorHex == colorHex) &&
+            (identical(other.fontSizePoints, fontSizePoints) ||
+                other.fontSizePoints == fontSizePoints));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, text, isBold, isItalic, isUnderlined);
+  int get hashCode => Object.hash(
+    runtimeType,
+    text,
+    isBold,
+    isItalic,
+    isUnderlined,
+    colorHex,
+    fontSizePoints,
+  );
 
   /// Create a copy of DocumentRun
   /// with the given fields replaced by the non-null parameter values.
@@ -1849,6 +1995,8 @@ abstract class _DocumentRun implements DocumentRun {
     required final bool isBold,
     required final bool isItalic,
     required final bool isUnderlined,
+    final String? colorHex,
+    final double? fontSizePoints,
   }) = _$DocumentRunImpl;
 
   @override
@@ -1859,6 +2007,10 @@ abstract class _DocumentRun implements DocumentRun {
   bool get isItalic;
   @override
   bool get isUnderlined;
+  @override
+  String? get colorHex;
+  @override
+  double? get fontSizePoints;
 
   /// Create a copy of DocumentRun
   /// with the given fields replaced by the non-null parameter values.

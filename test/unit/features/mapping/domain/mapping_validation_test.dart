@@ -56,6 +56,33 @@ void main() {
       expect(result.overlaps, hasLength(1));
       expect(result.isValid, isFalse);
     });
+
+    test(
+      'no confunde solapamiento entre body y header con mismo pageIndex/steps',
+      () {
+        final result = validateMappingAssignments(
+          assignments: <FieldAssignment>[
+            _assignment(id: 'a1', fieldIndex: 0, endOffset: 5),
+            _assignment(
+              id: 'a2',
+              fieldIndex: 1,
+              startOffset: 3,
+              endOffset: 8,
+              path: const DocumentTextPath(
+                pageIndex: 0,
+                steps: <DocumentPathStep>[
+                  DocumentPathStep.rootBlock(blockIndex: 0),
+                ],
+                region: DocumentTextRegion.header,
+              ),
+            ),
+          ],
+          datasourceHeaders: <String>['nombre', 'correo'],
+        );
+
+        expect(result.overlaps, isEmpty);
+      },
+    );
   });
 
   group('synchronizeMappingAssignments', () {
@@ -96,13 +123,14 @@ FieldAssignment _assignment({
   String selectedText = 'Ana',
   int startOffset = 0,
   int endOffset = 3,
+  DocumentTextPath path = _path,
 }) {
   return FieldAssignment(
     id: id,
     fieldIndex: fieldIndex,
     fieldHeader: fieldHeader,
     selectedText: selectedText,
-    path: _path,
+    path: path,
     startOffset: startOffset,
     endOffset: endOffset,
   );

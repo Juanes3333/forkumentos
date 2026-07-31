@@ -19,6 +19,7 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$DocumentTextPath {
   int get pageIndex => throw _privateConstructorUsedError;
   List<DocumentPathStep> get steps => throw _privateConstructorUsedError;
+  DocumentTextRegion get region => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentTextPath
   /// with the given fields replaced by the non-null parameter values.
@@ -34,7 +35,11 @@ abstract class $DocumentTextPathCopyWith<$Res> {
     $Res Function(DocumentTextPath) then,
   ) = _$DocumentTextPathCopyWithImpl<$Res, DocumentTextPath>;
   @useResult
-  $Res call({int pageIndex, List<DocumentPathStep> steps});
+  $Res call({
+    int pageIndex,
+    List<DocumentPathStep> steps,
+    DocumentTextRegion region,
+  });
 }
 
 /// @nodoc
@@ -51,7 +56,11 @@ class _$DocumentTextPathCopyWithImpl<$Res, $Val extends DocumentTextPath>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? pageIndex = null, Object? steps = null}) {
+  $Res call({
+    Object? pageIndex = null,
+    Object? steps = null,
+    Object? region = null,
+  }) {
     return _then(
       _value.copyWith(
             pageIndex: null == pageIndex
@@ -62,6 +71,10 @@ class _$DocumentTextPathCopyWithImpl<$Res, $Val extends DocumentTextPath>
                 ? _value.steps
                 : steps // ignore: cast_nullable_to_non_nullable
                       as List<DocumentPathStep>,
+            region: null == region
+                ? _value.region
+                : region // ignore: cast_nullable_to_non_nullable
+                      as DocumentTextRegion,
           )
           as $Val,
     );
@@ -77,7 +90,11 @@ abstract class _$$DocumentTextPathImplCopyWith<$Res>
   ) = __$$DocumentTextPathImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({int pageIndex, List<DocumentPathStep> steps});
+  $Res call({
+    int pageIndex,
+    List<DocumentPathStep> steps,
+    DocumentTextRegion region,
+  });
 }
 
 /// @nodoc
@@ -93,7 +110,11 @@ class __$$DocumentTextPathImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? pageIndex = null, Object? steps = null}) {
+  $Res call({
+    Object? pageIndex = null,
+    Object? steps = null,
+    Object? region = null,
+  }) {
     return _then(
       _$DocumentTextPathImpl(
         pageIndex: null == pageIndex
@@ -104,6 +125,10 @@ class __$$DocumentTextPathImplCopyWithImpl<$Res>
             ? _value._steps
             : steps // ignore: cast_nullable_to_non_nullable
                   as List<DocumentPathStep>,
+        region: null == region
+            ? _value.region
+            : region // ignore: cast_nullable_to_non_nullable
+                  as DocumentTextRegion,
       ),
     );
   }
@@ -115,6 +140,7 @@ class _$DocumentTextPathImpl implements _DocumentTextPath {
   const _$DocumentTextPathImpl({
     required this.pageIndex,
     required final List<DocumentPathStep> steps,
+    this.region = DocumentTextRegion.body,
   }) : _steps = steps;
 
   @override
@@ -128,8 +154,12 @@ class _$DocumentTextPathImpl implements _DocumentTextPath {
   }
 
   @override
+  @JsonKey()
+  final DocumentTextRegion region;
+
+  @override
   String toString() {
-    return 'DocumentTextPath(pageIndex: $pageIndex, steps: $steps)';
+    return 'DocumentTextPath(pageIndex: $pageIndex, steps: $steps, region: $region)';
   }
 
   @override
@@ -139,7 +169,8 @@ class _$DocumentTextPathImpl implements _DocumentTextPath {
             other is _$DocumentTextPathImpl &&
             (identical(other.pageIndex, pageIndex) ||
                 other.pageIndex == pageIndex) &&
-            const DeepCollectionEquality().equals(other._steps, _steps));
+            const DeepCollectionEquality().equals(other._steps, _steps) &&
+            (identical(other.region, region) || other.region == region));
   }
 
   @override
@@ -147,6 +178,7 @@ class _$DocumentTextPathImpl implements _DocumentTextPath {
     runtimeType,
     pageIndex,
     const DeepCollectionEquality().hash(_steps),
+    region,
   );
 
   /// Create a copy of DocumentTextPath
@@ -165,12 +197,15 @@ abstract class _DocumentTextPath implements DocumentTextPath {
   const factory _DocumentTextPath({
     required final int pageIndex,
     required final List<DocumentPathStep> steps,
+    final DocumentTextRegion region,
   }) = _$DocumentTextPathImpl;
 
   @override
   int get pageIndex;
   @override
   List<DocumentPathStep> get steps;
+  @override
+  DocumentTextRegion get region;
 
   /// Create a copy of DocumentTextPath
   /// with the given fields replaced by the non-null parameter values.

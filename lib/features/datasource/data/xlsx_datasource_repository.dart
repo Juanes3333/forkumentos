@@ -51,7 +51,10 @@ Map<String, Object?> _parseXlsxContent(Map<String, Object?> payload) {
   final rows = sheet.rows;
 
   final headerRow = rows.first;
-  final headers = headerRow.map(_normalizeHeaderCell).toList(growable: false);
+  final headers = headerRow.map(_normalizeHeaderCell).toList(growable: true);
+  while (headers.isNotEmpty && headers.last.trim().isEmpty) {
+    headers.removeLast();
+  }
   if (headers.every((String header) => header.isEmpty)) {
     throw const FormatException(
       'El archivo XLSX no contiene una fila de encabezados válida.',

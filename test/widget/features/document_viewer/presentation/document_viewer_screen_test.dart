@@ -261,6 +261,134 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('incrementar focusToken hace scroll hasta una página posterior', (
+    WidgetTester tester,
+  ) async {
+    final pages = List<DocumentPage>.generate(
+      5,
+      (i) => _buildPage(number: i + 1, text: 'Página ${i + 1}'),
+    );
+    final repository = FakeDocumentRepository(
+      loadHandler: (_) async => _buildDocument(pages: pages),
+    );
+
+    var focusPageIndex = 0;
+    var focusToken = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          documentRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setLocalState) {
+                return Column(
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: () => setLocalState(() {
+                        focusPageIndex = 3;
+                        focusToken++;
+                      }),
+                      child: const Text('ir a página 4'),
+                    ),
+                    SizedBox(
+                      height: 400,
+                      width: 800,
+                      child: DocumentViewerScreen(
+                        documentPath: '/tmp/documento.docx',
+                        isSourceLoading: false,
+                        focusPageIndex: focusPageIndex,
+                        focusToken: focusToken,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final beforeTop = tester
+        .getTopLeft(find.text('Página 4', findRichText: true))
+        .dy;
+    expect(
+      beforeTop,
+      greaterThanOrEqualTo(400),
+      reason: 'página 4 debe iniciar fuera del viewport de 400px',
+    );
+
+    await tester.tap(find.text('ir a página 4'));
+    await tester.pumpAndSettle();
+
+    final afterTop = tester
+        .getTopLeft(find.text('Página 4', findRichText: true))
+        .dy;
+    expect(
+      afterTop,
+      inInclusiveRange(0, 400),
+      reason:
+          'página 4 debe quedar visible dentro del viewport tras '
+          'el autoscroll',
+    );
+  });
+
+  testWidgets('muestra header y footer en cada página cuando existen', (
+    WidgetTester tester,
+  ) async {
+    await _pumpScreen(
+      tester,
+      repository: FakeDocumentRepository(
+        loadHandler: (_) async => _buildDocument(
+          pages: <DocumentPage>[
+            _buildPage(number: 1, text: 'Cuerpo página uno'),
+            _buildPage(number: 2, text: 'Cuerpo página dos'),
+          ],
+          header: <DocumentBlock>[_textBlock('Encabezado del documento')],
+          footer: <DocumentBlock>[_textBlock('Pie del documento')],
+        ),
+      ),
+      documentPath: '/tmp/documento.docx',
+      isSourceLoading: false,
+      sourceErrorMessage: null,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Encabezado del documento', findRichText: true),
+      findsNWidgets(2),
+      reason: 'el header debe repetirse en cada una de las 2 páginas',
+    );
+    expect(
+      find.text('Pie del documento', findRichText: true),
+      findsNWidgets(2),
+      reason: 'el footer debe repetirse en cada una de las 2 páginas',
+    );
+  });
+
+  testWidgets('no agrega espacio ni divisores cuando no hay header/footer', (
+    WidgetTester tester,
+  ) async {
+    await _pumpScreen(
+      tester,
+      repository: FakeDocumentRepository(
+        loadHandler: (_) async => _buildDocument(
+          pages: <DocumentPage>[_buildPage(number: 1, text: 'Sin encabezado')],
+        ),
+      ),
+      documentPath: '/tmp/documento.docx',
+      isSourceLoading: false,
+      sourceErrorMessage: null,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Divider), findsNothing);
+  });
 }
 
 Future<void> _pumpScreen(
@@ -301,8 +429,30 @@ Finder _iconButtonByIcon(IconData icon) {
 Document _buildDocument({
   required List<DocumentPage> pages,
   Set<DocumentOmission> omissions = const <DocumentOmission>{},
+  List<DocumentBlock> header = const <DocumentBlock>[],
+  List<DocumentBlock> footer = const <DocumentBlock>[],
 }) {
-  return Document(pages: pages, omissions: omissions);
+  return Document(
+    pages: pages,
+    omissions: omissions,
+    header: header,
+    footer: footer,
+  );
+}
+
+DocumentBlock _textBlock(String text) {
+  return DocumentBlock.paragraph(
+    DocumentParagraph(
+      runs: <DocumentRun>[
+        DocumentRun(
+          text: text,
+          isBold: false,
+          isItalic: false,
+          isUnderlined: false,
+        ),
+      ],
+    ),
+  );
 }
 
 DocumentPage _buildPage({required int number, required String text}) {
