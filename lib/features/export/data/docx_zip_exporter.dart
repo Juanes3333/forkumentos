@@ -245,6 +245,72 @@ void _applyToTextNodes(
     return;
   }
 
+  final groups = _editableGroups(nodes);
+  if (groups.isEmpty) {
+    // ponytail: chunk sin ningún w:t editable (p.ej. solo tabs) — no hay
+    // dónde escribir; se deja el XML original intacto en vez de adivinar.
+    return;
+  }
+
+  for (final group in groups) {
+    final local = <DocxTextReplacement>[];
+    for (final replacement in replacements) {
+      if (replacement.startOffset < group.start ||
+          replacement.startOffset >= group.end) {
+        continue;
+      }
+      // Un reemplazo no debería cruzar un gap de tab/salto de línea (los
+      // campos se extraen de texto visible contiguo), pero si ocurre se
+      // recorta al grupo donde empieza y se descarta la cola tras el gap,
+      // en vez de construir un empalme entre grupos.
+      final end = replacement.endOffset.clamp(group.start, group.end);
+      local.add(
+        DocxTextReplacement(
+          pageIndex: replacement.pageIndex,
+          steps: replacement.steps,
+          startOffset: replacement.startOffset - group.start,
+          endOffset: end - group.start,
+          text: replacement.text,
+        ),
+      );
+    }
+    if (local.isNotEmpty) {
+      _applyToEditableGroup(group.nodes, local);
+    }
+  }
+}
+
+/// Agrupa [nodes] en tramos contiguos de nodos editables (`w:t`), separados
+/// por nodos "gap" (`w:tab`/`w:br`). Cada grupo conserva su rango
+/// `[start, end)` en offsets del texto plano completo del chunk, para poder
+/// traducir un [DocxTextReplacement] a offsets locales del grupo.
+List<_EditableGroup> _editableGroups(List<_TextNodeRef> nodes) {
+  final groups = <_EditableGroup>[];
+  var offset = 0;
+  var current = <_TextNodeRef>[];
+  var start = 0;
+  for (final node in nodes) {
+    if (node.isEditable) {
+      if (current.isEmpty) {
+        start = offset;
+      }
+      current.add(node);
+    } else if (current.isNotEmpty) {
+      groups.add((nodes: current, start: start, end: offset));
+      current = <_TextNodeRef>[];
+    }
+    offset += node.text.length;
+  }
+  if (current.isNotEmpty) {
+    groups.add((nodes: current, start: start, end: offset));
+  }
+  return groups;
+}
+
+void _applyToEditableGroup(
+  List<_TextNodeRef> nodes,
+  List<DocxTextReplacement> replacements,
+) {
   final plain = nodes.map((node) => node.text).join();
   final sorted = [...replacements]
     ..sort((a, b) => a.startOffset.compareTo(b.startOffset));
@@ -309,7 +375,9 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
   var endedWithPageBreak = false;
 
   final runs = paragraph.descendants.whereType<XmlElement>().where(
-    (element) => element.name.local == 'r',
+    (element) =>
+        element.name.local == 'r' &&
+        !_isOutsideParagraphFlow(element, paragraph),
   );
 
   for (final run in runs) {
@@ -320,7 +388,7 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
       continue;
     }
 
-    for (final element in run.descendants.whereType<XmlElement>()) {
+    for (final element in _runContentElements(run)) {
       final localName = element.name.local;
       if (localName == 't') {
         current.add(_TextNodeRef(element: element, text: element.innerText));
@@ -329,8 +397,12 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
         continue;
       }
       if (localName == 'tab') {
-        // Tabs contribute '\t' to plain text in the Document model but are not
-        // editable w:t nodes; offsets still align for typical mapped spans.
+        // Espejo de ingesta: un tab aporta '\t' al texto plano del párrafo.
+        // No es un w:t editable, así que entra como nodo "gap" — cuenta para
+        // los offsets pero nunca es objetivo de escritura/limpieza.
+        current.add(
+          _TextNodeRef(element: element, text: '\t', isEditable: false),
+        );
         sawVisible = true;
         endedWithPageBreak = false;
         continue;
@@ -344,19 +416,21 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
           sawVisible = true;
           endedWithPageBreak = true;
         } else {
+          // Espejo de ingesta: un salto de línea manual aporta '\n' como
+          // nodo "gap", igual que w:tab arriba.
+          current.add(
+            _TextNodeRef(element: element, text: '\n', isEditable: false),
+          );
           sawVisible = true;
           endedWithPageBreak = false;
         }
         continue;
       }
-      if (localName == 'lastRenderedPageBreak') {
-        chunks.add(
-          _ParagraphChunkNodes(nodes: current, endsWithPageBreak: true),
-        );
-        current = <_TextNodeRef>[];
-        sawVisible = true;
-        endedWithPageBreak = true;
-      }
+      // `lastRenderedPageBreak` no trocea el chunk: espejo del lado de
+      // ingesta (docx_document_repository.dart), donde partirlo genera
+      // páginas fantasma en documentos editados sin re-maquetar en Word (ver
+      // commit 6ba34c8). Mientras ese lado no trocee, este tampoco puede
+      // hacerlo sin desalinear los offsets del mapeo.
     }
   }
 
@@ -380,6 +454,40 @@ bool _hasTrackedChangeAncestor(XmlElement run) {
   for (final ancestor in run.ancestors.whereType<XmlElement>()) {
     final localName = ancestor.name.local;
     if (localName == 'ins' || localName == 'del') {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Espejo de `_runContentElements` en `docx_document_repository.dart`: el
+/// texto de un dibujo o de un cuadro de texto no entra en el flujo del
+/// párrafo. Si los dos lados dejaran de coincidir, los offsets del mapeo
+/// apuntarían a un texto distinto del que se reemplaza aquí.
+Iterable<XmlElement> _runContentElements(XmlElement run) sync* {
+  for (final child in run.childElements) {
+    final localName = child.name.local;
+    if (localName == 'Fallback') {
+      continue;
+    }
+    yield child;
+    if (localName == 'drawing' || localName == 'pict' || localName == 'rPr') {
+      continue;
+    }
+    yield* _runContentElements(child);
+  }
+}
+
+/// Espejo de `_isOutsideParagraphFlow` en `docx_document_repository.dart`.
+bool _isOutsideParagraphFlow(XmlElement element, XmlElement paragraph) {
+  for (final ancestor in element.ancestors.whereType<XmlElement>()) {
+    if (identical(ancestor, paragraph)) {
+      return false;
+    }
+    final localName = ancestor.name.local;
+    if (localName == 'Fallback' ||
+        localName == 'drawing' ||
+        localName == 'pict') {
       return true;
     }
   }
@@ -410,11 +518,24 @@ bool _isPageBreak(XmlElement breakElement) {
 }
 
 final class _TextNodeRef {
-  const _TextNodeRef({required this.element, required this.text});
+  const _TextNodeRef({
+    required this.element,
+    required this.text,
+    this.isEditable = true,
+  });
 
   final XmlElement element;
   final String text;
+
+  /// `false` for `<w:tab/>`/`<w:br/>` gap nodes: they count toward the
+  /// chunk's plain-text offsets (matching ingestion's character accounting)
+  /// but are `CT_Empty` in OOXML, so they can never be a write/clear target.
+  final bool isEditable;
 }
+
+/// A contiguous run of editable [_TextNodeRef]s inside one paragraph chunk,
+/// with its `[start, end)` range in the chunk's full plain-text offsets.
+typedef _EditableGroup = ({List<_TextNodeRef> nodes, int start, int end});
 
 final class _ParagraphChunkNodes {
   const _ParagraphChunkNodes({
