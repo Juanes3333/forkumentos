@@ -27,6 +27,9 @@ Workspace/
 # Graphify generated output
 graphify-out/
 
+# Local planning drafts (not product source)
+implementation_plan.md
+
 # IntelliJ related
 *.iml
 *.ipr

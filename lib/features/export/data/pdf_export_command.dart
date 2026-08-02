@@ -122,47 +122,82 @@ Future<Uint8List> _renderPdfBytes(Document document, List<int>? pageIndexes) {
               document.pages[index],
         ];
 
-  final header = document.header.isEmpty
-      ? null
-      : _pdfHeaderFooterBuilder(document.header);
-  final footer = document.footer.isEmpty
-      ? null
-      : _pdfHeaderFooterBuilder(document.footer);
-
-  if (selectedPages.isEmpty) {
-    return pdf.save();
-  }
-  final firstPage = selectedPages.first;
-
-  // ponytail: un solo MultiPage para todo el documento. Un MultiPage por
-  // DocumentPage forzaba doble paginación (nuestra + la de pdf) y hojas
-  // casi en blanco. Ceiling: pageFormat/margins salen de la primera página
-  // seleccionada; si un doc mezcla tamaños, hay que volver a per-page.
-  pdf.addPage(
-    pw.MultiPage(
-      pageFormat: PdfPageFormat(firstPage.widthPoints, firstPage.heightPoints),
-      margin: pw.EdgeInsets.fromLTRB(
-        firstPage.margins.leftPoints,
-        firstPage.margins.topPoints,
-        firstPage.margins.rightPoints,
-        firstPage.margins.bottomPoints,
+  // Paginación estricta: UNA hoja de PDF por cada DocumentPage, en el mismo
+  // orden. `pw.Page` no puede generar una hoja de continuación (a diferencia
+  // de MultiPage), así que el reparto de bloques que calculó el parser —
+  // que es el de Word, vía w:lastRenderedPageBreak — se respeta tal cual en
+  // vez de dejar que `pdf` re-pagine con sus propias métricas de Helvetica.
+  //
+  // El precio de `pw.Page` es que el desbordamiento se recorta en silencio en
+  // vez de fluir a otra hoja; el FittedBox de abajo es lo que impide perder
+  // texto por eso. Cada página aporta su propio pageFormat/margins, así que un
+  // documento que mezcle tamaños de hoja ya no queda atado al de la primera.
+  for (final page in selectedPages) {
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(page.widthPoints, page.heightPoints),
+        margin: pw.EdgeInsets.fromLTRB(
+          page.margins.leftPoints,
+          page.margins.topPoints,
+          page.margins.rightPoints,
+          page.margins.bottomPoints,
+        ),
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: <pw.Widget>[
+            if (document.header.isNotEmpty)
+              _pdfHeaderFooterWidget(document.header),
+            // Expanded empuja el pie al borde inferior del área de contenido,
+            // igual que la banda de margen inferior del visor.
+            pw.Expanded(
+              child: pw.FittedBox(
+                // `pw.Page` recorta en silencio lo que no cabe, y perder
+                // texto de un documento exportado es peor que cualquier
+                // desajuste tipográfico. scaleDown NO toca las páginas que
+                // ya caben; solo encoge, de forma uniforme, la que se pase.
+                //
+                // Un factor global fijo no serviría: el PDF dibuja en
+                // Helvetica (~0.5em por carácter) mientras el paginador
+                // presupuesta 0.44em, así que una línea que en Word llenaba
+                // el ancho se parte en dos aquí y duplica el alto. Ese
+                // desajuste depende de la fuente real de cada plantilla y no
+                // está acotado; encoger solo cuando hace falta sí lo está.
+                fit: pw.BoxFit.scaleDown,
+                alignment: pw.Alignment.topLeft,
+                child: pw.SizedBox(
+                  // Ancho útil explícito: sin él FittedBox mediría el hijo
+                  // sin restricción de ancho, el texto no envolvería y todo
+                  // el párrafo saldría en una sola línea kilométrica.
+                  width: _contentWidthPoints(page),
+                  child: pw.Column(
+                    mainAxisSize: pw.MainAxisSize.min,
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: <pw.Widget>[
+                      for (final block in page.blocks) _pdfBlockWidget(block),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (document.footer.isNotEmpty)
+              _pdfHeaderFooterWidget(document.footer),
+          ],
+        ),
       ),
-      header: header,
-      footer: footer,
-      build: (context) => <pw.Widget>[
-        for (final page in selectedPages)
-          for (final block in page.blocks) _pdfBlockWidget(block),
-      ],
-    ),
-  );
+    );
+  }
 
   return pdf.save();
 }
 
-pw.Widget Function(pw.Context) _pdfHeaderFooterBuilder(
-  List<DocumentBlock> blocks,
-) {
-  return (context) => pw.DefaultTextStyle.merge(
+double _contentWidthPoints(DocumentPage page) {
+  final width =
+      page.widthPoints - page.margins.leftPoints - page.margins.rightPoints;
+  return width > 0 ? width : page.widthPoints;
+}
+
+pw.Widget _pdfHeaderFooterWidget(List<DocumentBlock> blocks) {
+  return pw.DefaultTextStyle.merge(
     style: const pw.TextStyle(fontSize: 9),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -215,8 +250,8 @@ pw.TextAlign _pdfTextAlign(DocumentAlignment alignment) {
 // cercano al comportamiento real sin forzar un ancho exacto aquí.
 pw.Alignment _pdfBlockAlignment(DocumentAlignment alignment) {
   return switch (alignment) {
-    DocumentAlignment.start || DocumentAlignment.justify =>
-      pw.Alignment.centerLeft,
+    DocumentAlignment.start ||
+    DocumentAlignment.justify => pw.Alignment.centerLeft,
     DocumentAlignment.center => pw.Alignment.center,
     DocumentAlignment.end => pw.Alignment.centerRight,
   };
@@ -255,9 +290,7 @@ List<pw.InlineSpan> _pdfParagraphSpans(DocumentParagraph paragraph) {
       continue;
     }
 
-    spans.add(
-      pw.TextSpan(text: run.text, style: _pdfRunStyle(run, paragraph)),
-    );
+    spans.add(pw.TextSpan(text: run.text, style: _pdfRunStyle(run, paragraph)));
   }
 
   return spans;

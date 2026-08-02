@@ -82,10 +82,8 @@ void main() {
     expect(text, contains('Cuerpo del documento'));
   });
 
-  test('una página cuyo contenido excede el alto nominal no lanza excepción '
-      'y fluye a una hoja de continuación', () async {
-    // Small nominal page height with far more paragraph content than fits
-    // — before the pw.MultiPage fix this would silently clip under pw.Page.
+  test('una página cuyo contenido excede el alto nominal sigue siendo UNA '
+      'sola hoja y no lanza excepción', () async {
     final document = _pageDocument(
       widthPoints: 200,
       heightPoints: 100,
@@ -104,15 +102,83 @@ void main() {
 
     final pdf = PdfDocument(inputBytes: bytes);
     try {
+      // Paginación estricta: un DocumentPage es UNA hoja pase lo que pase.
+      // Dejar que el desbordamiento invente una hoja de continuación
+      // desalinearía el PDF del visor y de Word a partir de ahí.
       expect(
         pdf.pages.count,
-        greaterThan(1),
-        reason: 'overflow content should spill onto a continuation page',
+        1,
+        reason: 'un DocumentPage nunca puede producir dos hojas',
       );
     } finally {
       pdf.dispose();
     }
   });
+
+  test(
+    'cada DocumentPage produce exactamente una hoja de PDF, en orden',
+    () async {
+      final document = Document(
+        pages: <DocumentPage>[
+          _page(blocks: <DocumentBlock>[_paragraph('Pagina A')]),
+          _page(blocks: <DocumentBlock>[_paragraph('Pagina B')]),
+          _page(blocks: <DocumentBlock>[_paragraph('Pagina C')]),
+        ],
+        omissions: const <DocumentOmission>{},
+      );
+
+      final result = await _export(tempDirectory.path, document);
+      expect(result.failedCount, 0);
+
+      final bytes = File(result.writtenFiles.single).readAsBytesSync();
+      final pdf = PdfDocument(inputBytes: bytes);
+      try {
+        expect(pdf.pages.count, 3);
+        // Y en el mismo orden: cada hoja lleva SOLO el bloque de su página.
+        for (final entry in <int, String>{0: 'A', 1: 'B', 2: 'C'}.entries) {
+          final sheetText = PdfTextExtractor(pdf)
+              .extractText(startPageIndex: entry.key, endPageIndex: entry.key)
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim();
+          expect(sheetText, contains('Pagina ${entry.value}'));
+        }
+      } finally {
+        pdf.dispose();
+      }
+    },
+  );
+
+  test(
+    'una página llena de cuerpo al presupuesto del parser no se recorta',
+    () async {
+      // El paginador de docx_document_repository.dart presupuesta una página
+      // como (alto útil / (fontSize * 1.17)) líneas de (ancho útil /
+      // (fontSize * 0.44)) caracteres. Para carta con márgenes de 20pt a 11pt
+      // eso son ~59 líneas de ~118 caracteres. Si el PDF dibujara ese mismo
+      // volumen más alto que la hoja, `pw.Page` lo recortaría EN SILENCIO y se
+      // perdería texto exportado — el peor fallo posible de este módulo.
+      const lines = 59;
+      final document = _pageDocument(
+        blocks: <DocumentBlock>[
+          for (var i = 0; i < lines; i++) _paragraph('${'palabra ' * 14}fin$i'),
+        ],
+      );
+
+      final result = await _export(tempDirectory.path, document);
+      expect(result.failedCount, 0);
+      expect(result.errors, isEmpty);
+
+      final text = _extractAllText(File(result.writtenFiles.single));
+      // El marcador del ÚLTIMO párrafo debe haber sobrevivido: si falta, el
+      // contenido desbordó el alto de la hoja y `pw.Page` lo recortó en
+      // silencio, que es exactamente lo que el FittedBox existe para impedir.
+      expect(
+        text,
+        contains('fin${lines - 1}'),
+        reason: 'se perdió el final de la página: el contenido se recortó',
+      );
+    },
+  );
 
   test('pageIndexes nulo o vacío exporta todas las páginas', () async {
     final document = Document(
@@ -127,8 +193,8 @@ void main() {
     final result = await _export(tempDirectory.path, document);
     expect(result.failedCount, 0);
 
-    // Un solo MultiPage consolida bloques; el conteo de hojas lo decide el
-    // layout de pdf, no 1:1 con DocumentPage. Verificamos el contenido.
+    // El conteo 1:1 lo cubre el test de paginación estricta; aquí solo
+    // interesa que no se pierda ninguna página por el camino.
     final text = _extractAllText(File(result.writtenFiles.single));
     expect(text, contains('Pagina A'));
     expect(text, contains('Pagina B'));
@@ -266,12 +332,8 @@ void main() {
       expect(singleSpaced.failedCount, 0);
       expect(tripleSpaced.failedCount, 0);
 
-      final singleGap = _firstLineGap(
-        File(singleSpaced.writtenFiles.single),
-      );
-      final tripleGap = _firstLineGap(
-        File(tripleSpaced.writtenFiles.single),
-      );
+      final singleGap = _firstLineGap(File(singleSpaced.writtenFiles.single));
+      final tripleGap = _firstLineGap(File(tripleSpaced.writtenFiles.single));
 
       expect(tripleGap, greaterThan(singleGap * 2));
     },
@@ -445,7 +507,8 @@ DocumentBlock _wrappingParagraph({required double? lineSpacingMultiple}) {
       lineSpacingMultiple: lineSpacingMultiple,
       runs: <DocumentRun>[
         const DocumentRun(
-          text: 'Lorem ipsum dolor sit amet consectetur adipiscing elit '
+          text:
+              'Lorem ipsum dolor sit amet consectetur adipiscing elit '
               'sed do eiusmod tempor incididunt ut labore et dolore magna',
           isBold: false,
           isItalic: false,
@@ -469,9 +532,8 @@ List<TextLine> _extractLines(File pdfFile) {
 /// Distancia vertical entre las dos primeras líneas envueltas del párrafo,
 /// ordenadas de arriba hacia abajo (bounds.top crece hacia abajo de página).
 double _firstLineGap(File pdfFile) {
-  final lines = _extractLines(pdfFile)..sort(
-    (a, b) => a.bounds.top.compareTo(b.bounds.top),
-  );
+  final lines = _extractLines(pdfFile)
+    ..sort((a, b) => a.bounds.top.compareTo(b.bounds.top));
   expect(
     lines.length,
     greaterThanOrEqualTo(2),
