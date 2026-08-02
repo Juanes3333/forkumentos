@@ -238,6 +238,10 @@ DocumentParagraph _buildPreviewParagraph(
   final plainText = paragraph.runs.map((run) => run.text).join();
   final segments = _segmentRuns(paragraph.runs);
   final previewRuns = <DocumentRun>[];
+  // Los runs de imagen no ocupan texto, así que ningún tramo los "contiene":
+  // se emiten al cruzar su posición y se anotan aquí para no duplicarlos
+  // cuando esa posición coincide con el límite de dos tramos.
+  final emittedImages = <int>{};
   var cursor = 0;
 
   for (final assignment in paragraphAssignments) {
@@ -252,6 +256,7 @@ DocumentParagraph _buildPreviewParagraph(
       segments: segments,
       start: cursor,
       end: start,
+      emittedImages: emittedImages,
     );
 
     final replacement = _replacementForAssignment(
@@ -260,7 +265,7 @@ DocumentParagraph _buildPreviewParagraph(
       row: row,
     );
     final replacementStyle = _styleAtOffset(segments, start);
-    previewRuns.add(replacementStyle.copyWith(text: replacement));
+    previewRuns.add(replacementStyle.copyWith(text: replacement, image: null));
     cursor = end;
   }
 
@@ -269,9 +274,10 @@ DocumentParagraph _buildPreviewParagraph(
     segments: segments,
     start: cursor,
     end: plainText.length,
+    emittedImages: emittedImages,
   );
 
-  return DocumentParagraph(runs: _mergeAdjacentRuns(previewRuns));
+  return paragraph.copyWith(runs: _mergeAdjacentRuns(previewRuns));
 }
 
 String _replacementForAssignment(
@@ -320,13 +326,21 @@ void _appendOriginalSlice(
   required List<_RunSegment> segments,
   required int start,
   required int end,
+  required Set<int> emittedImages,
 }) {
-  if (start >= end) {
-    return;
-  }
+  for (var index = 0; index < segments.length; index++) {
+    final segment = segments[index];
 
-  for (final segment in segments) {
-    if (segment.end <= start || segment.start >= end) {
+    if (segment.run.image != null) {
+      if (segment.start >= start &&
+          segment.start <= end &&
+          emittedImages.add(index)) {
+        output.add(segment.run);
+      }
+      continue;
+    }
+
+    if (start >= end || segment.end <= start || segment.start >= end) {
       continue;
     }
 
@@ -350,7 +364,11 @@ List<DocumentRun> _mergeAdjacentRuns(List<DocumentRun> runs) {
   final merged = <DocumentRun>[runs.first];
   for (final run in runs.skip(1)) {
     final previous = merged.last;
+    // Una imagen nunca se funde con el texto vecino: su run existe para
+    // marcar una posición en el flujo, no para aportar caracteres.
     final hasSameStyle =
+        previous.image == null &&
+        run.image == null &&
         previous.isBold == run.isBold &&
         previous.isItalic == run.isItalic &&
         previous.isUnderlined == run.isUnderlined;

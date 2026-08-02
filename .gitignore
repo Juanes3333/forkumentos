@@ -13,6 +13,20 @@
 migrate_working_dir/
 installer/*.exe
 
+# Agent / IDE local config (not part of the product)
+.cursor/
+.claude/
+
+# Runtime workspace data (user-generated)
+Cache/
+Exports/
+Logs/
+Projects/
+Workspace/
+
+# Graphify generated output
+graphify-out/
+
 # IntelliJ related
 *.iml
 *.ipr

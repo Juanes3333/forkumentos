@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,6 +80,106 @@ void main() {
 
     expect(find.text('Página uno', findRichText: true), findsOneWidget);
     expect(find.text('Página 1 de 2'), findsOneWidget);
+  });
+
+  testWidgets('encabezado y pie se anclan dentro de los márgenes como en '
+      'Word', (WidgetTester tester) async {
+    await _pumpScreen(
+      tester,
+      repository: FakeDocumentRepository(
+        loadHandler: (_) async => _buildDocument(
+          pages: <DocumentPage>[_buildPage(number: 1, text: 'Cuerpo')],
+          header: <DocumentBlock>[_textBlock('Encabezado')],
+          footer: <DocumentBlock>[_textBlock('Pie')],
+        ),
+      ),
+      documentPath: '/tmp/documento.docx',
+      isSourceLoading: false,
+      sourceErrorMessage: null,
+    );
+    await tester.pumpAndSettle();
+
+    final pageRect = tester.getRect(_pageSheetFinder);
+    // Al 100% un punto de documento es un píxel lógico: la hoja mide
+    // exactamente lo que declara el DOCX.
+    expect(pageRect.width, closeTo(612, 0.5));
+    expect(pageRect.height, closeTo(792, 0.5));
+
+    final headerRect = tester.getRect(
+      find.text('Encabezado', findRichText: true),
+    );
+    final bodyRect = tester.getRect(find.text('Cuerpo', findRichText: true));
+    final footerRect = tester.getRect(find.text('Pie', findRichText: true));
+
+    // El encabezado vive DENTRO del margen superior, a w:pgMar/@header del
+    // borde; el cuerpo arranca en el margen; el pie se apoya a
+    // w:pgMar/@footer del borde inferior.
+    expect(headerRect.top - pageRect.top, closeTo(36, 0.5));
+    expect(bodyRect.top - pageRect.top, closeTo(72, 0.5));
+    expect(pageRect.bottom - footerRect.bottom, closeTo(36, 0.5));
+  });
+
+  testWidgets('dibuja las imágenes del cuerpo y del encabezado', (
+    WidgetTester tester,
+  ) async {
+    await _pumpScreen(
+      tester,
+      repository: FakeDocumentRepository(
+        loadHandler: (_) async => _buildDocument(
+          pages: <DocumentPage>[
+            _buildPage(number: 1, text: 'Cuerpo', imageWidthPoints: 120),
+          ],
+          header: <DocumentBlock>[_imageBlock(widthPoints: 80)],
+        ),
+      ),
+      documentPath: '/tmp/documento.docx',
+      isSourceLoading: false,
+      sourceErrorMessage: null,
+    );
+    await tester.pumpAndSettle();
+
+    final images = tester.widgetList<Image>(find.byType(Image)).toList();
+    expect(images.map((image) => image.width), containsAll(<double>[80, 120]));
+  });
+
+  testWidgets('una tabla sin bordes declarados no dibuja retícula', (
+    WidgetTester tester,
+  ) async {
+    await _pumpScreen(
+      tester,
+      repository: FakeDocumentRepository(
+        loadHandler: (_) async => _buildDocument(
+          pages: <DocumentPage>[_buildTablePage(borderWidthPoints: 0)],
+        ),
+      ),
+      documentPath: '/tmp/documento.docx',
+      isSourceLoading: false,
+      sourceErrorMessage: null,
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Table>(find.byType(Table)).border, isNull);
+    // La retícula del DOCX manda sobre el ancho disponible.
+    expect(tester.getSize(find.byType(Table)).width, closeTo(300, 0.5));
+  });
+
+  testWidgets('una tabla con w:tblBorders sí dibuja retícula', (
+    WidgetTester tester,
+  ) async {
+    await _pumpScreen(
+      tester,
+      repository: FakeDocumentRepository(
+        loadHandler: (_) async => _buildDocument(
+          pages: <DocumentPage>[_buildTablePage(borderWidthPoints: 1.5)],
+        ),
+      ),
+      documentPath: '/tmp/documento.docx',
+      isSourceLoading: false,
+      sourceErrorMessage: null,
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Table>(find.byType(Table)).border?.top.width, 1.5);
   });
 
   testWidgets('zoom in/out actualiza porcentaje vía controller', (
@@ -455,7 +557,31 @@ DocumentBlock _textBlock(String text) {
   );
 }
 
-DocumentPage _buildPage({required int number, required String text}) {
+DocumentBlock _imageBlock({required double widthPoints}) {
+  return DocumentBlock.paragraph(
+    DocumentParagraph(
+      runs: <DocumentRun>[
+        DocumentRun(
+          text: '',
+          isBold: false,
+          isItalic: false,
+          isUnderlined: false,
+          image: DocumentImage(
+            bytes: Uint8List.fromList(_pngBytes),
+            widthPoints: widthPoints,
+            heightPoints: widthPoints / 2,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+DocumentPage _buildPage({
+  required int number,
+  required String text,
+  double? imageWidthPoints,
+}) {
   return DocumentPage(
     number: number,
     widthPoints: 612,
@@ -479,6 +605,56 @@ DocumentPage _buildPage({required int number, required String text}) {
           ],
         ),
       ),
+      if (imageWidthPoints != null) _imageBlock(widthPoints: imageWidthPoints),
     ],
   );
 }
+
+DocumentPage _buildTablePage({required double borderWidthPoints}) {
+  return DocumentPage(
+    number: 1,
+    widthPoints: 612,
+    heightPoints: 792,
+    margins: const DocumentMargins(
+      topPoints: 72,
+      rightPoints: 72,
+      bottomPoints: 72,
+      leftPoints: 72,
+    ),
+    blocks: <DocumentBlock>[
+      DocumentBlock.table(
+        DocumentTable(
+          rows: <DocumentTableRow>[
+            DocumentTableRow(
+              cells: <DocumentTableCell>[
+                DocumentTableCell(blocks: <DocumentBlock>[_textBlock('Campo')]),
+                DocumentTableCell(blocks: <DocumentBlock>[_textBlock('Valor')]),
+              ],
+            ),
+          ],
+          columnWidthsPoints: const <double>[180, 120],
+          borderWidthPoints: borderWidthPoints,
+        ),
+      ),
+    ],
+  );
+}
+
+/// La caja en PUNTOS que envuelve el contenido de la hoja: al 100% de zoom
+/// coincide con el tamaño de página declarado por el DOCX.
+final Finder _pageSheetFinder = find.byWidgetPredicate(
+  (Widget widget) =>
+      widget is SizedBox && widget.width == 612 && widget.height == null,
+);
+
+const _pngBytes = <int>[
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
+  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+  0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41,
+  0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0xF0,
+  0x1F, 0x00, 0x05, 0x00, 0x01, 0xFF, 0x89, 0x99,
+  0x3D, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+  0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+];

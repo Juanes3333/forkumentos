@@ -12,8 +12,11 @@ import 'package:pdf/widgets.dart' as pw;
 
 /// Renders a merged [Document] to PDF.
 ///
-/// ponytail: fidelity ceiling vs DOCX — simple paragraphs/tables only; no
-/// images or Word layout. Upgrade with richer pdf widgets when needed.
+/// ponytail: fidelity ceiling vs DOCX — el texto siempre se dibuja con la
+/// fuente por defecto de `pdf` (Helvetica), nunca con la familia real del
+/// DOCX (Cambria/Calibri/...): cargar y emparejar TTFs del sistema es una
+/// pieza aparte, no incluida aquí. El interlineado sí se calibra 1:1 contra
+/// esa fuente real (ver `_pdfLineSpacingPoints`).
 final class PdfExportCommand extends CancellableCommand<ExportResult> {
   PdfExportCommand({
     required this.destinationFolder,
@@ -174,33 +177,108 @@ pw.Widget _pdfBlockWidget(DocumentBlock block) {
       padding: pw.EdgeInsets.only(
         top: paragraph.spacingBeforePoints,
         bottom: paragraph.spacingAfterPoints,
+        left: paragraph.indentLeftPoints,
+        right: paragraph.indentRightPoints,
       ),
-      child: pw.RichText(
-        text: pw.TextSpan(
-          children: <pw.TextSpan>[
-            for (final run in paragraph.runs)
-              pw.TextSpan(
-                text: run.text,
-                style: pw.TextStyle(
-                  fontWeight: run.isBold
-                      ? pw.FontWeight.bold
-                      : pw.FontWeight.normal,
-                  fontStyle: run.isItalic
-                      ? pw.FontStyle.italic
-                      : pw.FontStyle.normal,
-                  decoration: run.isUnderlined
-                      ? pw.TextDecoration.underline
-                      : pw.TextDecoration.none,
-                  color: _pdfRunColor(run),
-                  fontSize: run.fontSizePoints,
-                ),
-              ),
-          ],
+      // pw.RichText se ajusta a su propio ancho de contenido (ver
+      // pdf-3.11.1 lib/src/widgets/text.dart: box.width = constraints
+      // .minWidth cuando no hay overflow), así que sin este Align un
+      // párrafo end/center quedaría siempre pegado al margen izquierdo:
+      // no hay ancho sobrante dentro del cual textAlign pueda mover nada.
+      // Align sí ocupa el ancho completo disponible (maxWidth acotado) y
+      // reposiciona ahí la caja ya maquetada del texto.
+      child: pw.Align(
+        alignment: _pdfBlockAlignment(paragraph.alignment),
+        child: pw.RichText(
+          textAlign: _pdfTextAlign(paragraph.alignment),
+          text: pw.TextSpan(children: _pdfParagraphSpans(paragraph)),
         ),
       ),
     ),
     DocumentTableBlock(:final table) => _pdfTableWidget(table),
   };
+}
+
+pw.TextAlign _pdfTextAlign(DocumentAlignment alignment) {
+  return switch (alignment) {
+    DocumentAlignment.start => pw.TextAlign.left,
+    DocumentAlignment.center => pw.TextAlign.center,
+    DocumentAlignment.end => pw.TextAlign.right,
+    DocumentAlignment.justify => pw.TextAlign.justify,
+  };
+}
+
+// Reposiciona la caja (ya ajustada a su contenido) del párrafo dentro del
+// ancho completo disponible. En justify, RichText ya reparte el texto
+// dentro de su propia caja; como esa caja se ajusta al ancho de la línea
+// envuelta MÁS ANCHA, alinearla a la izquierda dentro del Align es lo más
+// cercano al comportamiento real sin forzar un ancho exacto aquí.
+pw.Alignment _pdfBlockAlignment(DocumentAlignment alignment) {
+  return switch (alignment) {
+    DocumentAlignment.start || DocumentAlignment.justify =>
+      pw.Alignment.centerLeft,
+    DocumentAlignment.center => pw.Alignment.center,
+    DocumentAlignment.end => pw.Alignment.centerRight,
+  };
+}
+
+// Espeja _buildContent de MappingAwareParagraph: sangría de primera línea
+// como hueco vacío al inicio del flujo, y un run con imagen se dibuja en el
+// punto exacto del flujo de texto que ocupa en vez de perderse en silencio.
+List<pw.InlineSpan> _pdfParagraphSpans(DocumentParagraph paragraph) {
+  final spans = <pw.InlineSpan>[];
+
+  final firstLineIndent = paragraph.indentFirstLinePoints;
+  if (firstLineIndent > 0) {
+    spans.add(pw.WidgetSpan(child: pw.SizedBox(width: firstLineIndent)));
+  }
+
+  for (final run in paragraph.runs) {
+    final image = run.image;
+    if (image != null) {
+      spans.add(
+        pw.WidgetSpan(
+          child: pw.Image(
+            pw.MemoryImage(image.bytes),
+            width: image.widthPoints,
+            height: image.heightPoints,
+            // Word dibuja la imagen exactamente al tamaño declarado en el
+            // DOCX, sin respetar la relación de aspecto del archivo.
+            fit: pw.BoxFit.fill,
+          ),
+        ),
+      );
+      continue;
+    }
+
+    if (run.text.isEmpty) {
+      continue;
+    }
+
+    spans.add(
+      pw.TextSpan(text: run.text, style: _pdfRunStyle(run, paragraph)),
+    );
+  }
+
+  return spans;
+}
+
+pw.TextStyle _pdfRunStyle(DocumentRun run, DocumentParagraph paragraph) {
+  final fontSize = run.fontSizePoints;
+  return pw.TextStyle(
+    fontWeight: run.isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+    fontStyle: run.isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
+    decoration: run.isUnderlined
+        ? pw.TextDecoration.underline
+        : pw.TextDecoration.none,
+    color: _pdfRunColor(run),
+    fontSize: fontSize,
+    // null = sin tamaño propio, no hay base fiable para calcular el
+    // interlineado en puntos; se deja el interlineado natural del tema.
+    lineSpacing: fontSize == null
+        ? null
+        : _pdfLineSpacingPoints(paragraph, fontSize),
+  );
 }
 
 PdfColor? _pdfRunColor(DocumentRun run) {
@@ -210,6 +288,41 @@ PdfColor? _pdfRunColor(DocumentRun run) {
   }
   final value = int.tryParse(hex, radix: 16);
   return value == null ? null : PdfColor.fromInt(0xFF000000 | value);
+}
+
+// Métricas AFM natales de Helvetica (pdf.PdfFont.helvetica: ascent 0.910,
+// descent -0.220), la fuente por defecto de `pdf` cuando no se carga un TTF
+// propio. `TextStyle.height` no está cableado al layout real de esta versión
+// del paquete `pdf` (ver PDF-3.11.1 lib/src/widgets/text.dart, que solo lee
+// `style.lineSpacing`); por eso el interlineado se expresa como puntos
+// ADITIVOS por línea en vez del factor MULTIPLICATIVO que usa
+// MappingAwareParagraph._lineHeightFactor en Flutter.
+const _pdfDefaultFontAscent = 0.910;
+const _pdfDefaultFontDescent = -0.220;
+const _pdfNaturalLineHeightRatio =
+    _pdfDefaultFontAscent - _pdfDefaultFontDescent;
+
+/// Puntos extra a sumar por línea (puede ser negativo) para que el
+/// interlineado declarado por el DOCX (`w:spacing`) se respete sobre el alto
+/// natural de la fuente que el PDF realmente dibuja. `null` = interlineado
+/// natural sin ajustar, igual semántica que `_lineHeightFactor` en
+/// MappingAwareParagraph.
+double? _pdfLineSpacingPoints(
+  DocumentParagraph paragraph,
+  double fontSizePoints,
+) {
+  final naturalHeightPoints = fontSizePoints * _pdfNaturalLineHeightRatio;
+
+  final exactPoints = paragraph.lineSpacingExactPoints;
+  if (exactPoints != null && fontSizePoints > 0) {
+    return exactPoints - naturalHeightPoints;
+  }
+
+  final multiple = paragraph.lineSpacingMultiple;
+  if (multiple == null || multiple == 1) {
+    return null;
+  }
+  return naturalHeightPoints * (multiple - 1);
 }
 
 // ponytail: the DOCX parser doesn't interpret gridSpan/vMerge (see

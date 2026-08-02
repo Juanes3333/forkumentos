@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_controller.dart';
@@ -15,19 +16,15 @@ const _zoomSteps = <double>[0.5, 0.75, 1, 1.25, 1.5, 2];
 const _defaultZoomStepIndex = 2;
 const _pageSpacing = 24.0;
 const _viewportPadding = 24.0;
-// Coincide con la opacidad de Colors.black54 (0x8A / 0xFF): el header/footer
-// se pinta con el mismo negro que el cuerpo (MappingAwareParagraph lo fija
-// así) y se atenúa como capa completa en vez de por color de texto.
-const _headerFooterOpacity = 0.54;
 
-// Tipografía del "papel" simulado, independiente del tema de chrome de la
-// app (AppTypography.dense). El chrome usa 13pt/1.3 pensado para legibilidad
-// de UI de escritorio; el documento simulado usa estos valores porque son
-// los mismos que la heurística de paginación del parser (IngestionAgent,
-// docx_document_repository.dart) asume al estimar cuántas líneas caben por
-// página — deben mantenerse sincronizados entre ambos lados.
-const _documentBodyFontSize = 11.0;
-const _documentBodyLineHeight = 1.15;
+// Tamaño de cuerpo de reserva, en puntos, para documentos que no declaran
+// ninguno en `w:docDefaults`. Es el "Normal" de Word/Office modernos; cuando
+// el DOCX sí lo declara (el caso habitual) manda el del documento.
+const _fallbackBodyFontSizePoints = 11.0;
+
+// Márgenes de celda por defecto de Word (`w:tblCellMar`): 108 twips a
+// izquierda y derecha, cero arriba y abajo.
+const _tableCellPaddingPoints = 5.4;
 
 enum _ZoomMode { manual, fitWidth, fitPage }
 
@@ -632,6 +629,12 @@ final class _DocumentToolbar extends StatelessWidget {
   }
 }
 
+/// Una hoja del documento, maquetada en PUNTOS y escalada al pintar.
+///
+/// Maquetar a tamaño real y escalar después (en vez de multiplicar cada
+/// medida por el zoom) es lo que hace Word: los saltos de línea, la posición
+/// de cada párrafo y el alto de la hoja son idénticos al 50% y al 200%, y
+/// solo cambia el tamaño con el que se dibujan.
 final class _DocumentPageSheet extends StatelessWidget {
   const _DocumentPageSheet({
     required this.pageIndex,
@@ -654,121 +657,145 @@ final class _DocumentPageSheet extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     // La hoja es papel simulado, no chrome de la app: su tipografía no debe
     // moverse si el usuario cambia el tema de la interfaz, por eso parte de
-    // un TextStyle explícito en vez de Theme.of(context).textTheme.bodyMedium.
+    // un TextStyle explícito en vez de Theme.of(context).textTheme. El
+    // tamaño y la familia reales los aporta cada run del DOCX; esto es solo
+    // el respaldo para documentos que no declaran ninguno.
     const bodyStyle = TextStyle(
-      fontSize: _documentBodyFontSize,
-      height: _documentBodyLineHeight,
+      fontSize: _fallbackBodyFontSizePoints,
+      color: Colors.black,
     );
-    final scaledBodyStyle = bodyStyle.copyWith(
-      fontSize: bodyStyle.fontSize! * scale,
+
+    final margins = page.margins;
+    final contentHeightPoints = math.max<double>(
+      0,
+      page.heightPoints - margins.topPoints - margins.bottomPoints,
     );
-    final scaledLineHeight =
-        (scaledBodyStyle.fontSize ?? 14) * (scaledBodyStyle.height ?? 1.3);
-    // El header/footer se distingue del cuerpo por tamaño y opacidad de
-    // sección (ver _headerFooterOpacity). El color de texto en sí lo fija
-    // MappingAwareParagraph siempre en negro, sin importar el tema, porque
-    // la hoja simulada siempre es blanca.
-    final headerFooterStyle = scaledBodyStyle.copyWith(
-      fontSize: (scaledBodyStyle.fontSize ?? 14) * 0.85,
-    );
-    final sectionGap = scaledLineHeight * 0.4;
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: colorScheme.outlineVariant),
       ),
-      child: ConstrainedBox(
-        // Solo se fija el ancho de la hoja; el alto es un mínimo, no un
-        // máximo. Como la paginación no reproduce el reflow real de Word
-        // (ver nota en docx_document_repository.dart), una página sin
-        // marcadores explícitos puede contener más contenido del que cabe
-        // en el alto nominal: se permite crecer en vez de recortar.
-        constraints: BoxConstraints(
-          minWidth: page.widthPoints * scale,
-          maxWidth: page.widthPoints * scale,
-          minHeight: page.heightPoints * scale,
-        ),
-        child: Padding(
-          padding: EdgeInsets.only(
-            top: page.margins.topPoints * scale,
-            right: page.margins.rightPoints * scale,
-            bottom: page.margins.bottomPoints * scale,
-            left: page.margins.leftPoints * scale,
-          ),
+      child: _ScaledPage(
+        scale: scale,
+        child: SizedBox(
+          width: page.widthPoints,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              if (header.isNotEmpty) ...<Widget>[
-                Opacity(
-                  opacity: _headerFooterOpacity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      for (
-                        var blockIndex = 0;
-                        blockIndex < header.length;
-                        blockIndex++
-                      )
-                        _DocumentBlockWidget(
-                          pageIndex: 0,
-                          region: DocumentTextRegion.header,
-                          rootBlockIndex: blockIndex,
-                          block: header[blockIndex],
-                          textStyle: headerFooterStyle,
-                          emptyParagraphHeight: scaledLineHeight,
-                          viewerOverlay: viewerOverlay,
-                        ),
-                    ],
-                  ),
+              // Banda del margen superior. En Word el encabezado vive DENTRO
+              // del margen, anclado a `w:pgMar/@header` desde el borde de la
+              // hoja, y empuja el cuerpo hacia abajo solo si no le cabe.
+              _PageBand(
+                minHeightPoints: margins.topPoints,
+                padding: EdgeInsets.only(
+                  top: margins.headerDistancePoints,
+                  left: margins.leftPoints,
+                  right: margins.rightPoints,
                 ),
-                SizedBox(height: sectionGap),
-                const Divider(height: 1, thickness: 1, color: Colors.black12),
-                SizedBox(height: sectionGap),
-              ],
-              for (
-                var blockIndex = 0;
-                blockIndex < page.blocks.length;
-                blockIndex++
-              )
-                _DocumentBlockWidget(
+                alignment: Alignment.topLeft,
+                child: _blockColumn(
+                  blocks: header,
+                  region: DocumentTextRegion.header,
+                  pageIndex: 0,
+                  textStyle: bodyStyle,
+                ),
+              ),
+              _PageBand(
+                minHeightPoints: contentHeightPoints,
+                padding: EdgeInsets.only(
+                  left: margins.leftPoints,
+                  right: margins.rightPoints,
+                ),
+                alignment: Alignment.topLeft,
+                child: _blockColumn(
+                  blocks: page.blocks,
+                  region: DocumentTextRegion.body,
                   pageIndex: pageIndex,
-                  rootBlockIndex: blockIndex,
-                  block: page.blocks[blockIndex],
-                  textStyle: scaledBodyStyle,
-                  emptyParagraphHeight: scaledLineHeight,
-                  viewerOverlay: viewerOverlay,
+                  textStyle: bodyStyle,
                 ),
-              if (footer.isNotEmpty) ...<Widget>[
-                SizedBox(height: sectionGap),
-                const Divider(height: 1, thickness: 1, color: Colors.black12),
-                SizedBox(height: sectionGap),
-                Opacity(
-                  opacity: _headerFooterOpacity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      for (
-                        var blockIndex = 0;
-                        blockIndex < footer.length;
-                        blockIndex++
-                      )
-                        _DocumentBlockWidget(
-                          pageIndex: 0,
-                          region: DocumentTextRegion.footer,
-                          rootBlockIndex: blockIndex,
-                          block: footer[blockIndex],
-                          textStyle: headerFooterStyle,
-                          emptyParagraphHeight: scaledLineHeight,
-                          viewerOverlay: viewerOverlay,
-                        ),
-                    ],
-                  ),
+              ),
+              // Banda del margen inferior: el pie se ancla a
+              // `w:pgMar/@footer` desde el borde inferior de la hoja.
+              _PageBand(
+                minHeightPoints: margins.bottomPoints,
+                padding: EdgeInsets.only(
+                  bottom: margins.footerDistancePoints,
+                  left: margins.leftPoints,
+                  right: margins.rightPoints,
                 ),
-              ],
+                alignment: Alignment.bottomLeft,
+                child: _blockColumn(
+                  blocks: footer,
+                  region: DocumentTextRegion.footer,
+                  pageIndex: 0,
+                  textStyle: bodyStyle,
+                ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget? _blockColumn({
+    required List<DocumentBlock> blocks,
+    required DocumentTextRegion region,
+    required int pageIndex,
+    required TextStyle textStyle,
+  }) {
+    if (blocks.isEmpty) {
+      return null;
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (var blockIndex = 0; blockIndex < blocks.length; blockIndex++)
+          _DocumentBlockWidget(
+            pageIndex: pageIndex,
+            region: region,
+            rootBlockIndex: blockIndex,
+            block: blocks[blockIndex],
+            textStyle: textStyle,
+            viewerOverlay: viewerOverlay,
+          ),
+      ],
+    );
+  }
+}
+
+/// Una de las tres franjas horizontales de la hoja (margen superior, área de
+/// contenido, margen inferior): nunca mide menos de [minHeightPoints], crece
+/// si su contenido no cabe y ancla ese contenido en [alignment].
+final class _PageBand extends StatelessWidget {
+  const _PageBand({
+    required this.minHeightPoints,
+    required this.padding,
+    required this.alignment,
+    required this.child,
+  });
+
+  final double minHeightPoints;
+  final EdgeInsets padding;
+  final Alignment alignment;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = child;
+    if (content == null) {
+      return SizedBox(height: minHeightPoints);
+    }
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: minHeightPoints),
+      child: Padding(
+        padding: padding,
+        child: Align(alignment: alignment, child: content),
       ),
     );
   }
@@ -780,7 +807,6 @@ final class _DocumentBlockWidget extends StatelessWidget {
     required this.rootBlockIndex,
     required this.block,
     required this.textStyle,
-    required this.emptyParagraphHeight,
     this.region = DocumentTextRegion.body,
     this.viewerOverlay,
     this.prefixSteps = const <DocumentPathStep>[],
@@ -790,7 +816,6 @@ final class _DocumentBlockWidget extends StatelessWidget {
   final int rootBlockIndex;
   final DocumentBlock block;
   final TextStyle textStyle;
-  final double emptyParagraphHeight;
   final DocumentTextRegion region;
   final DocumentViewerOverlay? viewerOverlay;
   final List<DocumentPathStep> prefixSteps;
@@ -817,7 +842,6 @@ final class _DocumentBlockWidget extends StatelessWidget {
         path: _pathForParagraph(),
         paragraph: paragraph,
         textStyle: textStyle,
-        emptyParagraphHeight: emptyParagraphHeight,
         highlights: const <ParagraphHighlightSegment>[],
         highlightsBuilder: viewerOverlay == null
             ? null
@@ -825,17 +849,13 @@ final class _DocumentBlockWidget extends StatelessWidget {
         highlightListenable: viewerOverlay?.highlightListenable,
         onSelectionChanged: viewerOverlay?.onSelectionChanged,
       ),
-      DocumentTableBlock(:final table) => Padding(
-        padding: EdgeInsets.only(bottom: emptyParagraphHeight * 0.25),
-        child: _DocumentTableWidget(
-          pageIndex: pageIndex,
-          rootBlockIndex: rootBlockIndex,
-          table: table,
-          textStyle: textStyle,
-          emptyParagraphHeight: emptyParagraphHeight,
-          region: region,
-          viewerOverlay: viewerOverlay,
-        ),
+      DocumentTableBlock(:final table) => _DocumentTableWidget(
+        pageIndex: pageIndex,
+        rootBlockIndex: rootBlockIndex,
+        table: table,
+        textStyle: textStyle,
+        region: region,
+        viewerOverlay: viewerOverlay,
       ),
     };
   }
@@ -847,7 +867,6 @@ final class _DocumentTableWidget extends StatelessWidget {
     required this.rootBlockIndex,
     required this.table,
     required this.textStyle,
-    required this.emptyParagraphHeight,
     this.region = DocumentTextRegion.body,
     this.viewerOverlay,
   });
@@ -856,7 +875,6 @@ final class _DocumentTableWidget extends StatelessWidget {
   final int rootBlockIndex;
   final DocumentTable table;
   final TextStyle textStyle;
-  final double emptyParagraphHeight;
   final DocumentTextRegion region;
   final DocumentViewerOverlay? viewerOverlay;
 
@@ -871,57 +889,250 @@ final class _DocumentTableWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final borderColor = Theme.of(context).colorScheme.outlineVariant;
-    return Table(
-      border: TableBorder.all(color: borderColor, width: 0.6),
+    final grid = <Widget>[
+      for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
+        for (var cellIndex = 0; cellIndex < maxColumns; cellIndex++)
+          if (cellIndex < table.rows[rowIndex].cells.length)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: _tableCellPaddingPoints,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  for (
+                    var innerBlockIndex = 0;
+                    innerBlockIndex <
+                        table.rows[rowIndex].cells[cellIndex].blocks.length;
+                    innerBlockIndex++
+                  )
+                    _DocumentBlockWidget(
+                      pageIndex: pageIndex,
+                      rootBlockIndex: rootBlockIndex,
+                      block: table
+                          .rows[rowIndex]
+                          .cells[cellIndex]
+                          .blocks[innerBlockIndex],
+                      textStyle: textStyle,
+                      region: region,
+                      viewerOverlay: viewerOverlay,
+                      prefixSteps: <DocumentPathStep>[
+                        DocumentPathStep.cellBlock(
+                          rowIndex: rowIndex,
+                          cellIndex: cellIndex,
+                          blockIndex: innerBlockIndex,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            )
+          else
+            const SizedBox.shrink(),
+    ];
+
+    final columnWidths = _columnWidths(maxColumns);
+    final rendered = Table(
+      // Word solo dibuja retícula cuando el DOCX declara bordes: una tabla
+      // sin `w:tblBorders` es invisible salvo por su contenido.
+      border: table.borderWidthPoints > 0
+          ? TableBorder.all(
+              color: _borderColor(),
+              width: table.borderWidthPoints,
+            )
+          : null,
+      columnWidths: columnWidths,
+      defaultColumnWidth: columnWidths == null
+          ? const FlexColumnWidth()
+          : const IntrinsicColumnWidth(),
       children: <TableRow>[
         for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
           TableRow(
-            children: <Widget>[
-              for (var cellIndex = 0; cellIndex < maxColumns; cellIndex++)
-                if (cellIndex < table.rows[rowIndex].cells.length)
-                  Padding(
-                    padding: EdgeInsets.all(emptyParagraphHeight * 0.25),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        for (
-                          var innerBlockIndex = 0;
-                          innerBlockIndex <
-                              table
-                                  .rows[rowIndex]
-                                  .cells[cellIndex]
-                                  .blocks
-                                  .length;
-                          innerBlockIndex++
-                        )
-                          _DocumentBlockWidget(
-                            pageIndex: pageIndex,
-                            rootBlockIndex: rootBlockIndex,
-                            block: table
-                                .rows[rowIndex]
-                                .cells[cellIndex]
-                                .blocks[innerBlockIndex],
-                            textStyle: textStyle,
-                            emptyParagraphHeight: emptyParagraphHeight,
-                            region: region,
-                            viewerOverlay: viewerOverlay,
-                            prefixSteps: <DocumentPathStep>[
-                              DocumentPathStep.cellBlock(
-                                rowIndex: rowIndex,
-                                cellIndex: cellIndex,
-                                blockIndex: innerBlockIndex,
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  )
-                else
-                  const SizedBox.shrink(),
-            ],
+            children: grid.sublist(
+              rowIndex * maxColumns,
+              (rowIndex + 1) * maxColumns,
+            ),
           ),
       ],
+    );
+
+    final totalWidth = _declaredWidthPoints(maxColumns);
+    if (totalWidth == null) {
+      return rendered;
+    }
+
+    // Con la retícula declarada la tabla mide lo que dice el DOCX, y
+    // `w:tblPr/w:jc` decide dónde se apoya dentro del área de contenido.
+    return Align(
+      alignment: switch (table.alignment) {
+        DocumentAlignment.center => Alignment.topCenter,
+        DocumentAlignment.end => Alignment.topRight,
+        DocumentAlignment.start ||
+        DocumentAlignment.justify => Alignment.topLeft,
+      },
+      child: SizedBox(width: totalWidth, child: rendered),
+    );
+  }
+
+  Map<int, TableColumnWidth>? _columnWidths(int maxColumns) {
+    if (table.columnWidthsPoints.length != maxColumns) {
+      return null;
+    }
+    return <int, TableColumnWidth>{
+      for (var index = 0; index < maxColumns; index++)
+        index: FixedColumnWidth(table.columnWidthsPoints[index]),
+    };
+  }
+
+  double? _declaredWidthPoints(int maxColumns) {
+    if (table.columnWidthsPoints.length != maxColumns) {
+      return null;
+    }
+    final total = table.columnWidthsPoints.fold<double>(
+      0,
+      (sum, width) => sum + width,
+    );
+    return total > 0 ? total : null;
+  }
+
+  Color _borderColor() {
+    final hex = table.borderColorHex;
+    final value = hex == null ? null : int.tryParse(hex, radix: 16);
+    return value == null ? Colors.black : Color(0xFF000000 | value);
+  }
+}
+
+/// Dibuja a [scale] lo que su hijo maquetó a tamaño real, y reserva en el
+/// layout del padre el espacio ya escalado.
+///
+/// `Transform.scale` no sirve aquí: escala el pintado pero deja el tamaño sin
+/// tocar, así que la hoja seguiría ocupando su tamaño a 1:1 dentro del
+/// scroll. Aquí el tamaño propio SÍ es el del hijo por [scale], que es lo que
+/// permite maquetar el documento en puntos una sola vez.
+final class _ScaledPage extends SingleChildRenderObjectWidget {
+  const _ScaledPage({required this.scale, required Widget super.child});
+
+  final double scale;
+
+  @override
+  _RenderScaledPage createRenderObject(BuildContext context) =>
+      _RenderScaledPage(scale);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderScaledPage renderObject,
+  ) {
+    renderObject.scale = scale;
+  }
+}
+
+final class _RenderScaledPage extends RenderProxyBox {
+  _RenderScaledPage(this._scale);
+
+  double _scale;
+
+  double get scale => _scale;
+
+  set scale(double value) {
+    if (_scale == value) {
+      return;
+    }
+    _scale = value;
+    markNeedsLayout();
+  }
+
+  Matrix4 get _transform => Matrix4.diagonal3Values(_scale, _scale, 1);
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+
+    // El hijo se maqueta sin restricciones: su ancho es el de la hoja en
+    // puntos y su alto, el que pida el contenido.
+    child.layout(const BoxConstraints(), parentUsesSize: true);
+    size = constraints.constrain(child.size * _scale);
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final child = this.child;
+    if (child == null) {
+      return constraints.smallest;
+    }
+    return constraints.constrain(
+      child.getDryLayout(const BoxConstraints()) * _scale,
+    );
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      super.computeMinIntrinsicWidth(height / _scale) * _scale;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      super.computeMaxIntrinsicWidth(height / _scale) * _scale;
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      super.computeMinIntrinsicHeight(width / _scale) * _scale;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      super.computeMaxIntrinsicHeight(width / _scale) * _scale;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null) {
+      return;
+    }
+    if (_scale == 1) {
+      context.paintChild(child, offset);
+      return;
+    }
+
+    _layerHandle.layer = context.pushTransform(
+      needsCompositing,
+      offset,
+      _transform,
+      (PaintingContext innerContext, Offset innerOffset) =>
+          innerContext.paintChild(child, innerOffset),
+      oldLayer: _layerHandle.layer,
+    );
+  }
+
+  final LayerHandle<TransformLayer> _layerHandle =
+      LayerHandle<TransformLayer>();
+
+  @override
+  void dispose() {
+    _layerHandle.layer = null;
+    super.dispose();
+  }
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    transform.multiply(_transform);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    final child = this.child;
+    if (child == null) {
+      return false;
+    }
+
+    return result.addWithPaintTransform(
+      transform: _transform,
+      position: position,
+      hitTest: (BoxHitTestResult result, Offset transformed) =>
+          child.hitTest(result, position: transformed),
     );
   }
 }

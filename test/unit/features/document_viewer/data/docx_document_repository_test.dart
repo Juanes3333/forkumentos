@@ -379,6 +379,50 @@ void main() {
     expect(totalParagraphs, 50);
   });
 
+  test('con w:lastRenderedPageBreak la paginación sigue los marcadores y NO '
+      'la heurística de relleno', () async {
+    final filePath = p.join(tempDirectory.path, 'marcadores_ganan.docx');
+    // Mismo volumen de texto que el caso heurístico (50 párrafos de 600
+    // caracteres, que la estimación repartiría en varias páginas), pero con
+    // un único marcador de Word en medio: Word dijo que solo hay 2 páginas.
+    final body = <String>[
+      for (var index = 0; index < 50; index++)
+        _longParagraphXml(startsPage: index == 25),
+    ].join('\n');
+    await File(
+      filePath,
+    ).writeAsBytes(_buildDocxBytes(documentXml: _documentWithBody(body)));
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages, hasLength(2));
+    expect(_textParagraphCount(document.pages[0]), 25);
+    expect(_textParagraphCount(document.pages[1]), 25);
+  });
+
+  test('un w:lastRenderedPageBreak apaga la heurística también para los '
+      'tramos sin marcador', () async {
+    final filePath = p.join(tempDirectory.path, 'marcador_unico.docx');
+    // El marcador está al inicio: todo el texto posterior excede de sobra la
+    // altura estimada de una página, pero sin más marcadores Word lo dejó en
+    // una sola, así que la segunda página no se vuelve a partir.
+    final body = <String>[
+      '<w:p><w:r><w:t>Portada</w:t></w:r></w:p>',
+      for (var index = 0; index < 40; index++)
+        _longParagraphXml(startsPage: index == 0),
+    ].join('\n');
+    await File(
+      filePath,
+    ).writeAsBytes(_buildDocxBytes(documentXml: _documentWithBody(body)));
+
+    final document = await repository.load(filePath);
+
+    expect(document.pages, hasLength(2));
+    expect(_paragraphs(document.pages[0]).first.runs.single.text, 'Portada');
+    expect(_textParagraphCount(document.pages[0]), 1);
+    expect(_textParagraphCount(document.pages[1]), 40);
+  });
+
   test('salto de página final no genera una página fantasma vacía', () async {
     final filePath = p.join(tempDirectory.path, 'salto_final.docx');
     await File(filePath).writeAsBytes(
@@ -476,7 +520,7 @@ void main() {
     );
   });
 
-  test('run con w:drawing agrega omisión image', () async {
+  test('w:drawing sin relación resoluble agrega omisión image', () async {
     final filePath = p.join(tempDirectory.path, 'imagen.docx');
     await File(filePath).writeAsBytes(
       _buildDocxBytes(
@@ -494,6 +538,398 @@ void main() {
     final document = await repository.load(filePath);
 
     expect(document.omissions.contains(DocumentOmission.image), isTrue);
+  });
+
+  test('w:drawing extrae los bytes y el tamaño de la imagen del cuerpo '
+      'sin marcarla como omitida', () async {
+    final filePath = p.join(tempDirectory.path, 'imagen_cuerpo.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:t>Antes</w:t></w:r>
+  <w:r>$_inlineDrawingXml</w:r>
+  <w:r><w:t>Después</w:t></w:r>
+</w:p>
+'''),
+        extraEntries: <String, String>{
+          'word/_rels/document.xml.rels': _imageRelationshipsXml,
+        },
+        binaryEntries: <String, List<int>>{'word/media/image1.png': _pngBytes},
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.omissions.contains(DocumentOmission.image), isFalse);
+    final runs = _paragraphs(document.pages.single).single.runs;
+    expect(runs.map((run) => run.text).toList(), <String>[
+      'Antes',
+      '',
+      'Después',
+    ]);
+
+    final image = runs[1].image;
+    expect(image, isNotNull);
+    expect(image!.bytes, orderedEquals(_pngBytes));
+    // 914400 EMU = 1 pulgada = 72 puntos; 457200 EMU = media pulgada.
+    expect(image.widthPoints, closeTo(72, 0.001));
+    expect(image.heightPoints, closeTo(36, 0.001));
+  });
+
+  test('una imagen del encabezado se resuelve por el .rels de su propia '
+      'parte', () async {
+    final filePath = p.join(tempDirectory.path, 'imagen_encabezado.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: '''
+<w:document
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:r><w:t>Cuerpo</w:t></w:r></w:p>
+    <w:sectPr><w:headerReference w:type="default" r:id="rId9" /></w:sectPr>
+  </w:body>
+</w:document>
+''',
+        extraEntries: <String, String>{
+          'word/header1.xml':
+              '''
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:r><w:t>ACME</w:t></w:r>
+    <w:r>$_inlineDrawingXml</w:r>
+  </w:p>
+</w:hdr>
+''',
+          'word/_rels/document.xml.rels': '''
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml" />
+</Relationships>
+''',
+          'word/_rels/header1.xml.rels': _imageRelationshipsXml,
+        },
+        binaryEntries: <String, List<int>>{'word/media/image1.png': _pngBytes},
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(document.omissions.contains(DocumentOmission.image), isFalse);
+    final headerRuns =
+        (document.header.single as DocumentParagraphBlock).paragraph.runs;
+    expect(headerRuns.first.text, 'ACME');
+    expect(headerRuns.last.image?.bytes, orderedEquals(_pngBytes));
+  });
+
+  test('w:pict de VML resuelve la imagen y su tamaño desde el estilo '
+      'de la forma', () async {
+    final filePath = p.join(tempDirectory.path, 'imagen_vml.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:r>
+    <w:pict xmlns:v="urn:schemas-microsoft-com:vml"
+        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+      <v:shape style="width:54pt;height:18pt">
+        <v:imagedata r:id="rId5" />
+      </v:shape>
+    </w:pict>
+  </w:r>
+</w:p>
+'''),
+        extraEntries: <String, String>{
+          'word/_rels/document.xml.rels': '''
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png" />
+</Relationships>
+''',
+        },
+        binaryEntries: <String, List<int>>{'word/media/image1.png': _pngBytes},
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final image = _paragraphs(document.pages.single).single.runs.single.image;
+    expect(image?.widthPoints, closeTo(54, 0.001));
+    expect(image?.heightPoints, closeTo(18, 0.001));
+  });
+
+  test('mc:Fallback no duplica la imagen ni el texto de mc:Choice', () async {
+    final filePath = p.join(tempDirectory.path, 'alternate_content.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:r>
+    <mc:AlternateContent
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+      <mc:Choice Requires="wps">$_inlineDrawingXml</mc:Choice>
+      <mc:Fallback>
+        <w:pict xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <v:shape style="width:72pt;height:36pt">
+            <v:imagedata r:id="rId5" />
+            <v:textbox><w:txbxContent><w:p><w:r><w:t>Copia</w:t></w:r></w:p></w:txbxContent></v:textbox>
+          </v:shape>
+        </w:pict>
+      </mc:Fallback>
+    </mc:AlternateContent>
+  </w:r>
+</w:p>
+'''),
+        extraEntries: <String, String>{
+          'word/_rels/document.xml.rels': _imageRelationshipsXml,
+        },
+        binaryEntries: <String, List<int>>{'word/media/image1.png': _pngBytes},
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final runs = _paragraphs(document.pages.single).single.runs;
+    expect(runs.where((run) => run.image != null), hasLength(1));
+    expect(runs.map((run) => run.text).join(), isEmpty);
+  });
+
+  test('el texto de un cuadro de texto no se mezcla con el del párrafo '
+      'que lo contiene', () async {
+    final filePath = p.join(tempDirectory.path, 'cuadro_texto.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:t>Visible</w:t></w:r>
+  <w:r>
+    <w:drawing xmlns:wp="urn:test">
+      <wp:inline>
+        <wp:extent cx="914400" cy="457200" />
+        <w:txbxContent><w:p><w:r><w:t>Dentro del cuadro</w:t></w:r></w:p></w:txbxContent>
+      </wp:inline>
+    </w:drawing>
+  </w:r>
+</w:p>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(
+      _paragraphs(document.pages.single).single.runs.map((run) => run.text),
+      <String>['Visible'],
+    );
+  });
+
+  test('w:jc, w:ind y w:spacing directos del párrafo se exponen en el '
+      'modelo', () async {
+    final filePath = p.join(tempDirectory.path, 'formato_parrafo.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:pPr>
+    <w:jc w:val="center" />
+    <w:ind w:left="720" w:right="360" w:firstLine="240" />
+    <w:spacing w:before="120" w:after="240" w:line="276" w:lineRule="auto" />
+  </w:pPr>
+  <w:r><w:t>Centrado</w:t></w:r>
+</w:p>
+<w:p>
+  <w:pPr>
+    <w:jc w:val="both" />
+    <w:ind w:left="720" w:hanging="360" />
+    <w:spacing w:line="360" w:lineRule="exact" />
+  </w:pPr>
+  <w:r><w:t>Justificado</w:t></w:r>
+</w:p>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final paragraphs = _paragraphs(document.pages.single);
+    expect(paragraphs[0].alignment, DocumentAlignment.center);
+    expect(paragraphs[0].indentLeftPoints, 36);
+    expect(paragraphs[0].indentRightPoints, 18);
+    expect(paragraphs[0].indentFirstLinePoints, 12);
+    expect(paragraphs[0].spacingBeforePoints, 6);
+    expect(paragraphs[0].spacingAfterPoints, 12);
+    expect(paragraphs[0].lineSpacingMultiple, closeTo(1.15, 0.0001));
+    expect(paragraphs[0].lineSpacingExactPoints, isNull);
+
+    expect(paragraphs[1].alignment, DocumentAlignment.justify);
+    expect(paragraphs[1].indentFirstLinePoints, -18);
+    expect(paragraphs[1].lineSpacingExactPoints, 18);
+    expect(paragraphs[1].lineSpacingMultiple, isNull);
+  });
+
+  test('w:rFonts resuelve la fuente del tema y el formato directo gana '
+      'sobre el estilo', () async {
+    final filePath = p.join(tempDirectory.path, 'fuentes.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Cuerpo</w:t></w:r></w:p>
+<w:p>
+  <w:pPr><w:pStyle w:val="Titulo" /></w:pPr>
+  <w:r><w:t>Título</w:t></w:r>
+</w:p>
+<w:p>
+  <w:r>
+    <w:rPr><w:rFonts w:ascii="Courier New" /></w:rPr>
+    <w:t>Monoespaciada</w:t>
+  </w:r>
+</w:p>
+'''),
+        extraEntries: <String, String>{
+          'word/theme/theme1.xml': _themeXml,
+          'word/styles.xml': _themedStylesXml,
+        },
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final paragraphs = _paragraphs(document.pages.single);
+    expect(paragraphs[0].runs.single.fontFamily, 'Cambria');
+    expect(paragraphs[0].runs.single.fontSizePoints, 11);
+    expect(paragraphs[1].runs.single.fontFamily, 'Calibri');
+    expect(paragraphs[1].runs.single.fontSizePoints, 14);
+    expect(paragraphs[2].runs.single.fontFamily, 'Courier New');
+  });
+
+  test('w:contextualSpacing suprime el espacio entre párrafos del mismo '
+      'estilo', () async {
+    final filePath = p.join(tempDirectory.path, 'contextual.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:pPr><w:pStyle w:val="Lista" /></w:pPr>
+  <w:r><w:t>Uno</w:t></w:r>
+</w:p>
+<w:p>
+  <w:pPr><w:pStyle w:val="Lista" /></w:pPr>
+  <w:r><w:t>Dos</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Otro estilo</w:t></w:r></w:p>
+'''),
+        extraEntries: <String, String>{
+          'word/styles.xml': '''
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Lista">
+    <w:pPr>
+      <w:spacing w:before="200" w:after="200" />
+      <w:contextualSpacing />
+    </w:pPr>
+  </w:style>
+</w:styles>
+''',
+        },
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final paragraphs = _paragraphs(document.pages.single);
+    // Entre "Uno" y "Dos" (mismo estilo) no hay espacio; contra el párrafo
+    // siguiente, de otro estilo, sí se conserva.
+    expect(paragraphs[0].spacingBeforePoints, 10);
+    expect(paragraphs[0].spacingAfterPoints, 0);
+    expect(paragraphs[1].spacingBeforePoints, 0);
+    expect(paragraphs[1].spacingAfterPoints, 10);
+  });
+
+  test('pgMar expone las distancias de encabezado y pie', () async {
+    final filePath = p.join(tempDirectory.path, 'margenes.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: '''
+<w:document
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Cuerpo</w:t></w:r></w:p>
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840" />
+      <w:pgMar w:top="1440" w:right="1800" w:bottom="1440" w:left="1800"
+          w:header="720" w:footer="576" />
+    </w:sectPr>
+  </w:body>
+</w:document>
+''',
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final margins = document.pages.single.margins;
+    expect(margins.topPoints, 72);
+    expect(margins.leftPoints, 90);
+    expect(margins.headerDistancePoints, 36);
+    expect(margins.footerDistancePoints, 28.8);
+  });
+
+  test('la tabla expone su retícula y no inventa bordes que Word no '
+      'dibuja', () async {
+    final filePath = p.join(tempDirectory.path, 'tabla_sin_bordes.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:tbl>
+  <w:tblPr><w:jc w:val="center" /></w:tblPr>
+  <w:tblGrid><w:gridCol w:w="4320" /><w:gridCol w:w="2160" /></w:tblGrid>
+  <w:tr>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="4320" w:type="dxa" /></w:tcPr>
+      <w:p><w:r><w:t>Campo</w:t></w:r></w:p>
+    </w:tc>
+    <w:tc><w:p><w:r><w:t>Valor</w:t></w:r></w:p></w:tc>
+  </w:tr>
+</w:tbl>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final table =
+        (document.pages.single.blocks.single as DocumentTableBlock).table;
+    expect(table.columnWidthsPoints, <double>[216, 108]);
+    expect(table.alignment, DocumentAlignment.center);
+    expect(table.borderWidthPoints, 0);
+    expect(table.rows.single.cells.first.widthPoints, 216);
+    expect(table.rows.single.cells.last.widthPoints, isNull);
+  });
+
+  test('w:tblBorders declara el grosor y el color del borde', () async {
+    final filePath = p.join(tempDirectory.path, 'tabla_con_bordes.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:tbl>
+  <w:tblPr>
+    <w:tblBorders>
+      <w:top w:val="single" w:sz="12" w:color="FF0000" />
+      <w:bottom w:val="single" w:sz="12" w:color="FF0000" />
+    </w:tblBorders>
+  </w:tblPr>
+  <w:tr><w:tc><w:p><w:r><w:t>Celda</w:t></w:r></w:p></w:tc></w:tr>
+</w:tbl>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final table =
+        (document.pages.single.blocks.single as DocumentTableBlock).table;
+    // w:sz está en octavos de punto: 12 -> 1.5pt.
+    expect(table.borderWidthPoints, 1.5);
+    expect(table.borderColorHex, 'FF0000');
   });
 
   test('presencia de header/footer y footnotes agrega omisiones', () async {
@@ -731,6 +1167,91 @@ void main() {
     expect(run.isBold, isTrue);
   });
 
+  test('un w:lastRenderedPageBreak dentro de una tabla no genera una página '
+      'en blanco a continuación', () async {
+    final filePath = p.join(tempDirectory.path, 'tabla_partida.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:tbl>
+  <w:tr><w:tc><w:p><w:r><w:t>Fila 1</w:t></w:r></w:p></w:tc></w:tr>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:lastRenderedPageBreak /><w:t>Fila 2</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+<w:p><w:r><w:t>Después</w:t></w:r></w:p>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    // La tabla es atómica: cabe entera en la página actual y el párrafo
+    // siguiente la acompaña. Ninguna página queda vacía.
+    expect(document.pages, hasLength(1));
+    expect(_paragraphs(document.pages[0]).single.runs.single.text, 'Después');
+  });
+
+  test('una celda con w:lastRenderedPageBreak conserva el párrafo entero en '
+      'un solo bloque', () async {
+    final filePath = p.join(tempDirectory.path, 'celda_marcador.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p>
+        <w:r><w:t>Antes</w:t><w:lastRenderedPageBreak /><w:t>Después</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final block = document.pages[0].blocks.single;
+    final table = (block as DocumentTableBlock).table;
+    final cellBlocks = table.rows.single.cells.single.blocks;
+    // Un solo bloque: el marcador no trocea el párrafo de la celda. Si lo
+    // troceara, los índices de bloque de celda dejarían de coincidir con los
+    // que docx_zip_exporter.dart recorre al exportar.
+    expect(cellBlocks, hasLength(1));
+    final paragraph = (cellBlocks.single as DocumentParagraphBlock).paragraph;
+    expect(paragraph.runs.map((run) => run.text).join(), 'AntesDespués');
+  });
+
+  test('un documento cuyos únicos marcadores están dentro de tablas mantiene '
+      'la heurística de relleno activa', () async {
+    final filePath = p.join(tempDirectory.path, 'marcador_solo_tabla.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:lastRenderedPageBreak /><w:t>Celda</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+${List<String>.filled(40, _longParagraphXml(startsPage: false)).join()}
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    // El marcador de la tabla se ignora por completo, así que NO cuenta como
+    // "Word ya maquetó esto": sin ninguna señal explícita utilizable el
+    // relleno heurístico debe seguir repartiendo el texto largo.
+    expect(document.pages.length, greaterThan(1));
+  });
+
   test('falla con bytes corruptos no ZIP', () async {
     final filePath = p.join(tempDirectory.path, 'corrupto.docx');
     await File(filePath).writeAsBytes(<int>[0, 1, 2, 3, 4, 5, 6]);
@@ -746,6 +1267,22 @@ void main() {
       ),
     );
   });
+}
+
+// Párrafo de 600 caracteres — el mismo volumen que usa el caso heurístico —
+// opcionalmente precedido del marcador con el que Word abre una página nueva.
+String _longParagraphXml({required bool startsPage}) {
+  final marker = startsPage ? '<w:lastRenderedPageBreak />' : '';
+  return '<w:p><w:r>$marker<w:t>${'A' * 600}</w:t></w:r></w:p>';
+}
+
+// Un `w:lastRenderedPageBreak` al inicio de un run deja un chunk vacío antes
+// del corte (el párrafo que abre la página nueva). Contar solo los párrafos
+// CON texto expresa el reparto real sin depender de ese detalle.
+int _textParagraphCount(DocumentPage page) {
+  return _paragraphs(
+    page,
+  ).where((paragraph) => paragraph.runs.isNotEmpty).length;
 }
 
 List<DocumentParagraph> _paragraphs(DocumentPage page) {
@@ -776,6 +1313,62 @@ const _stylesXml = '''
 </w:styles>
 ''';
 
+// Un PNG válido de 1x1: los bytes tienen que decodificar de verdad para que
+// el visor pueda pintarlos, así que no sirve un relleno arbitrario.
+const _pngBytes = <int>[
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
+  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+  0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41,
+  0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0xF0,
+  0x1F, 0x00, 0x05, 0x00, 0x01, 0xFF, 0x89, 0x99,
+  0x3D, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+  0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+// 914400 EMU = 1 pulgada = 72 puntos.
+const _inlineDrawingXml = '''
+<w:drawing xmlns:wp="urn:test"
+    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <wp:inline>
+    <wp:extent cx="914400" cy="457200" />
+    <a:graphic><a:graphicData><a:blip r:embed="rId5" /></a:graphicData></a:graphic>
+  </wp:inline>
+</w:drawing>
+''';
+
+const _imageRelationshipsXml = '''
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png" />
+</Relationships>
+''';
+
+const _themeXml = '''
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <a:themeElements>
+    <a:fontScheme name="Office">
+      <a:majorFont><a:latin typeface="Calibri" /></a:majorFont>
+      <a:minorFont><a:latin typeface="Cambria" /></a:minorFont>
+    </a:fontScheme>
+  </a:themeElements>
+</a:theme>
+''';
+
+const _themedStylesXml = '''
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr><w:rFonts w:asciiTheme="minorHAnsi" /><w:sz w:val="22" /></w:rPr>
+    </w:rPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:styleId="Titulo">
+    <w:rPr><w:rFonts w:asciiTheme="majorHAnsi" /><w:sz w:val="28" /></w:rPr>
+  </w:style>
+</w:styles>
+''';
+
 String _documentWithBody(String bodyContent) {
   return '''
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -791,6 +1384,7 @@ Uint8List _buildDocxBytes({
   bool includeContentTypesXml = true,
   bool includeWordDocumentXml = true,
   Map<String, String> extraEntries = const <String, String>{},
+  Map<String, List<int>> binaryEntries = const <String, List<int>>{},
 }) {
   final archive = Archive();
 
@@ -804,6 +1398,10 @@ Uint8List _buildDocxBytes({
 
   for (final entry in extraEntries.entries) {
     archive.addFile(ArchiveFile.string(entry.key, entry.value));
+  }
+
+  for (final entry in binaryEntries.entries) {
+    archive.addFile(ArchiveFile(entry.key, entry.value.length, entry.value));
   }
 
   final encoded = ZipEncoder().encode(archive);

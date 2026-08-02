@@ -1,0 +1,21 @@
+# Exclusiones del grafo de conocimiento (Graphify).
+# Sintaxis gitignore. Se fusiona con .gitignore, solo puede excluir más, nunca re-incluir.
+
+# Salida generada por la propia app. Los contratos exportados son artefactos de
+# prueba, no código fuente: inflaban los god nodes con conceptos de plantilla que
+# competían con las abstracciones reales del dominio.
+Exports/
+
+# Directorios de trabajo que la app crea y llena en tiempo de ejecución. Su contenido
+# son datos del usuario, no fuente. Un .csv de datos de prueba y un .fork guardado
+# entraban clasificados como código y aportaban 29 nodos AST al grafo.
+Cache/
+Logs/
+Projects/
+Workspace/
+
+# Documentos ofimáticos, vengan de donde vengan.
+*.docx
+
+# El script que construye el grafo no forma parte del grafo que construye.
+tool/graphify_rebuild.py

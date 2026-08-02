@@ -512,7 +512,13 @@ mixin _$DocumentMargins {
   double get topPoints => throw _privateConstructorUsedError;
   double get rightPoints => throw _privateConstructorUsedError;
   double get bottomPoints => throw _privateConstructorUsedError;
-  double get leftPoints => throw _privateConstructorUsedError;
+  double get leftPoints =>
+      throw _privateConstructorUsedError; // `w:pgMar/@header` y `@footer`: distancia desde el borde de la hoja
+  // hasta donde arranca el encabezado / termina el pie. Word los usa como
+  // ancla dentro del margen, no dentro del área de contenido. 36pt = 0.5",
+  // el valor por defecto de Word cuando el atributo falta.
+  double get headerDistancePoints => throw _privateConstructorUsedError;
+  double get footerDistancePoints => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentMargins
   /// with the given fields replaced by the non-null parameter values.
@@ -533,6 +539,8 @@ abstract class $DocumentMarginsCopyWith<$Res> {
     double rightPoints,
     double bottomPoints,
     double leftPoints,
+    double headerDistancePoints,
+    double footerDistancePoints,
   });
 }
 
@@ -555,6 +563,8 @@ class _$DocumentMarginsCopyWithImpl<$Res, $Val extends DocumentMargins>
     Object? rightPoints = null,
     Object? bottomPoints = null,
     Object? leftPoints = null,
+    Object? headerDistancePoints = null,
+    Object? footerDistancePoints = null,
   }) {
     return _then(
       _value.copyWith(
@@ -573,6 +583,14 @@ class _$DocumentMarginsCopyWithImpl<$Res, $Val extends DocumentMargins>
             leftPoints: null == leftPoints
                 ? _value.leftPoints
                 : leftPoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            headerDistancePoints: null == headerDistancePoints
+                ? _value.headerDistancePoints
+                : headerDistancePoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            footerDistancePoints: null == footerDistancePoints
+                ? _value.footerDistancePoints
+                : footerDistancePoints // ignore: cast_nullable_to_non_nullable
                       as double,
           )
           as $Val,
@@ -594,6 +612,8 @@ abstract class _$$DocumentMarginsImplCopyWith<$Res>
     double rightPoints,
     double bottomPoints,
     double leftPoints,
+    double headerDistancePoints,
+    double footerDistancePoints,
   });
 }
 
@@ -615,6 +635,8 @@ class __$$DocumentMarginsImplCopyWithImpl<$Res>
     Object? rightPoints = null,
     Object? bottomPoints = null,
     Object? leftPoints = null,
+    Object? headerDistancePoints = null,
+    Object? footerDistancePoints = null,
   }) {
     return _then(
       _$DocumentMarginsImpl(
@@ -634,6 +656,14 @@ class __$$DocumentMarginsImplCopyWithImpl<$Res>
             ? _value.leftPoints
             : leftPoints // ignore: cast_nullable_to_non_nullable
                   as double,
+        headerDistancePoints: null == headerDistancePoints
+            ? _value.headerDistancePoints
+            : headerDistancePoints // ignore: cast_nullable_to_non_nullable
+                  as double,
+        footerDistancePoints: null == footerDistancePoints
+            ? _value.footerDistancePoints
+            : footerDistancePoints // ignore: cast_nullable_to_non_nullable
+                  as double,
       ),
     );
   }
@@ -647,6 +677,8 @@ class _$DocumentMarginsImpl implements _DocumentMargins {
     required this.rightPoints,
     required this.bottomPoints,
     required this.leftPoints,
+    this.headerDistancePoints = 36,
+    this.footerDistancePoints = 36,
   });
 
   @override
@@ -657,10 +689,20 @@ class _$DocumentMarginsImpl implements _DocumentMargins {
   final double bottomPoints;
   @override
   final double leftPoints;
+  // `w:pgMar/@header` y `@footer`: distancia desde el borde de la hoja
+  // hasta donde arranca el encabezado / termina el pie. Word los usa como
+  // ancla dentro del margen, no dentro del área de contenido. 36pt = 0.5",
+  // el valor por defecto de Word cuando el atributo falta.
+  @override
+  @JsonKey()
+  final double headerDistancePoints;
+  @override
+  @JsonKey()
+  final double footerDistancePoints;
 
   @override
   String toString() {
-    return 'DocumentMargins(topPoints: $topPoints, rightPoints: $rightPoints, bottomPoints: $bottomPoints, leftPoints: $leftPoints)';
+    return 'DocumentMargins(topPoints: $topPoints, rightPoints: $rightPoints, bottomPoints: $bottomPoints, leftPoints: $leftPoints, headerDistancePoints: $headerDistancePoints, footerDistancePoints: $footerDistancePoints)';
   }
 
   @override
@@ -675,7 +717,11 @@ class _$DocumentMarginsImpl implements _DocumentMargins {
             (identical(other.bottomPoints, bottomPoints) ||
                 other.bottomPoints == bottomPoints) &&
             (identical(other.leftPoints, leftPoints) ||
-                other.leftPoints == leftPoints));
+                other.leftPoints == leftPoints) &&
+            (identical(other.headerDistancePoints, headerDistancePoints) ||
+                other.headerDistancePoints == headerDistancePoints) &&
+            (identical(other.footerDistancePoints, footerDistancePoints) ||
+                other.footerDistancePoints == footerDistancePoints));
   }
 
   @override
@@ -685,6 +731,8 @@ class _$DocumentMarginsImpl implements _DocumentMargins {
     rightPoints,
     bottomPoints,
     leftPoints,
+    headerDistancePoints,
+    footerDistancePoints,
   );
 
   /// Create a copy of DocumentMargins
@@ -705,6 +753,8 @@ abstract class _DocumentMargins implements DocumentMargins {
     required final double rightPoints,
     required final double bottomPoints,
     required final double leftPoints,
+    final double headerDistancePoints,
+    final double footerDistancePoints,
   }) = _$DocumentMarginsImpl;
 
   @override
@@ -714,7 +764,14 @@ abstract class _DocumentMargins implements DocumentMargins {
   @override
   double get bottomPoints;
   @override
-  double get leftPoints;
+  double get leftPoints; // `w:pgMar/@header` y `@footer`: distancia desde el borde de la hoja
+  // hasta donde arranca el encabezado / termina el pie. Word los usa como
+  // ancla dentro del margen, no dentro del área de contenido. 36pt = 0.5",
+  // el valor por defecto de Word cuando el atributo falta.
+  @override
+  double get headerDistancePoints;
+  @override
+  double get footerDistancePoints;
 
   /// Create a copy of DocumentMargins
   /// with the given fields replaced by the non-null parameter values.
@@ -1102,7 +1159,16 @@ abstract class DocumentTableBlock implements DocumentBlock {
 
 /// @nodoc
 mixin _$DocumentTable {
-  List<DocumentTableRow> get rows => throw _privateConstructorUsedError;
+  List<DocumentTableRow> get rows =>
+      throw _privateConstructorUsedError; // Anchos de `w:tblGrid/w:gridCol`, en el orden de las columnas. Vacío
+  // cuando el DOCX no declara la retícula: el renderer reparte entonces el
+  // ancho disponible en partes iguales.
+  List<double> get columnWidthsPoints => throw _privateConstructorUsedError;
+  DocumentAlignment get alignment =>
+      throw _privateConstructorUsedError; // 0 = tabla sin bordes visibles (el caso por defecto en Word cuando no
+  // hay `w:tblBorders` ni estilo de tabla que los aporte).
+  double get borderWidthPoints => throw _privateConstructorUsedError;
+  String? get borderColorHex => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentTable
   /// with the given fields replaced by the non-null parameter values.
@@ -1118,7 +1184,13 @@ abstract class $DocumentTableCopyWith<$Res> {
     $Res Function(DocumentTable) then,
   ) = _$DocumentTableCopyWithImpl<$Res, DocumentTable>;
   @useResult
-  $Res call({List<DocumentTableRow> rows});
+  $Res call({
+    List<DocumentTableRow> rows,
+    List<double> columnWidthsPoints,
+    DocumentAlignment alignment,
+    double borderWidthPoints,
+    String? borderColorHex,
+  });
 }
 
 /// @nodoc
@@ -1135,13 +1207,35 @@ class _$DocumentTableCopyWithImpl<$Res, $Val extends DocumentTable>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? rows = null}) {
+  $Res call({
+    Object? rows = null,
+    Object? columnWidthsPoints = null,
+    Object? alignment = null,
+    Object? borderWidthPoints = null,
+    Object? borderColorHex = freezed,
+  }) {
     return _then(
       _value.copyWith(
             rows: null == rows
                 ? _value.rows
                 : rows // ignore: cast_nullable_to_non_nullable
                       as List<DocumentTableRow>,
+            columnWidthsPoints: null == columnWidthsPoints
+                ? _value.columnWidthsPoints
+                : columnWidthsPoints // ignore: cast_nullable_to_non_nullable
+                      as List<double>,
+            alignment: null == alignment
+                ? _value.alignment
+                : alignment // ignore: cast_nullable_to_non_nullable
+                      as DocumentAlignment,
+            borderWidthPoints: null == borderWidthPoints
+                ? _value.borderWidthPoints
+                : borderWidthPoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            borderColorHex: freezed == borderColorHex
+                ? _value.borderColorHex
+                : borderColorHex // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -1157,7 +1251,13 @@ abstract class _$$DocumentTableImplCopyWith<$Res>
   ) = __$$DocumentTableImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({List<DocumentTableRow> rows});
+  $Res call({
+    List<DocumentTableRow> rows,
+    List<double> columnWidthsPoints,
+    DocumentAlignment alignment,
+    double borderWidthPoints,
+    String? borderColorHex,
+  });
 }
 
 /// @nodoc
@@ -1173,13 +1273,35 @@ class __$$DocumentTableImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? rows = null}) {
+  $Res call({
+    Object? rows = null,
+    Object? columnWidthsPoints = null,
+    Object? alignment = null,
+    Object? borderWidthPoints = null,
+    Object? borderColorHex = freezed,
+  }) {
     return _then(
       _$DocumentTableImpl(
         rows: null == rows
             ? _value._rows
             : rows // ignore: cast_nullable_to_non_nullable
                   as List<DocumentTableRow>,
+        columnWidthsPoints: null == columnWidthsPoints
+            ? _value._columnWidthsPoints
+            : columnWidthsPoints // ignore: cast_nullable_to_non_nullable
+                  as List<double>,
+        alignment: null == alignment
+            ? _value.alignment
+            : alignment // ignore: cast_nullable_to_non_nullable
+                  as DocumentAlignment,
+        borderWidthPoints: null == borderWidthPoints
+            ? _value.borderWidthPoints
+            : borderWidthPoints // ignore: cast_nullable_to_non_nullable
+                  as double,
+        borderColorHex: freezed == borderColorHex
+            ? _value.borderColorHex
+            : borderColorHex // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -1188,8 +1310,14 @@ class __$$DocumentTableImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$DocumentTableImpl implements _DocumentTable {
-  const _$DocumentTableImpl({required final List<DocumentTableRow> rows})
-    : _rows = rows;
+  const _$DocumentTableImpl({
+    required final List<DocumentTableRow> rows,
+    final List<double> columnWidthsPoints = const <double>[],
+    this.alignment = DocumentAlignment.start,
+    this.borderWidthPoints = 0,
+    this.borderColorHex,
+  }) : _rows = rows,
+       _columnWidthsPoints = columnWidthsPoints;
 
   final List<DocumentTableRow> _rows;
   @override
@@ -1199,9 +1327,36 @@ class _$DocumentTableImpl implements _DocumentTable {
     return EqualUnmodifiableListView(_rows);
   }
 
+  // Anchos de `w:tblGrid/w:gridCol`, en el orden de las columnas. Vacío
+  // cuando el DOCX no declara la retícula: el renderer reparte entonces el
+  // ancho disponible en partes iguales.
+  final List<double> _columnWidthsPoints;
+  // Anchos de `w:tblGrid/w:gridCol`, en el orden de las columnas. Vacío
+  // cuando el DOCX no declara la retícula: el renderer reparte entonces el
+  // ancho disponible en partes iguales.
+  @override
+  @JsonKey()
+  List<double> get columnWidthsPoints {
+    if (_columnWidthsPoints is EqualUnmodifiableListView)
+      return _columnWidthsPoints;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_columnWidthsPoints);
+  }
+
+  @override
+  @JsonKey()
+  final DocumentAlignment alignment;
+  // 0 = tabla sin bordes visibles (el caso por defecto en Word cuando no
+  // hay `w:tblBorders` ni estilo de tabla que los aporte).
+  @override
+  @JsonKey()
+  final double borderWidthPoints;
+  @override
+  final String? borderColorHex;
+
   @override
   String toString() {
-    return 'DocumentTable(rows: $rows)';
+    return 'DocumentTable(rows: $rows, columnWidthsPoints: $columnWidthsPoints, alignment: $alignment, borderWidthPoints: $borderWidthPoints, borderColorHex: $borderColorHex)';
   }
 
   @override
@@ -1209,12 +1364,28 @@ class _$DocumentTableImpl implements _DocumentTable {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$DocumentTableImpl &&
-            const DeepCollectionEquality().equals(other._rows, _rows));
+            const DeepCollectionEquality().equals(other._rows, _rows) &&
+            const DeepCollectionEquality().equals(
+              other._columnWidthsPoints,
+              _columnWidthsPoints,
+            ) &&
+            (identical(other.alignment, alignment) ||
+                other.alignment == alignment) &&
+            (identical(other.borderWidthPoints, borderWidthPoints) ||
+                other.borderWidthPoints == borderWidthPoints) &&
+            (identical(other.borderColorHex, borderColorHex) ||
+                other.borderColorHex == borderColorHex));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, const DeepCollectionEquality().hash(_rows));
+  int get hashCode => Object.hash(
+    runtimeType,
+    const DeepCollectionEquality().hash(_rows),
+    const DeepCollectionEquality().hash(_columnWidthsPoints),
+    alignment,
+    borderWidthPoints,
+    borderColorHex,
+  );
 
   /// Create a copy of DocumentTable
   /// with the given fields replaced by the non-null parameter values.
@@ -1226,11 +1397,27 @@ class _$DocumentTableImpl implements _DocumentTable {
 }
 
 abstract class _DocumentTable implements DocumentTable {
-  const factory _DocumentTable({required final List<DocumentTableRow> rows}) =
-      _$DocumentTableImpl;
+  const factory _DocumentTable({
+    required final List<DocumentTableRow> rows,
+    final List<double> columnWidthsPoints,
+    final DocumentAlignment alignment,
+    final double borderWidthPoints,
+    final String? borderColorHex,
+  }) = _$DocumentTableImpl;
 
   @override
-  List<DocumentTableRow> get rows;
+  List<DocumentTableRow> get rows; // Anchos de `w:tblGrid/w:gridCol`, en el orden de las columnas. Vacío
+  // cuando el DOCX no declara la retícula: el renderer reparte entonces el
+  // ancho disponible en partes iguales.
+  @override
+  List<double> get columnWidthsPoints;
+  @override
+  DocumentAlignment get alignment; // 0 = tabla sin bordes visibles (el caso por defecto en Word cuando no
+  // hay `w:tblBorders` ni estilo de tabla que los aporte).
+  @override
+  double get borderWidthPoints;
+  @override
+  String? get borderColorHex;
 
   /// Create a copy of DocumentTable
   /// with the given fields replaced by the non-null parameter values.
@@ -1387,6 +1574,7 @@ abstract class _DocumentTableRow implements DocumentTableRow {
 /// @nodoc
 mixin _$DocumentTableCell {
   List<DocumentBlock> get blocks => throw _privateConstructorUsedError;
+  double? get widthPoints => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentTableCell
   /// with the given fields replaced by the non-null parameter values.
@@ -1402,7 +1590,7 @@ abstract class $DocumentTableCellCopyWith<$Res> {
     $Res Function(DocumentTableCell) then,
   ) = _$DocumentTableCellCopyWithImpl<$Res, DocumentTableCell>;
   @useResult
-  $Res call({List<DocumentBlock> blocks});
+  $Res call({List<DocumentBlock> blocks, double? widthPoints});
 }
 
 /// @nodoc
@@ -1419,13 +1607,17 @@ class _$DocumentTableCellCopyWithImpl<$Res, $Val extends DocumentTableCell>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? blocks = null}) {
+  $Res call({Object? blocks = null, Object? widthPoints = freezed}) {
     return _then(
       _value.copyWith(
             blocks: null == blocks
                 ? _value.blocks
                 : blocks // ignore: cast_nullable_to_non_nullable
                       as List<DocumentBlock>,
+            widthPoints: freezed == widthPoints
+                ? _value.widthPoints
+                : widthPoints // ignore: cast_nullable_to_non_nullable
+                      as double?,
           )
           as $Val,
     );
@@ -1441,7 +1633,7 @@ abstract class _$$DocumentTableCellImplCopyWith<$Res>
   ) = __$$DocumentTableCellImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({List<DocumentBlock> blocks});
+  $Res call({List<DocumentBlock> blocks, double? widthPoints});
 }
 
 /// @nodoc
@@ -1457,13 +1649,17 @@ class __$$DocumentTableCellImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? blocks = null}) {
+  $Res call({Object? blocks = null, Object? widthPoints = freezed}) {
     return _then(
       _$DocumentTableCellImpl(
         blocks: null == blocks
             ? _value._blocks
             : blocks // ignore: cast_nullable_to_non_nullable
                   as List<DocumentBlock>,
+        widthPoints: freezed == widthPoints
+            ? _value.widthPoints
+            : widthPoints // ignore: cast_nullable_to_non_nullable
+                  as double?,
       ),
     );
   }
@@ -1472,8 +1668,10 @@ class __$$DocumentTableCellImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$DocumentTableCellImpl implements _DocumentTableCell {
-  const _$DocumentTableCellImpl({required final List<DocumentBlock> blocks})
-    : _blocks = blocks;
+  const _$DocumentTableCellImpl({
+    required final List<DocumentBlock> blocks,
+    this.widthPoints,
+  }) : _blocks = blocks;
 
   final List<DocumentBlock> _blocks;
   @override
@@ -1484,8 +1682,11 @@ class _$DocumentTableCellImpl implements _DocumentTableCell {
   }
 
   @override
+  final double? widthPoints;
+
+  @override
   String toString() {
-    return 'DocumentTableCell(blocks: $blocks)';
+    return 'DocumentTableCell(blocks: $blocks, widthPoints: $widthPoints)';
   }
 
   @override
@@ -1493,12 +1694,17 @@ class _$DocumentTableCellImpl implements _DocumentTableCell {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$DocumentTableCellImpl &&
-            const DeepCollectionEquality().equals(other._blocks, _blocks));
+            const DeepCollectionEquality().equals(other._blocks, _blocks) &&
+            (identical(other.widthPoints, widthPoints) ||
+                other.widthPoints == widthPoints));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, const DeepCollectionEquality().hash(_blocks));
+  int get hashCode => Object.hash(
+    runtimeType,
+    const DeepCollectionEquality().hash(_blocks),
+    widthPoints,
+  );
 
   /// Create a copy of DocumentTableCell
   /// with the given fields replaced by the non-null parameter values.
@@ -1515,10 +1721,13 @@ class _$DocumentTableCellImpl implements _DocumentTableCell {
 abstract class _DocumentTableCell implements DocumentTableCell {
   const factory _DocumentTableCell({
     required final List<DocumentBlock> blocks,
+    final double? widthPoints,
   }) = _$DocumentTableCellImpl;
 
   @override
   List<DocumentBlock> get blocks;
+  @override
+  double? get widthPoints;
 
   /// Create a copy of DocumentTableCell
   /// with the given fields replaced by the non-null parameter values.
@@ -1538,6 +1747,18 @@ mixin _$DocumentParagraph {
   // Mejora futura: evitar que _extractPages corte justo después de un
   // párrafo con keepWithNext=true.
   bool get keepWithNext => throw _privateConstructorUsedError;
+  DocumentAlignment get alignment => throw _privateConstructorUsedError;
+  double get indentLeftPoints => throw _privateConstructorUsedError;
+  double get indentRightPoints =>
+      throw _privateConstructorUsedError; // Sangría extra de la primera línea (`w:ind/@firstLine`). Negativa para
+  // la sangría francesa (`@hanging`), que arranca la primera línea a la
+  // izquierda del resto del párrafo.
+  double get indentFirstLinePoints =>
+      throw _privateConstructorUsedError; // Interlineado de `w:spacing`: múltiplo del alto natural de línea cuando
+  // `w:lineRule="auto"`, o alto fijo en puntos para "exact"/"atLeast".
+  // Ambos null = interlineado sencillo (el natural de la fuente).
+  double? get lineSpacingMultiple => throw _privateConstructorUsedError;
+  double? get lineSpacingExactPoints => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentParagraph
   /// with the given fields replaced by the non-null parameter values.
@@ -1558,6 +1779,12 @@ abstract class $DocumentParagraphCopyWith<$Res> {
     double spacingBeforePoints,
     double spacingAfterPoints,
     bool keepWithNext,
+    DocumentAlignment alignment,
+    double indentLeftPoints,
+    double indentRightPoints,
+    double indentFirstLinePoints,
+    double? lineSpacingMultiple,
+    double? lineSpacingExactPoints,
   });
 }
 
@@ -1580,6 +1807,12 @@ class _$DocumentParagraphCopyWithImpl<$Res, $Val extends DocumentParagraph>
     Object? spacingBeforePoints = null,
     Object? spacingAfterPoints = null,
     Object? keepWithNext = null,
+    Object? alignment = null,
+    Object? indentLeftPoints = null,
+    Object? indentRightPoints = null,
+    Object? indentFirstLinePoints = null,
+    Object? lineSpacingMultiple = freezed,
+    Object? lineSpacingExactPoints = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -1599,6 +1832,30 @@ class _$DocumentParagraphCopyWithImpl<$Res, $Val extends DocumentParagraph>
                 ? _value.keepWithNext
                 : keepWithNext // ignore: cast_nullable_to_non_nullable
                       as bool,
+            alignment: null == alignment
+                ? _value.alignment
+                : alignment // ignore: cast_nullable_to_non_nullable
+                      as DocumentAlignment,
+            indentLeftPoints: null == indentLeftPoints
+                ? _value.indentLeftPoints
+                : indentLeftPoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            indentRightPoints: null == indentRightPoints
+                ? _value.indentRightPoints
+                : indentRightPoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            indentFirstLinePoints: null == indentFirstLinePoints
+                ? _value.indentFirstLinePoints
+                : indentFirstLinePoints // ignore: cast_nullable_to_non_nullable
+                      as double,
+            lineSpacingMultiple: freezed == lineSpacingMultiple
+                ? _value.lineSpacingMultiple
+                : lineSpacingMultiple // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            lineSpacingExactPoints: freezed == lineSpacingExactPoints
+                ? _value.lineSpacingExactPoints
+                : lineSpacingExactPoints // ignore: cast_nullable_to_non_nullable
+                      as double?,
           )
           as $Val,
     );
@@ -1619,6 +1876,12 @@ abstract class _$$DocumentParagraphImplCopyWith<$Res>
     double spacingBeforePoints,
     double spacingAfterPoints,
     bool keepWithNext,
+    DocumentAlignment alignment,
+    double indentLeftPoints,
+    double indentRightPoints,
+    double indentFirstLinePoints,
+    double? lineSpacingMultiple,
+    double? lineSpacingExactPoints,
   });
 }
 
@@ -1640,6 +1903,12 @@ class __$$DocumentParagraphImplCopyWithImpl<$Res>
     Object? spacingBeforePoints = null,
     Object? spacingAfterPoints = null,
     Object? keepWithNext = null,
+    Object? alignment = null,
+    Object? indentLeftPoints = null,
+    Object? indentRightPoints = null,
+    Object? indentFirstLinePoints = null,
+    Object? lineSpacingMultiple = freezed,
+    Object? lineSpacingExactPoints = freezed,
   }) {
     return _then(
       _$DocumentParagraphImpl(
@@ -1659,6 +1928,30 @@ class __$$DocumentParagraphImplCopyWithImpl<$Res>
             ? _value.keepWithNext
             : keepWithNext // ignore: cast_nullable_to_non_nullable
                   as bool,
+        alignment: null == alignment
+            ? _value.alignment
+            : alignment // ignore: cast_nullable_to_non_nullable
+                  as DocumentAlignment,
+        indentLeftPoints: null == indentLeftPoints
+            ? _value.indentLeftPoints
+            : indentLeftPoints // ignore: cast_nullable_to_non_nullable
+                  as double,
+        indentRightPoints: null == indentRightPoints
+            ? _value.indentRightPoints
+            : indentRightPoints // ignore: cast_nullable_to_non_nullable
+                  as double,
+        indentFirstLinePoints: null == indentFirstLinePoints
+            ? _value.indentFirstLinePoints
+            : indentFirstLinePoints // ignore: cast_nullable_to_non_nullable
+                  as double,
+        lineSpacingMultiple: freezed == lineSpacingMultiple
+            ? _value.lineSpacingMultiple
+            : lineSpacingMultiple // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        lineSpacingExactPoints: freezed == lineSpacingExactPoints
+            ? _value.lineSpacingExactPoints
+            : lineSpacingExactPoints // ignore: cast_nullable_to_non_nullable
+                  as double?,
       ),
     );
   }
@@ -1672,6 +1965,12 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
     this.spacingBeforePoints = 0,
     this.spacingAfterPoints = 0,
     this.keepWithNext = false,
+    this.alignment = DocumentAlignment.start,
+    this.indentLeftPoints = 0,
+    this.indentRightPoints = 0,
+    this.indentFirstLinePoints = 0,
+    this.lineSpacingMultiple,
+    this.lineSpacingExactPoints,
   }) : _runs = runs;
 
   final List<DocumentRun> _runs;
@@ -1695,10 +1994,32 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
   @override
   @JsonKey()
   final bool keepWithNext;
+  @override
+  @JsonKey()
+  final DocumentAlignment alignment;
+  @override
+  @JsonKey()
+  final double indentLeftPoints;
+  @override
+  @JsonKey()
+  final double indentRightPoints;
+  // Sangría extra de la primera línea (`w:ind/@firstLine`). Negativa para
+  // la sangría francesa (`@hanging`), que arranca la primera línea a la
+  // izquierda del resto del párrafo.
+  @override
+  @JsonKey()
+  final double indentFirstLinePoints;
+  // Interlineado de `w:spacing`: múltiplo del alto natural de línea cuando
+  // `w:lineRule="auto"`, o alto fijo en puntos para "exact"/"atLeast".
+  // Ambos null = interlineado sencillo (el natural de la fuente).
+  @override
+  final double? lineSpacingMultiple;
+  @override
+  final double? lineSpacingExactPoints;
 
   @override
   String toString() {
-    return 'DocumentParagraph(runs: $runs, spacingBeforePoints: $spacingBeforePoints, spacingAfterPoints: $spacingAfterPoints, keepWithNext: $keepWithNext)';
+    return 'DocumentParagraph(runs: $runs, spacingBeforePoints: $spacingBeforePoints, spacingAfterPoints: $spacingAfterPoints, keepWithNext: $keepWithNext, alignment: $alignment, indentLeftPoints: $indentLeftPoints, indentRightPoints: $indentRightPoints, indentFirstLinePoints: $indentFirstLinePoints, lineSpacingMultiple: $lineSpacingMultiple, lineSpacingExactPoints: $lineSpacingExactPoints)';
   }
 
   @override
@@ -1712,7 +2033,19 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
             (identical(other.spacingAfterPoints, spacingAfterPoints) ||
                 other.spacingAfterPoints == spacingAfterPoints) &&
             (identical(other.keepWithNext, keepWithNext) ||
-                other.keepWithNext == keepWithNext));
+                other.keepWithNext == keepWithNext) &&
+            (identical(other.alignment, alignment) ||
+                other.alignment == alignment) &&
+            (identical(other.indentLeftPoints, indentLeftPoints) ||
+                other.indentLeftPoints == indentLeftPoints) &&
+            (identical(other.indentRightPoints, indentRightPoints) ||
+                other.indentRightPoints == indentRightPoints) &&
+            (identical(other.indentFirstLinePoints, indentFirstLinePoints) ||
+                other.indentFirstLinePoints == indentFirstLinePoints) &&
+            (identical(other.lineSpacingMultiple, lineSpacingMultiple) ||
+                other.lineSpacingMultiple == lineSpacingMultiple) &&
+            (identical(other.lineSpacingExactPoints, lineSpacingExactPoints) ||
+                other.lineSpacingExactPoints == lineSpacingExactPoints));
   }
 
   @override
@@ -1722,6 +2055,12 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
     spacingBeforePoints,
     spacingAfterPoints,
     keepWithNext,
+    alignment,
+    indentLeftPoints,
+    indentRightPoints,
+    indentFirstLinePoints,
+    lineSpacingMultiple,
+    lineSpacingExactPoints,
   );
 
   /// Create a copy of DocumentParagraph
@@ -1742,6 +2081,12 @@ abstract class _DocumentParagraph implements DocumentParagraph {
     final double spacingBeforePoints,
     final double spacingAfterPoints,
     final bool keepWithNext,
+    final DocumentAlignment alignment,
+    final double indentLeftPoints,
+    final double indentRightPoints,
+    final double indentFirstLinePoints,
+    final double? lineSpacingMultiple,
+    final double? lineSpacingExactPoints,
   }) = _$DocumentParagraphImpl;
 
   @override
@@ -1755,6 +2100,22 @@ abstract class _DocumentParagraph implements DocumentParagraph {
   // párrafo con keepWithNext=true.
   @override
   bool get keepWithNext;
+  @override
+  DocumentAlignment get alignment;
+  @override
+  double get indentLeftPoints;
+  @override
+  double get indentRightPoints; // Sangría extra de la primera línea (`w:ind/@firstLine`). Negativa para
+  // la sangría francesa (`@hanging`), que arranca la primera línea a la
+  // izquierda del resto del párrafo.
+  @override
+  double get indentFirstLinePoints; // Interlineado de `w:spacing`: múltiplo del alto natural de línea cuando
+  // `w:lineRule="auto"`, o alto fijo en puntos para "exact"/"atLeast".
+  // Ambos null = interlineado sencillo (el natural de la fuente).
+  @override
+  double? get lineSpacingMultiple;
+  @override
+  double? get lineSpacingExactPoints;
 
   /// Create a copy of DocumentParagraph
   /// with the given fields replaced by the non-null parameter values.
@@ -1772,6 +2133,11 @@ mixin _$DocumentRun {
   bool get isUnderlined => throw _privateConstructorUsedError;
   String? get colorHex => throw _privateConstructorUsedError;
   double? get fontSizePoints => throw _privateConstructorUsedError;
+  String? get fontFamily =>
+      throw _privateConstructorUsedError; // Cuando no es null, el run representa una imagen incrustada y su [text]
+  // es vacío: la imagen se dibuja en el punto exacto del flujo de texto que
+  // ocupa el run, sin desplazar los offsets de mapeo del párrafo.
+  DocumentImage? get image => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentRun
   /// with the given fields replaced by the non-null parameter values.
@@ -1794,6 +2160,8 @@ abstract class $DocumentRunCopyWith<$Res> {
     bool isUnderlined,
     String? colorHex,
     double? fontSizePoints,
+    String? fontFamily,
+    DocumentImage? image,
   });
 }
 
@@ -1818,6 +2186,8 @@ class _$DocumentRunCopyWithImpl<$Res, $Val extends DocumentRun>
     Object? isUnderlined = null,
     Object? colorHex = freezed,
     Object? fontSizePoints = freezed,
+    Object? fontFamily = freezed,
+    Object? image = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -1845,6 +2215,14 @@ class _$DocumentRunCopyWithImpl<$Res, $Val extends DocumentRun>
                 ? _value.fontSizePoints
                 : fontSizePoints // ignore: cast_nullable_to_non_nullable
                       as double?,
+            fontFamily: freezed == fontFamily
+                ? _value.fontFamily
+                : fontFamily // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            image: freezed == image
+                ? _value.image
+                : image // ignore: cast_nullable_to_non_nullable
+                      as DocumentImage?,
           )
           as $Val,
     );
@@ -1867,6 +2245,8 @@ abstract class _$$DocumentRunImplCopyWith<$Res>
     bool isUnderlined,
     String? colorHex,
     double? fontSizePoints,
+    String? fontFamily,
+    DocumentImage? image,
   });
 }
 
@@ -1890,6 +2270,8 @@ class __$$DocumentRunImplCopyWithImpl<$Res>
     Object? isUnderlined = null,
     Object? colorHex = freezed,
     Object? fontSizePoints = freezed,
+    Object? fontFamily = freezed,
+    Object? image = freezed,
   }) {
     return _then(
       _$DocumentRunImpl(
@@ -1917,6 +2299,14 @@ class __$$DocumentRunImplCopyWithImpl<$Res>
             ? _value.fontSizePoints
             : fontSizePoints // ignore: cast_nullable_to_non_nullable
                   as double?,
+        fontFamily: freezed == fontFamily
+            ? _value.fontFamily
+            : fontFamily // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        image: freezed == image
+            ? _value.image
+            : image // ignore: cast_nullable_to_non_nullable
+                  as DocumentImage?,
       ),
     );
   }
@@ -1932,6 +2322,8 @@ class _$DocumentRunImpl implements _DocumentRun {
     required this.isUnderlined,
     this.colorHex,
     this.fontSizePoints,
+    this.fontFamily,
+    this.image,
   });
 
   @override
@@ -1946,10 +2338,17 @@ class _$DocumentRunImpl implements _DocumentRun {
   final String? colorHex;
   @override
   final double? fontSizePoints;
+  @override
+  final String? fontFamily;
+  // Cuando no es null, el run representa una imagen incrustada y su [text]
+  // es vacío: la imagen se dibuja en el punto exacto del flujo de texto que
+  // ocupa el run, sin desplazar los offsets de mapeo del párrafo.
+  @override
+  final DocumentImage? image;
 
   @override
   String toString() {
-    return 'DocumentRun(text: $text, isBold: $isBold, isItalic: $isItalic, isUnderlined: $isUnderlined, colorHex: $colorHex, fontSizePoints: $fontSizePoints)';
+    return 'DocumentRun(text: $text, isBold: $isBold, isItalic: $isItalic, isUnderlined: $isUnderlined, colorHex: $colorHex, fontSizePoints: $fontSizePoints, fontFamily: $fontFamily, image: $image)';
   }
 
   @override
@@ -1966,7 +2365,10 @@ class _$DocumentRunImpl implements _DocumentRun {
             (identical(other.colorHex, colorHex) ||
                 other.colorHex == colorHex) &&
             (identical(other.fontSizePoints, fontSizePoints) ||
-                other.fontSizePoints == fontSizePoints));
+                other.fontSizePoints == fontSizePoints) &&
+            (identical(other.fontFamily, fontFamily) ||
+                other.fontFamily == fontFamily) &&
+            (identical(other.image, image) || other.image == image));
   }
 
   @override
@@ -1978,6 +2380,8 @@ class _$DocumentRunImpl implements _DocumentRun {
     isUnderlined,
     colorHex,
     fontSizePoints,
+    fontFamily,
+    image,
   );
 
   /// Create a copy of DocumentRun
@@ -1997,6 +2401,8 @@ abstract class _DocumentRun implements DocumentRun {
     required final bool isUnderlined,
     final String? colorHex,
     final double? fontSizePoints,
+    final String? fontFamily,
+    final DocumentImage? image,
   }) = _$DocumentRunImpl;
 
   @override
@@ -2011,6 +2417,12 @@ abstract class _DocumentRun implements DocumentRun {
   String? get colorHex;
   @override
   double? get fontSizePoints;
+  @override
+  String? get fontFamily; // Cuando no es null, el run representa una imagen incrustada y su [text]
+  // es vacío: la imagen se dibuja en el punto exacto del flujo de texto que
+  // ocupa el run, sin desplazar los offsets de mapeo del párrafo.
+  @override
+  DocumentImage? get image;
 
   /// Create a copy of DocumentRun
   /// with the given fields replaced by the non-null parameter values.

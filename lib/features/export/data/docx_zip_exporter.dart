@@ -139,6 +139,10 @@ String _applyToDocumentXml(
   List<DocxTextReplacement> replacements,
 ) {
   if (replacements.isEmpty) {
+    // Sin reemplazos no se reescribe una sola letra, así que la copia es
+    // idéntica a la plantilla y sus `lastRenderedPageBreak` siguen siendo
+    // ciertos: no hay nada obsoleto que limpiar y se evita parsear y
+    // reserializar el XML en cada fila.
     return xmlContent;
   }
 
@@ -152,12 +156,30 @@ String _applyToDocumentXml(
 
   var pageIndex = 0;
   var blockIndexOnPage = 0;
+  // Espejo de `_parseContainerBlocks`, que corta página también con
+  // `w:pageBreakBefore` y con un `w:sectPr` intermedio. `pageBreakBefore`
+  // marca el final del bloque ANTERIOR, así que hace falta saber si ya se
+  // emitió alguno (equivale a `segments.isNotEmpty`) y si ese ya cerraba
+  // página: en ingesta remarcar el flag es idempotente, aquí avanzar dos
+  // veces no lo sería.
+  var hasEmittedBlock = false;
+  var lastBlockEndedPage = false;
 
   for (final child in body.childElements.toList()) {
     final localName = child.name.local;
     if (localName == 'p') {
+      if (hasEmittedBlock &&
+          !lastBlockEndedPage &&
+          _hasPageBreakBefore(child)) {
+        pageIndex++;
+        blockIndexOnPage = 0;
+        lastBlockEndedPage = true;
+      }
+
       final chunks = _splitParagraphChunks(child);
-      for (final chunk in chunks) {
+      final forcesSectionBreak = _paragraphSectionBreakEndsPage(child);
+      for (var index = 0; index < chunks.length; index++) {
+        final chunk = chunks[index];
         final steps = <ExportPathStep>[
           ExportPathStep.rootBlock(blockIndex: blockIndexOnPage),
         ];
@@ -167,7 +189,14 @@ String _applyToDocumentXml(
           _applyToTextNodes(chunk.nodes, pathReplacements);
         }
         blockIndexOnPage++;
-        if (chunk.endsWithPageBreak) {
+        hasEmittedBlock = true;
+        // El sectPr cierra el ÚLTIMO chunk del párrafo, en OR con el corte
+        // propio del chunk: si ese chunk ya cerraba página, no cuenta dos.
+        final endsPage =
+            chunk.endsWithPageBreak ||
+            (index == chunks.length - 1 && forcesSectionBreak);
+        lastBlockEndedPage = endsPage;
+        if (endsPage) {
           pageIndex++;
           blockIndexOnPage = 0;
         }
@@ -183,10 +212,44 @@ String _applyToDocumentXml(
         byPath: byPath,
       );
       blockIndexOnPage++;
+      // Una tabla es un bloque más y nunca cierra página por sí sola, así
+      // que un `pageBreakBefore` en el párrafo siguiente sí debe cortar.
+      hasEmittedBlock = true;
+      lastBlockEndedPage = false;
     }
   }
 
+  _stripLastRenderedPageBreaks(document);
   return document.toXmlString();
+}
+
+/// Borra todo `w:lastRenderedPageBreak` del documento exportado.
+///
+/// Se ejecuta DESPUÉS del recorrido de reemplazos, nunca antes: esos
+/// marcadores definen los límites de chunk contra los que se calcularon las
+/// claves de ruta, así que quitarlos primero movería el destino de cada
+/// reemplazo.
+///
+/// Al exportar reescribimos el texto sin que Word rehaga el maquetado, así
+/// que cada marcador queda obsoleto en cuanto tocamos el párrafo: describe un
+/// corte de página que ya no existe. Dejarlos convertía un documento de 11
+/// páginas en uno de 20 al reabrirlo. Word los reinserta correctamente en su
+/// siguiente maquetado, y nuestro visor cae en su heurística para documentos
+/// sin marcadores — el mismo comportamiento que ya tienen hoy.
+void _stripLastRenderedPageBreaks(XmlDocument document) {
+  // `toList()` primero: `descendants` es perezoso y no se puede mutar el
+  // árbol mientras se recorre.
+  final markers = document.descendants
+      .whereType<XmlElement>()
+      .where((element) => element.name.local == 'lastRenderedPageBreak')
+      .toList();
+  // Se quita solo el elemento. Es `CT_Empty` en OOXML: no aporta ningún
+  // carácter al texto plano, así que el `w:r` que lo contenga queda vacío
+  // pero válido y sigue aportando cero caracteres — ni un solo carácter
+  // visible cambia.
+  for (final marker in markers) {
+    marker.remove();
+  }
 }
 
 void _walkTable(
@@ -373,6 +436,11 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
   var current = <_TextNodeRef>[];
   var sawVisible = false;
   var endedWithPageBreak = false;
+  // Espejo de `_collectRawParagraphChunks`: dentro de una tabla los saltos de
+  // página se ignoran porque el bloque de tabla es atómico. Si un lado
+  // troceara el párrafo de la celda y el otro no, los índices de bloque de
+  // celda se desalinearían.
+  final ignorePageBreaks = _isInsideTable(paragraph);
 
   final runs = paragraph.descendants.whereType<XmlElement>().where(
     (element) =>
@@ -409,12 +477,14 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
       }
       if (localName == 'br') {
         if (_isPageBreak(element)) {
-          chunks.add(
-            _ParagraphChunkNodes(nodes: current, endsWithPageBreak: true),
-          );
-          current = <_TextNodeRef>[];
-          sawVisible = true;
-          endedWithPageBreak = true;
+          if (!ignorePageBreaks) {
+            chunks.add(
+              _ParagraphChunkNodes(nodes: current, endsWithPageBreak: true),
+            );
+            current = <_TextNodeRef>[];
+            sawVisible = true;
+            endedWithPageBreak = true;
+          }
         } else {
           // Espejo de ingesta: un salto de línea manual aporta '\n' como
           // nodo "gap", igual que w:tab arriba.
@@ -426,11 +496,23 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
         }
         continue;
       }
-      // `lastRenderedPageBreak` no trocea el chunk: espejo del lado de
-      // ingesta (docx_document_repository.dart), donde partirlo genera
-      // páginas fantasma en documentos editados sin re-maquetar en Word (ver
-      // commit 6ba34c8). Mientras ese lado no trocee, este tampoco puede
-      // hacerlo sin desalinear los offsets del mapeo.
+      if (localName == 'lastRenderedPageBreak' && !ignorePageBreaks) {
+        // `lastRenderedPageBreak` SÍ trocea el chunk: espejo de
+        // `_collectRawParagraphChunks` en docx_document_repository.dart, que
+        // ahora lo honra porque en una plantilla escrita en Word es el único
+        // registro de dónde su motor de maquetado cortó cada página. La
+        // dirección del espejo no importa mientras los dos lados coincidan:
+        // si uno troceara y el otro no, `pageIndex`/`blockIndex` se
+        // desalinearían y cada reemplazo caería en el párrafo equivocado.
+        // Los marcadores se eliminan del XML exportado (ver
+        // `_stripLastRenderedPageBreaks`), después de este recorrido.
+        chunks.add(
+          _ParagraphChunkNodes(nodes: current, endsWithPageBreak: true),
+        );
+        current = <_TextNodeRef>[];
+        sawVisible = true;
+        endedWithPageBreak = true;
+      }
     }
   }
 
@@ -515,6 +597,85 @@ bool _isPageBreak(XmlElement breakElement) {
     }
   }
   return false;
+}
+
+/// Espejo de `_isInsideTable` en `docx_document_repository.dart`: dentro de
+/// una celda (`w:tc`, a cualquier profundidad) los saltos de página no
+/// trocean el párrafo, porque el bloque de tabla es indivisible.
+bool _isInsideTable(XmlElement element) {
+  for (final ancestor in element.ancestors.whereType<XmlElement>()) {
+    if (ancestor.name.local == 'tc') {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Espejo de `_hasPageBreakBefore` en `docx_document_repository.dart`.
+bool _hasPageBreakBefore(XmlElement paragraph) {
+  final paragraphProperties = _firstChildByLocalName(paragraph, 'pPr');
+  if (paragraphProperties == null) {
+    return false;
+  }
+
+  return _isEnabledProperty(
+    _firstChildByLocalName(paragraphProperties, 'pageBreakBefore'),
+  );
+}
+
+/// Espejo de `_paragraphSectionBreakEndsPage` en
+/// `docx_document_repository.dart`: un `w:sectPr` hijo directo de `w:pPr`
+/// cierra una sección intermedia, y por spec OOXML eso rompe página salvo
+/// `w:type` "continuous" o "nextColumn". La ausencia de `w:type` es el
+/// default "nextPage", que SÍ rompe.
+bool _paragraphSectionBreakEndsPage(XmlElement paragraph) {
+  final paragraphProperties = _firstChildByLocalName(paragraph, 'pPr');
+  if (paragraphProperties == null) {
+    return false;
+  }
+
+  final sectionProperties = _firstChildByLocalName(
+    paragraphProperties,
+    'sectPr',
+  );
+  if (sectionProperties == null) {
+    return false;
+  }
+
+  final sectionType = _firstChildByLocalName(sectionProperties, 'type');
+  if (sectionType == null) {
+    return true;
+  }
+
+  final typeValue = _attributeValue(sectionType, 'val');
+  return typeValue != 'continuous' && typeValue != 'nextColumn';
+}
+
+XmlElement? _firstChildByLocalName(XmlElement parent, String localName) {
+  for (final child in parent.childElements) {
+    if (child.name.local == localName) {
+      return child;
+    }
+  }
+  return null;
+}
+
+bool _isEnabledProperty(XmlElement? property) {
+  if (property == null) {
+    return false;
+  }
+
+  final rawValue = _attributeValue(property, 'val')?.toLowerCase();
+  return rawValue != 'false' && rawValue != '0';
+}
+
+String? _attributeValue(XmlElement element, String localName) {
+  for (final attribute in element.attributes) {
+    if (attribute.name.local == localName) {
+      return attribute.value;
+    }
+  }
+  return null;
 }
 
 final class _TextNodeRef {

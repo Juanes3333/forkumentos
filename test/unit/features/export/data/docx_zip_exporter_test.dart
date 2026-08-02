@@ -137,8 +137,8 @@ void main() {
       expect(documentXml, isNot(contains('Pérez')));
     });
 
-    test('no divide el chunk en w:lastRenderedPageBreak: los campos antes y '
-        'después del marcador se reemplazan en el mismo bloque', () {
+    test('w:lastRenderedPageBreak divide el chunk: el campo anterior cae en '
+        'pageIndex 0 y el posterior en pageIndex 1', () {
       final documentXml = _exportDocumentXml(
         bodyContent: '''
 <w:p>
@@ -155,21 +155,143 @@ void main() {
             endOffset: 4,
             text: 'Saludos',
           ),
+          // Segundo chunk: los offsets son locales a su propio texto
+          // ("Mundo"), igual que los que calcula el mapeo sobre el bloque
+          // que ingesta emite para la página 1.
           DocxTextReplacement(
-            pageIndex: 0,
+            pageIndex: 1,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
-            startOffset: 5,
-            endOffset: 10,
+            startOffset: 0,
+            endOffset: 5,
             text: 'Planeta',
           ),
         ],
       );
 
-      // Si el marcador hubiera dividido el chunk (comportamiento viejo),
-      // el segundo reemplazo habría apuntado a un pageIndex/blockIndex que
-      // ya no existe y "Mundo" habría sobrevivido intacto.
-      expect(_wTexts(documentXml), <String>['Saludos Planeta', '']);
-      expect(_countElements(documentXml, 'lastRenderedPageBreak'), 1);
+      expect(_wTexts(documentXml), <String>['Saludos ', 'Planeta']);
+      // El marcador que definió el corte no viaja al documento exportado.
+      expect(_countElements(documentXml, 'lastRenderedPageBreak'), 0);
+    });
+
+    test('los w:lastRenderedPageBreak se eliminan del XML exportado sin '
+        'cambiar un solo carácter visible', () {
+      const body = '''
+<w:p>
+  <w:r><w:lastRenderedPageBreak /><w:t>Antes</w:t></w:r>
+</w:p>
+<w:p>
+  <w:r><w:t>Hola </w:t><w:lastRenderedPageBreak /><w:t>Ana</w:t></w:r>
+</w:p>
+''';
+      // Troceo resultante: el marcador inicial del primer párrafo cierra un
+      // chunk vacío (página 0), así que "Antes" cae en la página 1; el
+      // marcador intermedio del segundo párrafo deja "Hola " en la página 1
+      // (bloque 1) y "Ana" en la página 2. El reemplazo apunta a "Ana".
+      final documentXml = _exportDocumentXml(
+        bodyContent: body,
+        replacements: const <DocxTextReplacement>[
+          DocxTextReplacement(
+            pageIndex: 2,
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            startOffset: 0,
+            endOffset: 3,
+            text: 'Eva',
+          ),
+        ],
+      );
+
+      expect(_countElements(documentXml, 'lastRenderedPageBreak'), 0);
+      // Texto visible idéntico al que produciría el mismo reemplazo con los
+      // marcadores presentes: quitarlos no aporta ni quita caracteres.
+      expect(_wTexts(documentXml).join(), 'AntesHola Eva');
+      // El run que solo contenía el marcador sigue existiendo, vacío y
+      // válido: no aporta caracteres, así que no altera el texto plano.
+      expect(_countElements(documentXml, 'r'), 2);
+    });
+
+    test('w:lastRenderedPageBreak dentro de una celda de tabla NO trocea el '
+        'bloque: la celda sigue siendo un solo párrafo', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p>
+        <w:r><w:t>Uno </w:t></w:r>
+        <w:r><w:lastRenderedPageBreak /></w:r>
+        <w:r><w:t>Dos</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+''',
+        replacements: const <DocxTextReplacement>[
+          DocxTextReplacement(
+            pageIndex: 0,
+            steps: <ExportPathStep>[
+              ExportPathStep.rootBlock(blockIndex: 0),
+              ExportPathStep.cellBlock(
+                rowIndex: 0,
+                cellIndex: 0,
+                blockIndex: 0,
+              ),
+            ],
+            startOffset: 0,
+            endOffset: 3,
+            text: 'Primero',
+          ),
+          // El bloque de tabla es atómico, así que el marcador se ignora y la
+          // celda expone UN solo párrafo con el texto completo: los offsets
+          // son continuos sobre "Uno Dos", igual que en ingesta
+          // (`_isInsideTable` en docx_document_repository.dart). Un segundo
+          // bloque de celda ya no existe.
+          DocxTextReplacement(
+            pageIndex: 0,
+            steps: <ExportPathStep>[
+              ExportPathStep.rootBlock(blockIndex: 0),
+              ExportPathStep.cellBlock(
+                rowIndex: 0,
+                cellIndex: 0,
+                blockIndex: 0,
+              ),
+            ],
+            startOffset: 4,
+            endOffset: 7,
+            text: 'Segundo',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Primero Segundo', '']);
+      expect(_countElements(documentXml, 'lastRenderedPageBreak'), 0);
+    });
+
+    test('un campo tras un w:tab en el chunk posterior al marcador conserva '
+        'el tab y el offset del gap', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:r><w:t>Uno</w:t></w:r>
+  <w:r><w:lastRenderedPageBreak /></w:r>
+  <w:r><w:t>Nombre:</w:t><w:tab/><w:t>Juan</w:t></w:r>
+</w:p>
+''',
+        replacements: const <DocxTextReplacement>[
+          // Offset 8 dentro del SEGUNDO chunk: "Nombre:" (7) + '\t' (1).
+          DocxTextReplacement(
+            pageIndex: 1,
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            startOffset: 8,
+            endOffset: 12,
+            text: 'Miguel',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Uno', 'Nombre:', 'Miguel']);
+      expect(_countElements(documentXml, 'tab'), 1);
+      expect(_countElements(documentXml, 'lastRenderedPageBreak'), 0);
+      expect(documentXml, isNot(contains('Juan')));
     });
 
     test('un campo después de un w:tab conserva el tab y reemplaza el span '
@@ -294,7 +416,233 @@ void main() {
       expect(_wTexts(documentXml), isEmpty);
       expect(_countElements(documentXml, 'tab'), 1);
     });
+
+    test('w:pageBreakBefore corta página: el párrafo anterior queda en '
+        'pageIndex 0 y el marcado en pageIndex 1', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p><w:r><w:t>Uno</w:t></w:r></w:p>
+<w:p>
+  <w:pPr><w:pageBreakBefore/></w:pPr>
+  <w:r><w:t>Dos</w:t></w:r>
+</w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
+          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
+        ],
+      );
+
+      // Sin el espejo, "Dos" caería en (página 0, bloque 1) y el reemplazo
+      // dirigido a (página 1, bloque 0) no encontraría destino.
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('w:pageBreakBefore en el PRIMER párrafo del cuerpo no genera una '
+        'página vacía inicial', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:pPr><w:pageBreakBefore/></w:pPr>
+  <w:r><w:t>Uno</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
+          _rootField(pageIndex: 0, blockIndex: 1, text: 'B'),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('w:pageBreakBefore tras un párrafo que ya cerró página con w:br '
+        'avanza una sola vez', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p><w:r><w:t>Uno</w:t><w:br w:type="page"/></w:r></w:p>
+<w:p>
+  <w:pPr><w:pageBreakBefore/></w:pPr>
+  <w:r><w:t>Dos</w:t></w:r>
+</w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
+          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
+        ],
+      );
+
+      // Doble avance dejaría "Dos" en pageIndex 2 y sin reemplazar.
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('w:pageBreakBefore tras un párrafo que ya cerró página con '
+        'w:lastRenderedPageBreak avanza una sola vez', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p><w:r><w:t>Uno</w:t><w:lastRenderedPageBreak/></w:r></w:p>
+<w:p>
+  <w:pPr><w:pageBreakBefore/></w:pPr>
+  <w:r><w:t>Dos</w:t></w:r>
+</w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
+          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('w:pageBreakBefore en el párrafo siguiente a una w:tbl corta '
+        'página: la tabla no cierra página por sí sola', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:tbl>
+  <w:tr><w:tc><w:p><w:r><w:t>Celda</w:t></w:r></w:p></w:tc></w:tr>
+</w:tbl>
+<w:p>
+  <w:pPr><w:pageBreakBefore/></w:pPr>
+  <w:r><w:t>Dos</w:t></w:r>
+</w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          const DocxTextReplacement(
+            pageIndex: 0,
+            steps: <ExportPathStep>[
+              ExportPathStep.rootBlock(blockIndex: 0),
+              ExportPathStep.cellBlock(
+                rowIndex: 0,
+                cellIndex: 0,
+                blockIndex: 0,
+              ),
+            ],
+            startOffset: 0,
+            endOffset: 5,
+            text: 'A',
+          ),
+          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('un w:sectPr intermedio sin w:type usa el default nextPage y corta '
+        'página', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:pPr><w:sectPr/></w:pPr>
+  <w:r><w:t>Uno</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
+          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('un w:sectPr intermedio con w:type nextPage corta página', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:pPr><w:sectPr><w:type w:val="nextPage"/></w:sectPr></w:pPr>
+  <w:r><w:t>Uno</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
+          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('un w:sectPr intermedio con w:type continuous NO corta página', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:pPr><w:sectPr><w:type w:val="continuous"/></w:sectPr></w:pPr>
+  <w:r><w:t>Uno</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
+          _rootField(pageIndex: 0, blockIndex: 1, text: 'B'),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B']);
+    });
+
+    test('w:pageBreakBefore dentro de una celda de tabla NO mueve pageIndex '
+        '(espejo de respectPageBreakBefore: false)', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:t>Uno</w:t></w:r></w:p>
+      <w:p>
+        <w:pPr><w:pageBreakBefore/></w:pPr>
+        <w:r><w:t>Dos</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+<w:p><w:r><w:t>Tres</w:t></w:r></w:p>
+''',
+        replacements: <DocxTextReplacement>[
+          for (var blockIndex = 0; blockIndex < 2; blockIndex++)
+            DocxTextReplacement(
+              pageIndex: 0,
+              steps: <ExportPathStep>[
+                const ExportPathStep.rootBlock(blockIndex: 0),
+                ExportPathStep.cellBlock(
+                  rowIndex: 0,
+                  cellIndex: 0,
+                  blockIndex: blockIndex,
+                ),
+              ],
+              startOffset: 0,
+              endOffset: 3,
+              text: blockIndex == 0 ? 'A' : 'B',
+            ),
+          _rootField(pageIndex: 0, blockIndex: 1, endOffset: 4, text: 'C'),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B', 'C']);
+    });
   });
+}
+
+/// Un reemplazo de un párrafo de primer nivel, que es el caso de la mayoría
+/// de estas pruebas de paginación.
+DocxTextReplacement _rootField({
+  required int pageIndex,
+  required int blockIndex,
+  required String text,
+  int startOffset = 0,
+  int endOffset = 3,
+}) {
+  return DocxTextReplacement(
+    pageIndex: pageIndex,
+    steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: blockIndex)],
+    startOffset: startOffset,
+    endOffset: endOffset,
+    text: text,
+  );
 }
 
 String _documentWithBody(String bodyContent) {
