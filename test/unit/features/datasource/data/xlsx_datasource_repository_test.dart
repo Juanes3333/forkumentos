@@ -147,6 +147,68 @@ void main() {
     );
   });
 
+  test('auto-nombra encabezados vacíos no-trailing por posición', () async {
+    final filePath = p.join(tempDirectory.path, 'vacios_intermedios.xlsx');
+    await _writeWorkbook(
+      path: filePath,
+      rows: <List<CellValue?>>[
+        <CellValue?>[
+          TextCellValue('A'),
+          TextCellValue(''),
+          TextCellValue('B'),
+          TextCellValue(''),
+          TextCellValue('C'),
+        ],
+        <CellValue?>[
+          TextCellValue('1'),
+          TextCellValue('2'),
+          TextCellValue('3'),
+          TextCellValue('4'),
+          TextCellValue('5'),
+        ],
+      ],
+    );
+
+    final datasource = await repository.load(filePath);
+
+    expect(datasource.headers, <String>[
+      'A',
+      'Columna 2',
+      'B',
+      'Columna 4',
+      'C',
+    ]);
+    expect(datasource.previewRow, <String?>['1', '2', '3', '4', '5']);
+  });
+
+  test(
+    'mantiene el trim de encabezados vacíos trailing (con datos debajo)',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'vacios_trailing.xlsx');
+      await _writeWorkbook(
+        path: filePath,
+        rows: <List<CellValue?>>[
+          <CellValue?>[
+            TextCellValue('nombre'),
+            TextCellValue('correo'),
+            TextCellValue(''),
+          ],
+          <CellValue?>[
+            TextCellValue('Ana'),
+            TextCellValue('ana@example.com'),
+            TextCellValue('dato huérfano'),
+          ],
+        ],
+      );
+
+      final datasource = await repository.load(filePath);
+
+      expect(datasource.headers, <String>['nombre', 'correo']);
+      expect(datasource.previewRow, <String?>['Ana', 'ana@example.com']);
+      expect(datasource.emptyColumnIndexes, isEmpty);
+    },
+  );
+
   test('lanza FormatException cuando no hay encabezados', () async {
     final filePath = p.join(tempDirectory.path, 'sin_encabezados.xlsx');
     await _writeWorkbook(path: filePath, rows: const <List<CellValue?>>[]);

@@ -5,6 +5,7 @@ import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
 
 const _datasourceExtensions = <String>['csv', 'xlsx'];
 
@@ -17,6 +18,44 @@ final class DatasourceResourceCard extends ConsumerWidget {
     final datasource = datasourceState.valueOrNull;
     final isLoading = datasourceState.isLoading;
     final errorMessage = _resolveErrorMessage(datasourceState.error);
+
+    // Empty state skips the Card chrome entirely so the dropzone's own
+    // border is the only box on screen — see TemplateResourceCard for why.
+    if (datasource == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Fuente de datos',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (isLoading) ...<Widget>[
+            const SizedBox(height: 8),
+            const LinearProgressIndicator(minHeight: 2),
+          ],
+          if (errorMessage != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              errorMessage,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          DropzoneSurface(
+            icon: Icons.table_chart_outlined,
+            message:
+                'Todavía no importaste un archivo CSV o XLSX. '
+                'Arrastra un archivo a la ventana o haz clic para '
+                'seleccionar.',
+            actionLabel: 'Importar datos',
+            actionIcon: Icons.table_chart_outlined,
+            onImport: isLoading ? null : () => _pickAndImport(ref),
+          ),
+        ],
+      );
+    }
 
     return Card(
       child: Padding(
@@ -42,17 +81,11 @@ final class DatasourceResourceCard extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: 12),
-            if (datasource == null)
-              _EmptyState(
-                isLoading: isLoading,
-                onImport: () => _pickAndImport(ref),
-              )
-            else
-              _LoadedState(
-                datasource: datasource,
-                isLoading: isLoading,
-                onReplace: () => _pickAndImport(ref),
-              ),
+            _LoadedState(
+              datasource: datasource,
+              isLoading: isLoading,
+              onReplace: () => _pickAndImport(ref),
+            ),
           ],
         ),
       ),
@@ -100,33 +133,6 @@ String? _resolveErrorMessage(Object? error) {
   }
 
   return 'Ocurrió un error al gestionar la fuente de datos.';
-}
-
-final class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.isLoading, required this.onImport});
-
-  final bool isLoading;
-  final VoidCallback onImport;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          'Todavía no importaste un archivo CSV o XLSX. '
-          'Arrastra un archivo a la ventana o haz clic para seleccionar.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: isLoading ? null : onImport,
-          icon: const Icon(Icons.table_chart_outlined),
-          label: const Text('Importar datos'),
-        ),
-      ],
-    );
-  }
 }
 
 final class _LoadedState extends StatelessWidget {

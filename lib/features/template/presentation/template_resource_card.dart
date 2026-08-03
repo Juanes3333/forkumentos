@@ -5,8 +5,9 @@ import 'package:forkumentos/features/template/domain/template.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
 import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
 
-const _templateExtensions = <String>['docx', 'pdf'];
+const _templateExtensions = <String>['docx'];
 
 final class TemplateResourceCard extends ConsumerWidget {
   const TemplateResourceCard({super.key});
@@ -17,6 +18,43 @@ final class TemplateResourceCard extends ConsumerWidget {
     final template = templateState.valueOrNull;
     final isLoading = templateState.isLoading;
     final errorMessage = _resolveErrorMessage(templateState.error);
+
+    // Empty state skips the Card chrome entirely so the dropzone's own
+    // border is the only box on screen — nesting it inside a second bordered
+    // panel would read as a card-in-a-card and shrink the area available to
+    // the thing this screen most wants the user to notice.
+    if (template == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text('Plantilla', style: Theme.of(context).textTheme.titleMedium),
+          if (isLoading) ...<Widget>[
+            const SizedBox(height: 8),
+            const LinearProgressIndicator(minHeight: 2),
+          ],
+          if (errorMessage != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              errorMessage,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          DropzoneSurface(
+            icon: Icons.description_outlined,
+            message:
+                'Todavía no importaste una plantilla DOCX. '
+                'Arrastra un archivo a la ventana o haz clic para '
+                'seleccionar.',
+            actionLabel: 'Importar plantilla',
+            actionIcon: Icons.description_outlined,
+            onImport: isLoading ? null : () => _pickAndImport(ref),
+          ),
+        ],
+      );
+    }
 
     return Card(
       child: Padding(
@@ -39,17 +77,11 @@ final class TemplateResourceCard extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: 12),
-            if (template == null)
-              _EmptyState(
-                isLoading: isLoading,
-                onImport: () => _pickAndImport(ref),
-              )
-            else
-              _LoadedState(
-                template: template,
-                isLoading: isLoading,
-                onReplace: () => _pickAndImport(ref),
-              ),
+            _LoadedState(
+              template: template,
+              isLoading: isLoading,
+              onReplace: () => _pickAndImport(ref),
+            ),
           ],
         ),
       ),
@@ -59,7 +91,7 @@ final class TemplateResourceCard extends ConsumerWidget {
 
 Future<void> _pickAndImport(WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
-    dialogTitle: 'Seleccionar plantilla DOCX o PDF',
+    dialogTitle: 'Seleccionar plantilla DOCX',
     type: FileType.custom,
     allowedExtensions: _templateExtensions,
   );
@@ -97,33 +129,6 @@ String? _resolveErrorMessage(Object? error) {
   }
 
   return 'Ocurrió un error al gestionar la plantilla.';
-}
-
-final class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.isLoading, required this.onImport});
-
-  final bool isLoading;
-  final VoidCallback onImport;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          'Todavía no importaste una plantilla DOCX o PDF. '
-          'Arrastra un archivo a la ventana o haz clic para seleccionar.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: isLoading ? null : onImport,
-          icon: const Icon(Icons.description_outlined),
-          label: const Text('Importar plantilla'),
-        ),
-      ],
-    );
-  }
 }
 
 final class _LoadedState extends StatelessWidget {

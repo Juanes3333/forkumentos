@@ -13,7 +13,10 @@ final class ExportDialogResult {
   final ExportJob job;
 }
 
-/// Export configuration dialog (format, destination, range, filename, ZIP).
+/// Export configuration dialog (destination, row range, filename, ZIP).
+///
+/// DOCX-only: the format picker, page-range section, and oversized-table
+/// warning were removed (2026-08-03) with PDF export itself.
 final class ExportDialog extends ConsumerStatefulWidget {
   const ExportDialog({
     required this.destinationFolder,
@@ -22,8 +25,6 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required this.rowCount,
     required this.currentRowIndex,
     required this.missingFieldHeaders,
-    required this.pageCount,
-    this.allowDocx = true,
     super.key,
   });
 
@@ -33,8 +34,6 @@ final class ExportDialog extends ConsumerStatefulWidget {
   final int rowCount;
   final int currentRowIndex;
   final List<String> missingFieldHeaders;
-  final int pageCount;
-  final bool allowDocx;
 
   static Future<ExportDialogResult?> show(
     BuildContext context, {
@@ -44,8 +43,6 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required int rowCount,
     required int currentRowIndex,
     required List<String> missingFieldHeaders,
-    required int pageCount,
-    bool allowDocx = true,
   }) {
     return showDialog<ExportDialogResult>(
       context: context,
@@ -56,8 +53,6 @@ final class ExportDialog extends ConsumerStatefulWidget {
         rowCount: rowCount,
         currentRowIndex: currentRowIndex,
         missingFieldHeaders: missingFieldHeaders,
-        pageCount: pageCount,
-        allowDocx: allowDocx,
       ),
     );
   }
@@ -67,15 +62,11 @@ final class ExportDialog extends ConsumerStatefulWidget {
 }
 
 final class _ExportDialogState extends ConsumerState<ExportDialog> {
-  late ExportFormat _format;
   ExportRangeMode _rangeMode = ExportRangeMode.single;
   final _rangeController = TextEditingController();
-  ExportPageRangeMode _pageRangeMode = ExportPageRangeMode.all;
-  final _pageRangeController = TextEditingController();
   FilenamePattern _pattern = FilenamePattern.defaultPattern;
   late bool _createZip;
   String? _rangeError;
-  String? _pageRangeError;
   var _acknowledgedMissing = false;
   var _defaultsApplied = false;
 
@@ -97,14 +88,6 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
     if (_defaultsApplied) {
       return;
     }
-    final preferred = _exportFormatFromSetting(
-      ref.read(defaultExportFormatProvider),
-    );
-    _format = widget.allowDocx ? preferred : ExportFormat.pdf;
-    if (!widget.allowDocx &&
-        (_format == ExportFormat.docx || _format == ExportFormat.both)) {
-      _format = ExportFormat.pdf;
-    }
     _createZip = ref.read(defaultCreateZipProvider);
     _defaultsApplied = true;
   }
@@ -112,7 +95,6 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   @override
   void dispose() {
     _rangeController.dispose();
-    _pageRangeController.dispose();
     super.dispose();
   }
 
@@ -161,44 +143,6 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
                 ),
                 const SizedBox(height: 16),
               ],
-              Text('Formato', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              if (widget.allowDocx)
-                SegmentedButton<ExportFormat>(
-                  segments: const <ButtonSegment<ExportFormat>>[
-                    ButtonSegment(
-                      value: ExportFormat.docx,
-                      label: Text('DOCX'),
-                    ),
-                    ButtonSegment(value: ExportFormat.pdf, label: Text('PDF')),
-                    ButtonSegment(
-                      value: ExportFormat.both,
-                      label: Text('Ambos'),
-                    ),
-                  ],
-                  selected: <ExportFormat>{_format},
-                  onSelectionChanged: (selected) {
-                    setState(() => _format = selected.single);
-                  },
-                )
-              else ...<Widget>[
-                SegmentedButton<ExportFormat>(
-                  segments: const <ButtonSegment<ExportFormat>>[
-                    ButtonSegment(value: ExportFormat.pdf, label: Text('PDF')),
-                  ],
-                  selected: const <ExportFormat>{ExportFormat.pdf},
-                  onSelectionChanged: (_) {},
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'La plantilla PDF solo permite exportar a PDF '
-                  '(DOCX no está disponible).',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
               Text('Destino', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
               SelectableText(widget.destinationFolder),
@@ -248,52 +192,6 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
                   onChanged: (_) {
                     if (_rangeError != null) {
                       setState(() => _rangeError = null);
-                    }
-                  },
-                ),
-              ],
-              const SizedBox(height: 16),
-              Text(
-                'Páginas a exportar',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              RadioGroup<ExportPageRangeMode>(
-                groupValue: _pageRangeMode,
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _pageRangeMode = value;
-                    _pageRangeError = null;
-                  });
-                },
-                child: Column(
-                  children: <Widget>[
-                    RadioListTile<ExportPageRangeMode>(
-                      dense: true,
-                      title: Text('Todas las páginas (${widget.pageCount})'),
-                      value: ExportPageRangeMode.all,
-                    ),
-                    const RadioListTile<ExportPageRangeMode>(
-                      dense: true,
-                      title: Text('Rango personalizado'),
-                      value: ExportPageRangeMode.custom,
-                    ),
-                  ],
-                ),
-              ),
-              if (_pageRangeMode == ExportPageRangeMode.custom) ...<Widget>[
-                TextField(
-                  controller: _pageRangeController,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Ej. 1-5, 8',
-                    errorText: _pageRangeError,
-                  ),
-                  onChanged: (_) {
-                    if (_pageRangeError != null) {
-                      setState(() => _pageRangeError = null);
                     }
                   },
                 ),
@@ -360,31 +258,9 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
       return;
     }
 
-    List<int>? pageIndexes;
-    if (_pageRangeMode == ExportPageRangeMode.custom) {
-      try {
-        // Reutiliza ExportRowRange.parse — el algoritmo de rangos es
-        // genérico, no específico de filas.
-        pageIndexes = ExportRowRange.parse(
-          _pageRangeController.text,
-          rowCount: widget.pageCount,
-        );
-      } on FormatException catch (error) {
-        setState(() => _pageRangeError = error.message);
-        return;
-      }
-      if (pageIndexes.isEmpty) {
-        setState(() => _pageRangeError = 'Selecciona al menos una página.');
-        return;
-      }
-    }
-
-    final format = widget.allowDocx ? _format : ExportFormat.pdf;
-
     Navigator.of(context).pop(
       ExportDialogResult(
         job: ExportJob(
-          format: format,
           destinationFolder: widget.destinationFolder,
           filenamePattern: _pattern,
           rangeMode: _rangeMode,
@@ -393,21 +269,8 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
           customRangeText: _rangeMode == ExportRangeMode.custom
               ? _rangeController.text
               : null,
-          pageRangeMode: _pageRangeMode,
-          pageIndexes: pageIndexes,
-          customPageRangeText: _pageRangeMode == ExportPageRangeMode.custom
-              ? _pageRangeController.text
-              : null,
         ),
       ),
     );
   }
-}
-
-ExportFormat _exportFormatFromSetting(String value) {
-  return switch (value) {
-    'pdf' => ExportFormat.pdf,
-    'both' => ExportFormat.both,
-    _ => ExportFormat.docx,
-  };
 }

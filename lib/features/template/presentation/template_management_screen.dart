@@ -5,9 +5,10 @@ import 'package:forkumentos/features/template/domain/template.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
 import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
 import 'package:intl/intl.dart';
 
-const _templateExtensions = <String>['docx', 'pdf'];
+const _templateExtensions = <String>['docx'];
 
 final class TemplateManagementScreen extends ConsumerWidget {
   const TemplateManagementScreen({super.key});
@@ -46,26 +47,26 @@ final class TemplateManagementScreen extends ConsumerWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).dividerColor),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: template == null
-                    ? _TemplateEmptyState(
-                        isLoading: isLoading,
-                        onImport: () => _pickAndImportTemplate(ref),
-                      )
-                    : _TemplateDetailsState(
+            child: template == null
+                ? _TemplateEmptyState(
+                    isLoading: isLoading,
+                    onImport: () => _pickAndImportTemplate(ref),
+                  )
+                : DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: _TemplateDetailsState(
                         template: template,
                         isLoading: isLoading,
                         onReplace: () => _pickAndImportTemplate(ref),
                         onRemove: notifier.removeTemplate,
                       ),
-              ),
-            ),
+                    ),
+                  ),
           ),
         ),
       ],
@@ -75,7 +76,7 @@ final class TemplateManagementScreen extends ConsumerWidget {
 
 Future<void> _pickAndImportTemplate(WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
-    dialogTitle: 'Seleccionar plantilla DOCX o PDF',
+    dialogTitle: 'Seleccionar plantilla DOCX',
     type: FileType.custom,
     allowedExtensions: _templateExtensions,
   );
@@ -136,19 +137,20 @@ final class _TemplateEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Text('Plantilla', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
-        Text(
-          'Todavía no importaste una plantilla DOCX o PDF para este proyecto.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: isLoading ? null : onImport,
-          icon: const Icon(Icons.description_outlined),
-          label: const Text('Importar plantilla'),
+        Expanded(
+          child: DropzoneSurface(
+            icon: Icons.description_outlined,
+            message:
+                'Todavía no importaste una plantilla DOCX para este '
+                'proyecto.',
+            actionLabel: 'Importar plantilla',
+            actionIcon: Icons.description_outlined,
+            onImport: isLoading ? null : onImport,
+          ),
         ),
       ],
     );

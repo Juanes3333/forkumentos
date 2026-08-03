@@ -410,12 +410,7 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
                       sourcePath: template.sourcePath,
                       dialogTitle: 'Exportar plantilla',
                       suggestedFileName: template.fileName,
-                      allowedExtensions: <String>[
-                        if (template.sourcePath.toLowerCase().endsWith('.pdf'))
-                          'pdf'
-                        else
-                          'docx',
-                      ],
+                      allowedExtensions: const <String>['docx'],
                     ),
             ),
           ],
@@ -469,9 +464,9 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
 
 Future<void> _replaceTemplate(WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
-    dialogTitle: 'Seleccionar plantilla DOCX o PDF',
+    dialogTitle: 'Seleccionar plantilla DOCX',
     type: FileType.custom,
-    allowedExtensions: const <String>['docx', 'pdf'],
+    allowedExtensions: const <String>['docx'],
   );
   final filePath = selected?.files.single.path;
   if (filePath == null) {
@@ -610,6 +605,7 @@ final class _ExportRibbonActions extends ConsumerWidget {
             _RibbonActionButton(
               icon: Icons.ios_share_outlined,
               label: 'Exportar',
+              isPrimary: true,
               onPressed: project == null
                   ? null
                   : () => launchExport(context, ref, pickDestination: false),
@@ -705,7 +701,7 @@ final class _RibbonActionButton extends StatelessWidget {
   final String? tooltip;
   final bool isBusy;
 
-  /// Acción de arranque de su grupo: contorno en acento en vez de botón de
+  /// Acción de arranque de su grupo: relleno de acento en vez de botón de
   /// texto plano, para que se lea antes que el resto de la cinta.
   final bool isPrimary;
 
@@ -721,20 +717,26 @@ final class _RibbonActionButton extends StatelessWidget {
         : Icon(icon, size: 16);
 
     final button = isPrimary
-        ? OutlinedButton.icon(
+        ? FilledButton.icon(
             onPressed: onPressed,
             icon: iconWidget,
             label: Text(label),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.accent,
-              side: BorderSide(
-                color: onPressed == null ? colors.border : colors.accent,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
+            style:
+                FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  minimumSize: const Size(0, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ).copyWith(
+                  // Snappy hover lift: instant per DESIGN_SYSTEM §12, no delay.
+                  elevation: WidgetStateProperty.resolveWith<double>((states) {
+                    if (states.contains(WidgetState.hovered) ||
+                        states.contains(WidgetState.focused)) {
+                      return 3;
+                    }
+                    return 0;
+                  }),
+                ),
           )
         : TextButton.icon(
             onPressed: onPressed,

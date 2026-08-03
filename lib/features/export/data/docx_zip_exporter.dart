@@ -411,7 +411,7 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
   );
 
   for (final run in runs) {
-    if (_hasTrackedChangeAncestor(run)) {
+    if (_hasDeletedChangeAncestor(run)) {
       continue;
     }
     if (_isHiddenRun(run)) {
@@ -494,12 +494,9 @@ List<_ParagraphChunkNodes> _splitParagraphChunks(XmlElement paragraph) {
   return chunks;
 }
 
-bool _hasTrackedChangeAncestor(XmlElement run) {
+bool _hasDeletedChangeAncestor(XmlElement run) {
   for (final ancestor in run.ancestors.whereType<XmlElement>()) {
-    final localName = ancestor.name.local;
-    if (localName == 'ins' || localName == 'del') {
-      return true;
-    }
+    if (ancestor.name.local == 'del') return true;
   }
   return false;
 }

@@ -81,16 +81,6 @@ final class SettingsNotifier extends AsyncNotifier<AppSettings> {
     await _commit(current.copyWith(autosaveIntervalSeconds: normalized));
   }
 
-  Future<void> setDefaultExportFormat(String format) async {
-    final current = state.valueOrNull;
-    if (current == null ||
-        !ExportFormatSetting.values.contains(format) ||
-        current.defaultExportFormat == format) {
-      return;
-    }
-    await _commit(current.copyWith(defaultExportFormat: format));
-  }
-
   Future<void> setDefaultCreateZip({required bool value}) async {
     final current = state.valueOrNull;
     if (current == null || current.defaultCreateZip == value) {
@@ -162,11 +152,6 @@ final confirmBeforeClosingProvider = Provider<bool>((ref) {
 final autosaveIntervalSecondsProvider = Provider<int>((ref) {
   return ref.watch(settingsProvider).valueOrNull?.autosaveIntervalSeconds ??
       SettingsDefaults.autosaveIntervalSeconds;
-});
-
-final defaultExportFormatProvider = Provider<String>((ref) {
-  return ref.watch(settingsProvider).valueOrNull?.defaultExportFormat ??
-      SettingsDefaults.defaultExportFormat;
 });
 
 final defaultCreateZipProvider = Provider<bool>((ref) {

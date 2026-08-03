@@ -979,8 +979,9 @@ void _applyContextualSpacing(
       continue;
     }
 
-    final suppressBefore = styleIds[index - 1] == styleIds[index];
-    final suppressAfter = styleIds[index + 1] == styleIds[index];
+    final suppressBefore = index > 0 && styleIds[index - 1] == styleIds[index];
+    final suppressAfter =
+        index < segments.length - 1 && styleIds[index + 1] == styleIds[index];
     if (!suppressBefore && !suppressAfter) {
       continue;
     }
@@ -1225,7 +1226,7 @@ List<_ParagraphChunk> _collectRawParagraphChunks(
   );
 
   for (final run in runElements) {
-    if (_hasTrackedChangeAncestor(run)) {
+    if (_hasDeletedChangeAncestor(run)) {
       continue;
     }
 
@@ -1524,12 +1525,9 @@ double? _cssLengthPoints(String value) {
   return double.tryParse(value);
 }
 
-bool _hasTrackedChangeAncestor(XmlElement run) {
+bool _hasDeletedChangeAncestor(XmlElement run) {
   for (final ancestor in run.ancestors.whereType<XmlElement>()) {
-    final localName = ancestor.name.local;
-    if (localName == 'ins' || localName == 'del') {
-      return true;
-    }
+    if (ancestor.name.local == 'del') return true;
   }
   return false;
 }

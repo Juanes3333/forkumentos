@@ -394,32 +394,6 @@ final class _ExportTab extends ConsumerWidget {
 
     return ListView(
       children: <Widget>[
-        Text(
-          'Formato de exportación por defecto',
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
-        const SizedBox(height: 8),
-        SegmentedButton<String>(
-          segments: const <ButtonSegment<String>>[
-            ButtonSegment<String>(
-              value: ExportFormatSetting.docx,
-              label: Text('DOCX'),
-            ),
-            ButtonSegment<String>(
-              value: ExportFormatSetting.pdf,
-              label: Text('PDF'),
-            ),
-            ButtonSegment<String>(
-              value: ExportFormatSetting.both,
-              label: Text('Ambos'),
-            ),
-          ],
-          selected: <String>{settings.defaultExportFormat},
-          onSelectionChanged: (selected) {
-            notifier.setDefaultExportFormat(selected.first);
-          },
-        ),
-        const SizedBox(height: 16),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Crear ZIP por defecto'),

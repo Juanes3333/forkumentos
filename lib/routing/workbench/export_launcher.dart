@@ -8,7 +8,6 @@ import 'package:forkumentos/core/commands/cancellable_command.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/export/data/docx_export_command.dart';
 import 'package:forkumentos/features/export/data/export_zip_writer.dart';
-import 'package:forkumentos/features/export/data/pdf_export_command.dart';
 import 'package:forkumentos/features/export/domain/export_job.dart';
 import 'package:forkumentos/features/export/domain/export_placeholder.dart';
 import 'package:forkumentos/features/export/domain/export_progress.dart';
@@ -20,13 +19,10 @@ import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
 import 'package:forkumentos/features/preview/data/preview_record_repository.dart';
-import 'package:forkumentos/features/preview/domain/preview_document.dart';
 import 'package:forkumentos/features/preview/presentation/preview_state_provider.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
-import 'package:forkumentos/shared/models/document.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
-import 'package:forkumentos/shared/providers/document_content_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:path/path.dart' as p;
 
@@ -94,11 +90,6 @@ Future<void> launchExport(
     return;
   }
 
-  // Loaded before the dialog so pageCount is known up front, letting the
-  // user pick which pages to export. Paid even if the dialog is cancelled.
-  final baseDocument = await ref.read(
-    documentContentProvider(template.sourcePath).future,
-  );
   final templateBytes = await File(template.sourcePath).readAsBytes();
 
   if (!context.mounted) {
@@ -116,8 +107,6 @@ Future<void> launchExport(
       datasource.rowCount > 0 ? datasource.rowCount - 1 : 0,
     ),
     missingFieldHeaders: review?.missingFieldHeaders ?? const <String>[],
-    pageCount: baseDocument.pages.length,
-    allowDocx: !template.sourcePath.toLowerCase().endsWith('.pdf'),
   );
   if (dialogResult == null || !context.mounted) {
     return;
@@ -135,18 +124,6 @@ Future<void> launchExport(
   Future<List<String?>> resolveRow(int rowIndex) async {
     return rowsByIndex[rowIndex] ??
         List<String?>.filled(datasource.headers.length, null);
-  }
-
-  Document buildMerged(List<String?> row) {
-    if (assignments.isEmpty) {
-      return baseDocument;
-    }
-    return buildPreviewDocument(
-      document: baseDocument,
-      assignments: assignments,
-      headers: datasource.headers,
-      row: row,
-    );
   }
 
   final session = ExportSession();
@@ -171,7 +148,6 @@ Future<void> launchExport(
     placeholders: placeholders,
     headers: datasource.headers,
     resolveRow: resolveRow,
-    buildDocument: buildMerged,
     onProgress: (progress) {
       progressNotifier.value = progress;
     },
@@ -245,7 +221,6 @@ final class ExportSession {
     required List<ExportPlaceholder> placeholders,
     required List<String> headers,
     required Future<List<String?>> Function(int rowIndex) resolveRow,
-    required Document Function(List<String?> row) buildDocument,
     required void Function(ExportProgress progress) onProgress,
   }) async {
     final started = DateTime.now();
@@ -256,13 +231,7 @@ final class ExportSession {
     var skipped = 0;
     var cancelled = false;
 
-    final formats = switch (job.format) {
-      ExportFormat.docx => <_FormatKind>[_FormatKind.docx],
-      ExportFormat.pdf => <_FormatKind>[_FormatKind.pdf],
-      ExportFormat.both => <_FormatKind>[_FormatKind.docx, _FormatKind.pdf],
-    };
-
-    final totalUnits = job.rowIndexes.length * formats.length;
+    final totalUnits = job.rowIndexes.length;
     var completedUnits = 0;
 
     void emit(String label) {
@@ -276,64 +245,29 @@ final class ExportSession {
       );
     }
 
-    for (final format in formats) {
-      if (cancelled) {
-        break;
-      }
-
-      if (format == _FormatKind.docx) {
-        final command = DocxExportCommand(
-          templateBytes: templateBytes,
-          destinationFolder: job.destinationFolder,
-          filenamePattern: job.filenamePattern,
-          rowIndexes: job.rowIndexes,
-          placeholders: placeholders,
-          resolveRow: resolveRow,
-          headers: headers,
-        );
-        _active = command;
-        final partial = await command.execute(
-          onProgress: (event) {
-            completedUnits = event.current;
-            emit(event.label ?? 'Generando DOCX…');
-          },
-        );
-        written.addAll(partial.writtenFiles);
-        exported += partial.exportedCount;
-        failed += partial.failedCount;
-        skipped += partial.skippedCount;
-        errors.addAll(partial.errors);
-        cancelled = partial.cancelled;
-        completedUnits = job.rowIndexes.length;
-      } else {
-        final command = PdfExportCommand(
-          destinationFolder: job.destinationFolder,
-          filenamePattern: job.filenamePattern,
-          rowIndexes: job.rowIndexes,
-          buildDocument: buildDocument,
-          resolveRow: resolveRow,
-          headers: headers,
-          pageIndexes: job.pageIndexes,
-        );
-        _active = command;
-        final baseOffset = formats.first == _FormatKind.docx
-            ? job.rowIndexes.length
-            : 0;
-        final partial = await command.execute(
-          onProgress: (event) {
-            completedUnits = baseOffset + event.current;
-            emit(event.label ?? 'Generando PDF…');
-          },
-        );
-        written.addAll(partial.writtenFiles);
-        exported += partial.exportedCount;
-        failed += partial.failedCount;
-        skipped += partial.skippedCount;
-        errors.addAll(partial.errors);
-        cancelled = partial.cancelled || cancelled;
-        completedUnits = baseOffset + job.rowIndexes.length;
-      }
-    }
+    final command = DocxExportCommand(
+      templateBytes: templateBytes,
+      destinationFolder: job.destinationFolder,
+      filenamePattern: job.filenamePattern,
+      rowIndexes: job.rowIndexes,
+      placeholders: placeholders,
+      resolveRow: resolveRow,
+      headers: headers,
+    );
+    _active = command;
+    final partial = await command.execute(
+      onProgress: (event) {
+        completedUnits = event.current;
+        emit(event.label ?? 'Generando DOCX…');
+      },
+    );
+    written.addAll(partial.writtenFiles);
+    exported += partial.exportedCount;
+    failed += partial.failedCount;
+    skipped += partial.skippedCount;
+    errors.addAll(partial.errors);
+    cancelled = partial.cancelled;
+    completedUnits = job.rowIndexes.length;
 
     String? zipPath;
     if (job.createZip && written.isNotEmpty) {
@@ -362,5 +296,3 @@ final class ExportSession {
     );
   }
 }
-
-enum _FormatKind { docx, pdf }

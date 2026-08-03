@@ -61,6 +61,15 @@ Map<String, Object?> _parseXlsxContent(Map<String, Object?> payload) {
     );
   }
 
+  // Encabezados vacíos no-trailing (p.ej. columnas separadoras) se nombran
+  // por posición para que sean mapeables y no colisionen como "duplicados"
+  // entre sí en _findDuplicateHeaders.
+  for (var index = 0; index < headers.length; index++) {
+    if (headers[index].trim().isEmpty) {
+      headers[index] = 'Columna ${index + 1}';
+    }
+  }
+
   final duplicateHeaders = _findDuplicateHeaders(headers);
   if (duplicateHeaders.isNotEmpty) {
     throw FormatException(

@@ -8,10 +8,6 @@ void main() {
       DroppedFileKind.docxTemplate,
     );
     expect(
-      classifyDroppedPath(r'C:\a\plantilla.PDF'),
-      DroppedFileKind.pdfTemplate,
-    );
-    expect(
       classifyDroppedPath(r'C:\a\datos.csv'),
       DroppedFileKind.csvDatasource,
     );
@@ -24,5 +20,10 @@ void main() {
       DroppedFileKind.forkProject,
     );
     expect(classifyDroppedPath(r'C:\a\foto.png'), DroppedFileKind.unsupported);
+    // PDF import fue removido: ya no es una plantilla soportada.
+    expect(
+      classifyDroppedPath(r'C:\a\plantilla.pdf'),
+      DroppedFileKind.unsupported,
+    );
   });
 }

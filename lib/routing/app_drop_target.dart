@@ -8,6 +8,7 @@ import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/routing/app_phase_provider.dart';
 import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
 import 'package:path/path.dart' as p;
 
 /// Window-level drop target: overlay + import. Cards keep click-to-pick only.
@@ -68,7 +69,7 @@ final class _AppDropTargetState extends ConsumerState<AppDropTarget> {
 
     if (classified.isEmpty) {
       final detail = unsupportedNames.isEmpty
-          ? 'Usa .docx, .pdf, .csv, .xlsx o .fork.'
+          ? 'Usa .docx, .csv, .xlsx o .fork.'
           : 'No compatibles: ${unsupportedNames.join(', ')}.';
       _snack('Archivo no compatible. $detail', isError: true);
       return;
@@ -105,9 +106,7 @@ final class _AppDropTargetState extends ConsumerState<AppDropTarget> {
 
     final imported = <String>[];
 
-    final templatePath =
-        classified[DroppedFileKind.docxTemplate] ??
-        classified[DroppedFileKind.pdfTemplate];
+    final templatePath = classified[DroppedFileKind.docxTemplate];
     if (templatePath != null) {
       await ref
           .read(activeTemplateProvider.notifier)
@@ -184,34 +183,47 @@ final class _DropOverlay extends StatelessWidget {
           builder: (context, scale, child) {
             return Transform.scale(scale: scale, child: child);
           },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(
-                    Icons.file_download_outlined,
-                    size: 40,
-                    color: theme.colorScheme.primary,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 420, maxWidth: 640),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: DashedBorder(
+                color: theme.colorScheme.primary,
+                borderRadius: 16,
+                strokeWidth: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 56,
+                    vertical: 48,
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Suelta archivos para importar',
-                    style: theme.textTheme.titleMedium,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.file_download_outlined,
+                        size: 64,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Suelta archivos para importar',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Plantilla DOCX · CSV · XLSX',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Plantilla DOCX · Plantilla PDF · CSV · XLSX',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

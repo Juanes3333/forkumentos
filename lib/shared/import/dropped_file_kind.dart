@@ -3,7 +3,6 @@ import 'package:path/path.dart' as p;
 /// Classifies a dropped/picked path for import into Forkumentos.
 enum DroppedFileKind {
   docxTemplate,
-  pdfTemplate,
   csvDatasource,
   xlsxDatasource,
   forkProject,
@@ -13,7 +12,6 @@ enum DroppedFileKind {
 DroppedFileKind classifyDroppedPath(String path) {
   return switch (p.extension(path).toLowerCase()) {
     '.docx' => DroppedFileKind.docxTemplate,
-    '.pdf' => DroppedFileKind.pdfTemplate,
     '.csv' => DroppedFileKind.csvDatasource,
     '.xlsx' => DroppedFileKind.xlsxDatasource,
     '.fork' => DroppedFileKind.forkProject,
@@ -22,9 +20,7 @@ DroppedFileKind classifyDroppedPath(String path) {
 }
 
 bool isTemplatePath(String path) {
-  final kind = classifyDroppedPath(path);
-  return kind == DroppedFileKind.docxTemplate ||
-      kind == DroppedFileKind.pdfTemplate;
+  return classifyDroppedPath(path) == DroppedFileKind.docxTemplate;
 }
 
 bool isDatasourcePath(String path) {
@@ -36,7 +32,6 @@ bool isDatasourcePath(String path) {
 String labelForDroppedKind(DroppedFileKind kind) {
   return switch (kind) {
     DroppedFileKind.docxTemplate => 'Plantilla DOCX',
-    DroppedFileKind.pdfTemplate => 'Plantilla PDF',
     DroppedFileKind.csvDatasource => 'CSV',
     DroppedFileKind.xlsxDatasource => 'XLSX',
     DroppedFileKind.forkProject => 'Proyecto .fork',

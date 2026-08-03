@@ -24,7 +24,6 @@ void main() {
       settings.autosaveIntervalSeconds,
       SettingsDefaults.autosaveIntervalSeconds,
     );
-    expect(settings.defaultExportFormat, SettingsDefaults.defaultExportFormat);
     expect(settings.defaultCreateZip, SettingsDefaults.defaultCreateZip);
   });
 
@@ -39,7 +38,6 @@ void main() {
       openRecentOnStartup: true,
       confirmBeforeClosing: false,
       autosaveIntervalSeconds: 120,
-      defaultExportFormat: ExportFormatSetting.pdf,
       defaultCreateZip: true,
     );
     await store.save(original);
@@ -51,7 +49,6 @@ void main() {
     expect(restored.openRecentOnStartup, isTrue);
     expect(restored.confirmBeforeClosing, isFalse);
     expect(restored.autosaveIntervalSeconds, 120);
-    expect(restored.defaultExportFormat, ExportFormatSetting.pdf);
     expect(restored.defaultCreateZip, isTrue);
   });
 
@@ -78,15 +75,5 @@ void main() {
     expect(settings.workspaceRoot, r'C:\old');
     expect(settings.theme, AppThemePreference.light);
     expect(settings.recentProjectsLimit, SettingsDefaults.recentProjectsLimit);
-    expect(settings.defaultExportFormat, SettingsDefaults.defaultExportFormat);
-  });
-
-  test('formato de exportación inválido cae al default', () async {
-    final settings = AppSettings.fromJson(<String, dynamic>{
-      'workspaceRoot': r'C:\x',
-      'theme': 'dark',
-      'defaultExportFormat': 'xlsx',
-    }, defaultWorkspaceRoot: r'C:\default');
-    expect(settings.defaultExportFormat, SettingsDefaults.defaultExportFormat);
   });
 }

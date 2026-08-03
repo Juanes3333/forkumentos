@@ -496,6 +496,57 @@ void main() {
     );
   });
 
+  test(
+    'conserva el texto de un run envuelto en w:ins (cambio aceptado)',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'insertado.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:t>Antes </w:t></w:r>
+  <w:ins>
+    <w:r><w:t>insertado</w:t></w:r>
+  </w:ins>
+  <w:r><w:t> después</w:t></w:r>
+</w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(
+        _paragraphs(document.pages.single).single.runs.map((run) => run.text),
+        <String>['Antes ', 'insertado', ' después'],
+      );
+    },
+  );
+
+  test('descarta el texto de un run envuelto en w:del', () async {
+    final filePath = p.join(tempDirectory.path, 'eliminado.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p>
+  <w:r><w:t>Antes </w:t></w:r>
+  <w:del>
+    <w:r><w:delText>eliminado</w:delText></w:r>
+  </w:del>
+  <w:r><w:t> después</w:t></w:r>
+</w:p>
+'''),
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    expect(
+      _paragraphs(document.pages.single).single.runs.map((run) => run.text),
+      <String>['Antes ', ' después'],
+    );
+  });
+
   test('w:tbl parsea contenido de tabla como bloque', () async {
     final filePath = p.join(tempDirectory.path, 'tabla.docx');
     await File(filePath).writeAsBytes(
@@ -842,6 +893,95 @@ void main() {
     expect(paragraphs[0].spacingAfterPoints, 0);
     expect(paragraphs[1].spacingBeforePoints, 0);
     expect(paragraphs[1].spacingAfterPoints, 10);
+  });
+
+  test('contextualSpacing por docDefaults no suprime el primer/último párrafo '
+      'del body (no hay sibling previo/siguiente)', () async {
+    final filePath = p.join(tempDirectory.path, 'contextual_bordes.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Uno</w:t></w:r></w:p>
+<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
+<w:p><w:r><w:t>Tres</w:t></w:r></w:p>
+'''),
+        extraEntries: <String, String>{
+          'word/styles.xml': '''
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:pPrDefault>
+      <w:pPr>
+        <w:spacing w:before="200" w:after="200" />
+        <w:contextualSpacing />
+      </w:pPr>
+    </w:pPrDefault>
+  </w:docDefaults>
+</w:styles>
+''',
+        },
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final paragraphs = _paragraphs(document.pages.single);
+    // Ninguno de los tres párrafos tiene w:pStyle, así que los tres
+    // comparten styleId == null. Antes del fix, `null == null` suprimía
+    // por error el spacing inicial del primero y el final del último por
+    // no distinguir "sin sibling" de "sibling sin estilo explícito".
+    expect(paragraphs[0].spacingBeforePoints, 10);
+    expect(paragraphs[0].spacingAfterPoints, 0);
+    expect(paragraphs[1].spacingBeforePoints, 0);
+    expect(paragraphs[1].spacingAfterPoints, 0);
+    expect(paragraphs[2].spacingBeforePoints, 0);
+    expect(paragraphs[2].spacingAfterPoints, 10);
+  });
+
+  test('contextualSpacing por docDefaults no suprime el primer/último párrafo '
+      'de una celda de tabla', () async {
+    final filePath = p.join(tempDirectory.path, 'contextual_celda.docx');
+    await File(filePath).writeAsBytes(
+      _buildDocxBytes(
+        documentXml: _documentWithBody('''
+<w:tbl>
+  <w:tblGrid><w:gridCol w:w="4320" /></w:tblGrid>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:t>Uno</w:t></w:r></w:p>
+      <w:p><w:r><w:t>Dos</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+'''),
+        extraEntries: <String, String>{
+          'word/styles.xml': '''
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:pPrDefault>
+      <w:pPr>
+        <w:spacing w:before="200" w:after="200" />
+        <w:contextualSpacing />
+      </w:pPr>
+    </w:pPrDefault>
+  </w:docDefaults>
+</w:styles>
+''',
+        },
+      ),
+    );
+
+    final document = await repository.load(filePath);
+
+    final table =
+        (document.pages.single.blocks.single as DocumentTableBlock).table;
+    final cellParagraphs = <DocumentParagraph>[
+      for (final block in table.rows.single.cells.single.blocks)
+        if (block case DocumentParagraphBlock(:final paragraph)) paragraph,
+    ];
+    expect(cellParagraphs[0].spacingBeforePoints, 10);
+    expect(cellParagraphs[0].spacingAfterPoints, 0);
+    expect(cellParagraphs[1].spacingBeforePoints, 0);
+    expect(cellParagraphs[1].spacingAfterPoints, 10);
   });
 
   test('pgMar expone las distancias de encabezado y pie', () async {

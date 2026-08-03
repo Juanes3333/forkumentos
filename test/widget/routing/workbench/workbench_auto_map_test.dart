@@ -38,8 +38,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final button = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Auto-mapear'),
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Auto-mapear'),
     );
     expect(button.onPressed, isNull);
   });
@@ -64,7 +64,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Auto-mapear'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Auto-mapear'));
     await tester.pumpAndSettle();
 
     final assignments = container.read(activeMappingProvider).state.assignments;
@@ -101,7 +101,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Auto-mapear'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Auto-mapear'));
     await tester.pumpAndSettle();
 
     expect(find.text('Coincidencias repetidas'), findsOneWidget);
@@ -115,7 +115,7 @@ void main() {
     expect(container.read(activeMappingProvider).state.assignments, isEmpty);
     expect(find.textContaining('auto-mapeados'), findsNothing);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Auto-mapear'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Auto-mapear'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Continuar'));
     await tester.pumpAndSettle();

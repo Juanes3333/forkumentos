@@ -543,7 +543,7 @@ const _fallbackFontSizePoints = 11.0;
 /// Sólo visual: compensa que Flutter maqueta el texto ligeramente más alto que
 /// Word al mismo tamaño nominal, para que una página que el parser dio por
 /// completa no desborde el alto de la hoja. NO toca el modelo de datos —
-/// `DocumentRun.fontSizePoints` sigue intacto y la exportación a DOCX y PDF
+/// `DocumentRun.fontSizePoints` sigue intacto y la exportación a DOCX
 /// lee el modelo, así que sale al 100% del tamaño real.
 ///
 /// De dónde sale el número: el paginador de `docx_document_repository.dart`

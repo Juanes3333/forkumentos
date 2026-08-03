@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
 import 'package:intl/intl.dart';
 
 const _csvExtension = 'csv';
@@ -49,26 +50,26 @@ final class DatasourceManagementScreen extends ConsumerWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).dividerColor),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: datasource == null
-                    ? _DatasourceEmptyState(
-                        isLoading: isLoading,
-                        onImport: () => _pickAndImportDatasource(ref),
-                      )
-                    : _DatasourceDetailsState(
+            child: datasource == null
+                ? _DatasourceEmptyState(
+                    isLoading: isLoading,
+                    onImport: () => _pickAndImportDatasource(ref),
+                  )
+                : DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: _DatasourceDetailsState(
                         datasource: datasource,
                         isLoading: isLoading,
                         onReplace: () => _pickAndImportDatasource(ref),
                         onRemove: notifier.removeDatasource,
                       ),
-              ),
-            ),
+                    ),
+                  ),
           ),
         ),
       ],
@@ -151,21 +152,22 @@ final class _DatasourceEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Text('Fuente de datos', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
-        Text(
-          'Todavía no importaste un archivo CSV o XLSX para este proyecto.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 16),
-        Tooltip(
-          message: 'Selecciona un archivo CSV o XLSX para este proyecto',
-          child: FilledButton.icon(
-            onPressed: isLoading ? null : onImport,
-            icon: const Icon(Icons.table_chart_outlined),
-            label: const Text('Importar datos'),
+        Expanded(
+          child: DropzoneSurface(
+            icon: Icons.table_chart_outlined,
+            message:
+                'Todavía no importaste un archivo CSV o XLSX para este '
+                'proyecto.',
+            actionLabel: 'Importar datos',
+            actionIcon: Icons.table_chart_outlined,
+            actionTooltip:
+                'Selecciona un archivo CSV o XLSX para este '
+                'proyecto',
+            onImport: isLoading ? null : onImport,
           ),
         ),
       ],

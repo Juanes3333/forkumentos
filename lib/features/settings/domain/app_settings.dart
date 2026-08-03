@@ -1,14 +1,5 @@
 enum AppThemePreference { dark, light, system }
 
-/// Valid [AppSettings.defaultExportFormat] values.
-/// Stored as strings to avoid importing the export feature.
-abstract final class ExportFormatSetting {
-  static const String docx = 'docx';
-  static const String pdf = 'pdf';
-  static const String both = 'both';
-  static const Set<String> values = <String>{docx, pdf, both};
-}
-
 final class AppSettings {
   const AppSettings({
     required this.workspaceRoot,
@@ -17,7 +8,6 @@ final class AppSettings {
     required this.openRecentOnStartup,
     required this.confirmBeforeClosing,
     required this.autosaveIntervalSeconds,
-    required this.defaultExportFormat,
     required this.defaultCreateZip,
   });
 
@@ -29,7 +19,6 @@ final class AppSettings {
       openRecentOnStartup: SettingsDefaults.openRecentOnStartup,
       confirmBeforeClosing: SettingsDefaults.confirmBeforeClosing,
       autosaveIntervalSeconds: SettingsDefaults.autosaveIntervalSeconds,
-      defaultExportFormat: SettingsDefaults.defaultExportFormat,
       defaultCreateZip: SettingsDefaults.defaultCreateZip,
     );
   }
@@ -52,9 +41,6 @@ final class AppSettings {
           json['confirmBeforeClosing'] as bool? ??
           SettingsDefaults.confirmBeforeClosing,
       autosaveIntervalSeconds: _parseAutosave(json['autosaveIntervalSeconds']),
-      defaultExportFormat: _parseExportFormat(
-        json['defaultExportFormat'] as String?,
-      ),
       defaultCreateZip:
           json['defaultCreateZip'] as bool? ??
           SettingsDefaults.defaultCreateZip,
@@ -69,7 +55,6 @@ final class AppSettings {
 
   /// Persisted only; no autosave engine yet.
   final int autosaveIntervalSeconds;
-  final String defaultExportFormat;
   final bool defaultCreateZip;
 
   AppSettings copyWith({
@@ -79,7 +64,6 @@ final class AppSettings {
     bool? openRecentOnStartup,
     bool? confirmBeforeClosing,
     int? autosaveIntervalSeconds,
-    String? defaultExportFormat,
     bool? defaultCreateZip,
   }) {
     return AppSettings(
@@ -90,7 +74,6 @@ final class AppSettings {
       confirmBeforeClosing: confirmBeforeClosing ?? this.confirmBeforeClosing,
       autosaveIntervalSeconds:
           autosaveIntervalSeconds ?? this.autosaveIntervalSeconds,
-      defaultExportFormat: defaultExportFormat ?? this.defaultExportFormat,
       defaultCreateZip: defaultCreateZip ?? this.defaultCreateZip,
     );
   }
@@ -103,7 +86,6 @@ final class AppSettings {
       'openRecentOnStartup': openRecentOnStartup,
       'confirmBeforeClosing': confirmBeforeClosing,
       'autosaveIntervalSeconds': autosaveIntervalSeconds,
-      'defaultExportFormat': defaultExportFormat,
       'defaultCreateZip': defaultCreateZip,
     };
   }
@@ -140,13 +122,6 @@ final class AppSettings {
     }
     return parsed;
   }
-
-  static String _parseExportFormat(String? value) {
-    if (value != null && ExportFormatSetting.values.contains(value)) {
-      return value;
-    }
-    return SettingsDefaults.defaultExportFormat;
-  }
 }
 
 abstract final class SettingsDefaults {
@@ -158,6 +133,5 @@ abstract final class SettingsDefaults {
 
   /// Reserved; no autosave engine in this sprint.
   static const int autosaveIntervalSeconds = 60;
-  static const String defaultExportFormat = ExportFormatSetting.docx;
   static const bool defaultCreateZip = false;
 }

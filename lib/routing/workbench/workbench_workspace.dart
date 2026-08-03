@@ -101,7 +101,7 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
       }
 
       return const _CenteredStatus(
-        title: 'Importa una plantilla DOCX o PDF para visualizar el documento.',
+        title: 'Importa una plantilla DOCX para visualizar el documento.',
         description:
             'Usa la pestaña Plantillas del ribbon o arrastra un archivo '
             'a la ventana.',

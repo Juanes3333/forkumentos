@@ -54,6 +54,68 @@ void main() {
       expect(texts, 'Hola Eva');
     });
 
+    test('un run dentro de w:ins se incluye como texto normal: el campo '
+        'alcanza y reemplaza el texto insertado', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:r><w:t>Nombre:</w:t><w:tab/></w:r>
+  <w:ins w:id="1" w:author="Ana" w:date="2024-01-01T00:00:00Z">
+    <w:r><w:t>Juan</w:t></w:r>
+  </w:ins>
+</w:p>
+''',
+        replacements: const <DocxTextReplacement>[
+          // Offset 8 tras "Nombre:" (7) + '\t' (1): el texto insertado cuenta
+          // para los offsets como cualquier w:t normal.
+          DocxTextReplacement(
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            startOffset: 8,
+            endOffset: 12,
+            text: 'Miguel',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Nombre:', 'Miguel']);
+      expect(_countElements(documentXml, 'tab'), 1);
+      expect(documentXml, contains('w:ins'));
+      expect(documentXml, isNot(contains('Juan')));
+    });
+
+    test('un run dentro de w:del se excluye del texto y de los offsets: el '
+        'campo salta el bloque borrado y alcanza el texto siguiente sin '
+        'contar sus caracteres', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:r><w:t>Nombre:</w:t><w:tab/></w:r>
+  <w:del w:id="1" w:author="Ana" w:date="2024-01-01T00:00:00Z">
+    <w:r><w:delText>Juan</w:delText></w:r>
+  </w:del>
+  <w:r><w:t>Ana</w:t></w:r>
+</w:p>
+''',
+        replacements: const <DocxTextReplacement>[
+          // Offset 8 tras "Nombre:" (7) + '\t' (1): el texto borrado ("Juan")
+          // no cuenta para los offsets, así que el campo alcanza "Ana"
+          // directamente, como si el w:del no existiera.
+          DocxTextReplacement(
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            startOffset: 8,
+            endOffset: 11,
+            text: 'Miguel',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Nombre:', 'Miguel']);
+      expect(_countElements(documentXml, 'tab'), 1);
+      // El run borrado no se toca en absoluto: sigue en el XML tal cual,
+      // como exige el formato OOXML de control de cambios.
+      expect(documentXml, contains('<w:delText>Juan</w:delText>'));
+    });
+
     test('reemplaza texto dentro de celdas de tabla', () {
       final template = _buildDocxBytes(
         documentXml: _documentWithBody('''

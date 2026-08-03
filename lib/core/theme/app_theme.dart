@@ -26,17 +26,18 @@ final class AppTheme {
           tertiary: colors.warning,
           onSurface: colors.foregroundPrimary,
           onSurfaceVariant: colors.foregroundMuted,
-          onPrimary: brightness == Brightness.dark
-              ? colors.foregroundPrimary
-              : Colors.white,
-          onSecondary: brightness == Brightness.dark
-              ? colors.foregroundPrimary
-              : Colors.white,
+          onPrimary: colors.onAccent,
+          onSecondary: colors.onAccent,
           onError: Colors.white,
         );
 
     const compactRadius = BorderRadius.all(Radius.circular(3));
     const panelRadius = BorderRadius.all(Radius.circular(8));
+    // Floating elements (dialogs, popups) get a real shadow per
+    // DESIGN_SYSTEM §8; flat structural panels keep hairline borders only.
+    final floatingShadowColor = Colors.black.withValues(
+      alpha: brightness == Brightness.dark ? 0.55 : 0.18,
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -54,11 +55,16 @@ final class AppTheme {
         elevation: 0,
         color: colors.surface,
         surfaceTintColor: colors.surface,
-        shape: const RoundedRectangleBorder(borderRadius: panelRadius),
+        shape: RoundedRectangleBorder(
+          borderRadius: panelRadius,
+          side: BorderSide(color: colors.border),
+        ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: colors.surface,
         surfaceTintColor: colors.surface,
+        elevation: 12,
+        shadowColor: floatingShadowColor,
         shape: const RoundedRectangleBorder(borderRadius: panelRadius),
       ),
       appBarTheme: AppBarTheme(
@@ -88,9 +94,7 @@ final class AppTheme {
         style: FilledButton.styleFrom(
           shape: const RoundedRectangleBorder(borderRadius: compactRadius),
           backgroundColor: colors.accent,
-          foregroundColor: brightness == Brightness.dark
-              ? colors.foregroundPrimary
-              : Colors.white,
+          foregroundColor: colors.onAccent,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -132,11 +136,7 @@ final class AppTheme {
           }
           return Colors.transparent;
         }),
-        checkColor: WidgetStatePropertyAll(
-          brightness == Brightness.dark
-              ? colors.foregroundPrimary
-              : Colors.white,
-        ),
+        checkColor: WidgetStatePropertyAll(colors.onAccent),
         side: BorderSide(color: colors.border),
       ),
       listTileTheme: ListTileThemeData(
@@ -151,6 +151,12 @@ final class AppTheme {
       popupMenuTheme: PopupMenuThemeData(
         color: colors.surface,
         surfaceTintColor: colors.surface,
+        elevation: 8,
+        shadowColor: floatingShadowColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: compactRadius,
+          side: BorderSide(color: colors.border),
+        ),
       ),
     );
   }

@@ -686,6 +686,21 @@ final class _DocumentPageSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: colorScheme.outlineVariant),
+        // Paper resting above the canvas: a soft ambient shadow plus a
+        // tighter contact shadow, per DESIGN_SYSTEM §8 ("floating elements
+        // use a distinct, crisp shadow to break out of the flat hierarchy").
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: _ScaledPage(
         scale: scale,
