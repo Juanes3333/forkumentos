@@ -96,11 +96,7 @@ Map<String, Object?> _parseXlsxContent(Map<String, Object?> payload) {
 }
 
 String _normalizeHeaderCell(Data? cell) {
-  final rawValue = cell?.value;
-  if (rawValue == null) {
-    return '';
-  }
-  return rawValue.toString();
+  return XlsxSheetParser.formatCellValue(cell?.value) ?? '';
 }
 
 List<String> _findDuplicateHeaders(List<String> headers) {
@@ -159,13 +155,8 @@ List<int> _detectEmptyColumns({
 }
 
 String? _normalizeDataCell(Data? data) {
-  final value = data?.value;
-  if (value == null) {
-    return null;
-  }
-
-  final normalized = value.toString();
-  if (normalized.isEmpty) {
+  final normalized = XlsxSheetParser.formatCellValue(data?.value);
+  if (normalized == null || normalized.isEmpty) {
     return null;
   }
   return normalized;

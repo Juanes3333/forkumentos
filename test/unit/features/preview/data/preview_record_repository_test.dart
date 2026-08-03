@@ -99,6 +99,39 @@ void main() {
     expect(batch[1], <String?>['Luis', '25']);
     expect(repository.xlsxDecodeCount, 1);
   });
+
+  test('lee celda de fecha XLSX como texto legible, no serial', () async {
+    final filePath = p.join(tempDirectory.path, 'fechas.xlsx');
+    await _writeWorkbook(
+      path: filePath,
+      rows: <List<CellValue?>>[
+        <CellValue?>[TextCellValue('nombre'), TextCellValue('fecha')],
+        <CellValue?>[
+          TextCellValue('Ana'),
+          const DateCellValue(year: 2024, month: 1, day: 15),
+        ],
+      ],
+    );
+
+    final datasource = Datasource(
+      sourcePath: filePath,
+      fileName: 'fechas.xlsx',
+      fileSizeBytes: File(filePath).lengthSync(),
+      importedAt: DateTime.utc(2026),
+      format: DatasourceFormat.xlsx,
+      headers: const <String>['nombre', 'fecha'],
+      previewRow: const <String?>['Ana', '2024-01-15'],
+      rowCount: 1,
+      emptyColumnIndexes: const <int>[],
+    );
+
+    final row = await repository.readRecord(
+      datasource: datasource,
+      rowIndex: 0,
+    );
+
+    expect(row, <String?>['Ana', '2024-01-15']);
+  });
 }
 
 Datasource _csvDatasource(String filePath, {required int rowCount}) {

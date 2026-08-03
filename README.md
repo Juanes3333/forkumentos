@@ -11,7 +11,7 @@
 </h1>
 
 <p align="center">
-  <em>Generate hundreds of personalized documents in seconds.</em>
+  <em>Generate hundreds of personalized DOCX documents in seconds.</em>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.0-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.2.0-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -28,24 +28,23 @@
 
 ---
 
-> **Forkumentos** is a desktop application that automates document generation from DOCX or PDF templates using CSV or Excel data sources. Map once, preview instantly and export hundreds of personalized documents in just a few clicks.
+> **Forkumentos** is a Windows desktop app that maps CSV/Excel columns onto **DOCX** templates, previews filled rows live, and batch-exports personalized Word documents (optional ZIP). Map once, preview instantly, export hundreds.
 
 ---
 
-**Version 1.0.0**
+**Version 1.2.0**
 
-Forkumentos is a Windows desktop application for mapping spreadsheet fields onto DOCX or PDF document templates, previewing filled results per data row, and exporting batches of documents.
-
-Projects are portable `.fork` archives that embed the template, datasource, and mappings so you can reopen the same work on another machine.
+Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine.
 
 ---
 
 ## Main features
 
-- Portable `.fork` projects with embedded template and datasource
-- Visual field mapping with undo/redo
+- Portable `.fork` projects with embedded DOCX template and datasource
+- Visual field mapping with undo/redo, review mode, and optional auto-map
+- WYSIWYG document viewer (color, font size, paragraph spacing from the source DOCX)
 - Live preview against any datasource row
-- Batch export to DOCX, PDF, or both, with optional ZIP packaging
+- Batch export to **DOCX** with optional ZIP packaging
 - Drag-and-drop import and multi-window project handling on Windows
 
 ---
@@ -71,16 +70,17 @@ Projects are portable `.fork` archives that embed the template, datasource, and 
 
 ### Templates
 
-- Import **DOCX** or **PDF** templates
+- Import **DOCX** templates (Word ZIP/XML)
 - Replace the active template from the ribbon or by drag-and-drop
 - Document viewer with zoom, fit, page navigation, and mapping highlights
-- PDF text is loaded through Syncfusion; multi-column bands are reconstructed as tables when geometry allows (heuristic)
+- Structural field paths use absolute document-order block indexes (stable across preview and export)
 
 ### Datasources
 
 - Import **CSV** or **XLSX**
 - Header detection, row preview, and empty-column detection
 - XLSX uses the first sheet that has non-empty headers
+- Date/number cells are normalized to readable values (not raw Excel package strings)
 - Replace the active datasource from the ribbon or by drag-and-drop
 
 ### Mapping
@@ -90,6 +90,7 @@ Projects are portable `.fork` archives that embed the template, datasource, and 
 - Field status (pending / assigned / incomplete)
 - Validation for overlaps and invalid assignments before export
 - Undo / redo (`Ctrl+Z` / `Ctrl+Y`)
+- Optional auto-mapping helpers from the workbench
 
 ### Review mode
 
@@ -100,11 +101,11 @@ Projects are portable `.fork` archives that embed the template, datasource, and 
 ### Preview
 
 - Builds a filled document from the current template, mappings, and selected datasource row
-- Navigate rows and **Refresh Preview** to regenerate the visible document (same pipeline as Preview Mode)
+- Navigate rows and **Refresh Preview** to regenerate the visible document
 
 ### Export engine
 
-- Export **DOCX**, **PDF**, or **both** (DOCX export is disabled when the template itself is a PDF)
+- Export **DOCX** only (same structure as the template, with mapped replacements)
 - Row ranges: current row, all rows, or a custom range
 - Progress dialog with cancel support
 - Optional ZIP of generated files
@@ -118,18 +119,18 @@ Projects are portable `.fork` archives that embed the template, datasource, and 
 
 ### Drag & drop
 
-- Drop DOCX/PDF templates, CSV/XLSX datasources, or `.fork` projects onto the window
-- Overlay feedback during drag; files are classified by extension
+- Drop DOCX templates, CSV/XLSX datasources, or `.fork` projects onto the window
+- Large shared dropzone surfaces in empty resource states; overlay feedback during drag
 
 ### Themes & branding
 
-- Light, dark, and system theme
+- Light, dark, and system theme with accessible accent/on-accent contrast
 - Theme-aware logos and Windows application icon
 - Splash screen and About dialog (version, license, author, website)
 
 ### Settings
 
-Persisted application settings (see [Settings](#settings) below). The autosave **interval** is stored for future use; the autosave engine is not active in 1.0.
+Persisted application settings (see [Settings](#settings) below). The autosave **interval** is stored for future use; the autosave engine is not active yet.
 
 ### Workspace
 
@@ -150,10 +151,9 @@ Default workspace under `Documents/Forkumentos` with folders for projects, expor
 | Files | `file_picker`, `path_provider`, `path`, `desktop_drop` |
 | CSV / XLSX | `csv`, `excel` |
 | DOCX (ZIP/XML) | `archive`, `xml` |
-| PDF load | `syncfusion_flutter_pdf` |
-| PDF export | `pdf` |
 | Logging | `logger` |
 | Analysis | `very_good_analysis` |
+| Installer | Inno Setup (`installer/Forkumentos.iss`) |
 
 Architecture is **feature-first** (`lib/features/*`) with shared models/providers and a routing/workbench shell that orchestrates cross-feature flows (for example export). Features do not import each other directly.
 
@@ -163,10 +163,14 @@ Architecture is **feature-first** (`lib/features/*`) with shared models/provider
 
 ### Requirements
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install/windows) (stable, **3.44.6** or compatible with `sdk: ^3.12.2`)
+- [Flutter SDK](https://docs.flutter.dev/get-started/install/windows) (stable, compatible with `sdk: ^3.12.2`)
 - [Visual Studio 2022](https://visualstudio.microsoft.com/) with the **Desktop development with C++** workload
 - Git
 - Windows 10/11 (x64)
+
+### Packaged installer
+
+Download the latest **ForkumentosSetup** from [GitHub Releases](https://github.com/Juanes3333/forkumentos/releases) and run it. The installer registers the `.fork` association for the installed executable.
 
 ### Clone and run
 
@@ -185,6 +189,12 @@ flutter build windows
 
 The executable is produced under `build/windows/x64/runner/Release/`.
 
+Optional installer (requires [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
+
+```bash
+ISCC installer/Forkumentos.iss
+```
+
 On first run, Forkumentos registers the `.fork` extension for the **current** executable (per-user `HKCU`). Double-clicking a `.fork` file opens that project. If you switch between debug and release builds, run the build you want associated so the registration points at the right binary.
 
 ---
@@ -192,13 +202,13 @@ On first run, Forkumentos registers the `.fork` extension for the **current** ex
 ## Usage
 
 1. **Create a project** from the landing screen (or File → New in another window).
-2. **Import a template** (DOCX or PDF) via the wizard, ribbon, or drag-and-drop.
+2. **Import a DOCX template** via the wizard, ribbon, or drag-and-drop.
 3. **Import a datasource** (CSV or XLSX) the same way.
 4. **Start working** to enter the workbench when both resources are ready.
 5. **Map fields**: select text in the document and assign datasource columns; use Review Mode to inspect coverage.
 6. **Preview**: switch to Preview Mode, change rows, and use Refresh Preview to regenerate the filled document.
 7. **Save** the project as a `.fork` file (Save / Save As).
-8. **Export**: choose format, destination, row range, filename pattern, and optional ZIP; review the summary when finished.
+8. **Export**: choose destination, row range, filename pattern, and optional ZIP; review the summary when finished.
 
 Closing the window with unsaved changes prompts according to Settings.
 
@@ -213,16 +223,17 @@ forkumentos/
 │   ├── images/
 │   └── logo/           # Theme-aware SVG logos
 ├── docs/               # Spec, architecture, design system, playbooks
+├── installer/          # Inno Setup script for Windows packaging
 ├── lib/
 │   ├── app/            # Bootstrap, splash, root App
 │   ├── core/           # Commands, theme, storage, workspace, Windows/launch helpers
 │   ├── features/
 │   │   ├── project/    # .fork load/save, welcome, lifecycle
-│   │   ├── template/   # DOCX/PDF template import
+│   │   ├── template/   # DOCX template import
 │   │   ├── datasource/ # CSV/XLSX import
-│   │   ├── mapping/    # Assignments, review, undo/redo
+│   │   ├── mapping/    # Assignments, review, undo/redo, auto-map
 │   │   ├── preview/    # Row-based filled document preview
-│   │   ├── export/     # DOCX/PDF/ZIP export + filename builder
+│   │   ├── export/     # DOCX/ZIP export + filename builder
 │   │   ├── document_viewer/
 │   │   └── settings/   # Persisted AppSettings UI
 │   ├── routing/        # Router, phases, workbench chrome, DnD, export launcher
@@ -242,8 +253,7 @@ forkumentos/
 
 | Format | Role |
 |--------|------|
-| `.docx` | Template import, preview, DOCX and PDF export |
-| `.pdf` | Template import and preview; export as PDF only |
+| `.docx` | Template import, WYSIWYG preview, DOCX export |
 
 ### Datasources
 
@@ -256,8 +266,7 @@ forkumentos/
 
 | Format | Role |
 |--------|------|
-| `.docx` | Generated documents (DOCX templates only) |
-| `.pdf` | Generated documents |
+| `.docx` | Generated documents |
 | `.zip` | Optional archive of generated files |
 | `.fork` | Portable project archive |
 
@@ -271,8 +280,8 @@ Settings are organized in four tabs:
 |-----|---------|
 | **General** | Workspace root (default `Documents/Forkumentos`), derived Projects / Exports paths |
 | **Appearance** | Theme: dark, light, or system |
-| **Behavior** | Open most recent project on startup; recent list limit (1–50); confirm before closing; autosave interval (persisted only — engine not active in 1.0) |
-| **Export** | Default format (DOCX / PDF / both); default “create ZIP” |
+| **Behavior** | Open most recent project on startup; recent list limit (1–50); confirm before closing; autosave interval (persisted only — engine not active yet) |
+| **Export** | Default “create ZIP” |
 
 Settings persist in application support storage across sessions.
 
@@ -280,17 +289,11 @@ Settings persist in application support storage across sessions.
 
 ## Roadmap
 
-### Version 1.1
+### Near term
 
 - Autosave engine (interval already configurable)
-- Windows installer (MSI/Inno) with stable `.fork` association
-- Stronger PDF table reconstruction for complex layouts
-
-### Version 1.2
-
-- Packaged release channel and update notes
 - Additional export naming / destination conveniences
-- Performance and fidelity polish for large DOCX/PDF/XLSX workloads
+- Performance polish for large DOCX/XLSX workloads
 
 ---
 
@@ -304,7 +307,8 @@ This project is licensed under the [MIT License](LICENSE).
 
 Forkumentos is developed by **Juan Restrepo**.
 
-It targets professional desktop document workflows: keep templates and data local, map visually, preview row by row, and export batches without a separate mail-merge stack.
+It targets professional desktop document workflows: keep templates and data local, map visually, preview row by row, and export DOCX batches without a separate mail-merge stack.
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
-- Version: **1.0.0**
+- Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
+- Version: **1.2.0**

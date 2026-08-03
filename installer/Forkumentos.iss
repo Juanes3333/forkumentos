@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Forkumentos"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "Juan Restrepo"
 #define MyAppURL "https://github.com/Juanes3333/forkumentos"
 #define MyAppExeName "forkumentos.exe"
@@ -38,7 +38,7 @@ LicenseFile=C:\Users\juane\Documents\forkumentos\LICENSE
 ; Remove the following line to run in administrative install mode (install for all users).
 PrivilegesRequired=lowest
 OutputDir=C:\Users\juane\Documents\forkumentos\installer
-OutputBaseFilename=ForkumentosSetup_v1.1.0
+OutputBaseFilename=ForkumentosSetup_v1.2.0
 SetupIconFile=C:\Users\juane\Documents\forkumentos\assets\icons\forkumentosLight.ico
 SolidCompression=yes
 WizardStyle=modern windows11

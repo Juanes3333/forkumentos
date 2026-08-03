@@ -125,6 +125,27 @@ void main() {
     expect(datasource.previewRow, <String?>['Hola, mundo', 'Línea 1\nLínea 2']);
   });
 
+  test(
+    'convierte celdas de fecha y decimales a texto legible, no raw',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'fecha_y_moneda.xlsx');
+      await _writeWorkbook(
+        path: filePath,
+        rows: <List<CellValue?>>[
+          <CellValue?>[TextCellValue('fecha'), TextCellValue('monto')],
+          <CellValue?>[
+            const DateCellValue(year: 2024, month: 1, day: 15),
+            const DoubleCellValue(7500.5),
+          ],
+        ],
+      );
+
+      final datasource = await repository.load(filePath);
+
+      expect(datasource.previewRow, <String?>['2024-01-15', '7500.5']);
+    },
+  );
+
   test('lanza FormatException cuando hay encabezados duplicados', () async {
     final filePath = p.join(tempDirectory.path, 'duplicados.xlsx');
     await _writeWorkbook(
