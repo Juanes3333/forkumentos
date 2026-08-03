@@ -3,18 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_review.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_navigation_provider.dart';
+import 'package:forkumentos/shared/models/document.dart';
+import 'package:forkumentos/shared/models/document_text_path.dart';
+import 'package:forkumentos/shared/models/document_text_path_resolver.dart';
 
 final class ReviewPanel extends ConsumerWidget {
   const ReviewPanel({
     required this.snapshot,
     required this.headers,
     this.onExport,
+    this.document,
     super.key,
   });
 
   final MappingReviewSnapshot snapshot;
   final List<String> headers;
   final VoidCallback? onExport;
+
+  /// Documento activo, para resolver a qué página apunta cada asignación o
+  /// texto del documento. `null` mientras carga: la página se omite del
+  /// subtítulo hasta que haya uno disponible.
+  final Document? document;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,6 +73,7 @@ final class ReviewPanel extends ConsumerWidget {
                 _AssignmentNavigationTile(
                   assignment: assignment,
                   headers: headers,
+                  document: document,
                   onTap: () => navigation.navigateTo(
                     AssignmentNavigationTarget(assignment.id),
                   ),
@@ -79,6 +89,7 @@ final class ReviewPanel extends ConsumerWidget {
                 _AssignmentNavigationTile(
                   assignment: assignment,
                   headers: headers,
+                  document: document,
                   onTap: () => navigation.navigateTo(
                     AssignmentNavigationTarget(assignment.id),
                   ),
@@ -108,7 +119,7 @@ final class ReviewPanel extends ConsumerWidget {
               for (final placeholder in snapshot.documentPlaceholders)
                 _NavigationTile(
                   label: _truncate(placeholder.text, 48),
-                  subtitle: 'Página ${placeholder.path.pageIndex + 1}',
+                  subtitle: _pageSubtitle(placeholder.path),
                   onTap: () => navigation.navigateTo(
                     DocumentPlaceholderNavigationTarget(
                       path: placeholder.path,
@@ -132,6 +143,15 @@ final class ReviewPanel extends ConsumerWidget {
 
   String _overlapLabel(FieldAssignment first, FieldAssignment second) {
     return '"${first.selectedText}" ↔ "${second.selectedText}"';
+  }
+
+  String? _pageSubtitle(DocumentTextPath path) {
+    final currentDocument = document;
+    if (currentDocument == null) {
+      return null;
+    }
+    final pageNumber = resolvePageNumber(currentDocument, path);
+    return pageNumber == null ? null : 'Página ${pageNumber + 1}';
   }
 }
 
@@ -306,16 +326,17 @@ final class _NavigationTile extends StatelessWidget {
   });
 
   final String label;
-  final String subtitle;
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final subtitleText = subtitle;
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       title: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Text(subtitle),
+      subtitle: subtitleText == null ? null : Text(subtitleText),
       trailing: const Icon(Icons.arrow_forward, size: 16),
       onTap: onTap,
     );
@@ -327,21 +348,29 @@ final class _AssignmentNavigationTile extends StatelessWidget {
     required this.assignment,
     required this.headers,
     required this.onTap,
+    this.document,
   });
 
   final FieldAssignment assignment;
   final List<String> headers;
   final VoidCallback onTap;
+  final Document? document;
 
   @override
   Widget build(BuildContext context) {
     final header = assignment.fieldIndex < headers.length
         ? headers[assignment.fieldIndex]
         : assignment.fieldHeader;
+    final currentDocument = document;
+    final pageNumber = currentDocument == null
+        ? null
+        : resolvePageNumber(currentDocument, assignment.path);
 
     return _NavigationTile(
       label: '"${assignment.selectedText}"',
-      subtitle: 'Campo: $header · Página ${assignment.path.pageIndex + 1}',
+      subtitle: pageNumber == null
+          ? 'Campo: $header'
+          : 'Campo: $header · Página ${pageNumber + 1}',
       onTap: onTap,
     );
   }

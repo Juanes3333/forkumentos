@@ -15,7 +15,10 @@ import 'package:forkumentos/features/template/presentation/active_template_provi
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_selection_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_selection_tooltip.dart';
+import 'package:forkumentos/shared/models/document_text_path.dart';
+import 'package:forkumentos/shared/models/document_text_path_resolver.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
+import 'package:forkumentos/shared/providers/document_content_provider.dart';
 import 'package:forkumentos/shared/widgets/mapping_aware_paragraph.dart';
 
 final class WorkbenchWorkspace extends ConsumerStatefulWidget {
@@ -182,19 +185,25 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
         }
         _focusAssignment(assignment);
       case DocumentPlaceholderNavigationTarget(:final path):
-        setState(() {
-          _focusPageIndex = path.pageIndex;
-          _focusToken++;
-        });
+        final pageNumber = _resolvePageNumber(path);
+        if (pageNumber != null) {
+          setState(() {
+            _focusPageIndex = pageNumber;
+            _focusToken++;
+          });
+        }
         ref.read(emphasizedAssignmentIdProvider.notifier).state = null;
     }
   }
 
   void _focusAssignment(FieldAssignment assignment) {
-    setState(() {
-      _focusPageIndex = assignment.path.pageIndex;
-      _focusToken++;
-    });
+    final pageNumber = _resolvePageNumber(assignment.path);
+    if (pageNumber != null) {
+      setState(() {
+        _focusPageIndex = pageNumber;
+        _focusToken++;
+      });
+    }
     ref
         .read(activeMappingProvider.notifier)
         .setCurrentFieldIndex(assignment.fieldIndex);
@@ -206,6 +215,30 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
       }
       ref.read(emphasizedAssignmentIdProvider.notifier).state = null;
     });
+  }
+
+  /// Resuelve a qué página de `document.pages` apunta [path]. Deriva el
+  /// documento activo (plantilla o vista previa, según el modo de render
+  /// actual) leyendo los mismos providers que `build`, ya que estos
+  /// manejadores corren fuera de su fase de build.
+  int? _resolvePageNumber(DocumentTextPath path) {
+    final templatePath = ref
+        .read(activeTemplateProvider)
+        .valueOrNull
+        ?.sourcePath;
+    if (templatePath == null) {
+      return null;
+    }
+    final isPreview =
+        ref.read(workbenchReviewRenderModeProvider) ==
+        WorkbenchReviewRenderMode.preview;
+    final document = isPreview
+        ? ref.read(previewDocumentProvider).valueOrNull
+        : ref.read(documentContentProvider(templatePath)).valueOrNull;
+    if (document == null) {
+      return null;
+    }
+    return resolvePageNumber(document, path);
   }
 }
 

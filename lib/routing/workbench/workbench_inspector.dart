@@ -6,6 +6,8 @@ import 'package:forkumentos/features/mapping/presentation/active_mapping_provide
 import 'package:forkumentos/features/mapping/presentation/mapping_navigation_provider.dart';
 import 'package:forkumentos/features/mapping/presentation/widgets/mapping_review_sidebar.dart';
 import 'package:forkumentos/features/preview/presentation/preview_state_provider.dart';
+import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
+import 'package:forkumentos/shared/providers/document_content_provider.dart';
 
 final class WorkbenchInspector extends ConsumerWidget {
   const WorkbenchInspector({super.key});
@@ -19,6 +21,13 @@ final class WorkbenchInspector extends ConsumerWidget {
     final mappingState = ref.watch(activeMappingProvider).state;
     final previewState = ref.watch(previewStateProvider);
     final headers = datasource?.headers ?? const <String>[];
+    final templatePath = ref
+        .watch(activeTemplateProvider)
+        .valueOrNull
+        ?.sourcePath;
+    final document = templatePath == null
+        ? null
+        : ref.watch(documentContentProvider(templatePath)).valueOrNull;
 
     return ColoredBox(
       color: colors.backgroundSecondary,
@@ -65,6 +74,7 @@ final class WorkbenchInspector extends ConsumerWidget {
                   : MappingReviewSidebar(
                       headers: headers,
                       assignments: mappingState.assignments,
+                      document: document,
                       onRemoveAssignment: (assignmentId) {
                         ref
                             .read(activeMappingProvider.notifier)

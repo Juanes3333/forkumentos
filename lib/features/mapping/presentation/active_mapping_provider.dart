@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/mapping/data/mapping_json.dart';
+import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
 import 'package:forkumentos/features/mapping/domain/document_text_catalog.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_commands.dart';
@@ -122,6 +123,13 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
       return;
     }
 
+    final leadingWhitespace =
+        selection.selectedText.length -
+        selection.selectedText.trimLeft().length;
+    final trailingWhitespace =
+        selection.selectedText.length -
+        selection.selectedText.trimRight().length;
+
     final newAssignments = <FieldAssignment>[
       FieldAssignment(
         id: _uuid.v4(),
@@ -129,8 +137,8 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
         fieldHeader: fieldHeader,
         selectedText: trimmed,
         path: selection.path,
-        startOffset: selection.startOffset,
-        endOffset: selection.endOffset,
+        startOffset: selection.startOffset + leadingWhitespace,
+        endOffset: selection.endOffset - trailingWhitespace,
       ),
       for (final occurrence in extraOccurrences)
         FieldAssignment(
@@ -159,6 +167,35 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     _syncProjectAssignments();
   }
 
+  /// Aplica un auto-mapeo ya calculado como un único paso de undo.
+  /// Devuelve cuántas asignaciones se agregaron (0 si ninguna).
+  ///
+  /// Se aparta a propósito de `autoMapFromFirstRow`, el método que nombra
+  /// `.claude/10-auto-mapping/task.md`: el flujo elegido avisa antes de
+  /// aplicar, así que quien llama necesita ver el [AutoMappingResult] —y sus
+  /// `occurrenceCountsByField`— para confirmar con el usuario antes de mutar.
+  /// Un método que calculara y mutara a la vez haría imposible ese paso
+  /// previo. Quien llama arma el resultado con [buildAutoMapping], que es
+  /// público y puro justamente para eso.
+  ///
+  /// Sin asignaciones nuevas no se toca el estado ni el historial.
+  int applyAutoMapping(AutoMappingResult result) {
+    if (result.assignments.isEmpty) {
+      return 0;
+    }
+
+    _applyMutation(
+      state.state.copyWith(
+        assignments: <FieldAssignment>[
+          ...state.state.assignments,
+          ...result.assignments,
+        ],
+      ),
+    );
+    _syncProjectAssignments();
+    return result.assignments.length;
+  }
+
   void replaceAssignment({
     required FieldAssignment existingAssignment,
     required DocumentTextSelection selection,
@@ -175,6 +212,13 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
       return;
     }
 
+    final leadingWhitespace =
+        selection.selectedText.length -
+        selection.selectedText.trimLeft().length;
+    final trailingWhitespace =
+        selection.selectedText.length -
+        selection.selectedText.trimRight().length;
+
     final replacement = <FieldAssignment>[
       FieldAssignment(
         id: _uuid.v4(),
@@ -182,8 +226,8 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
         fieldHeader: fieldHeader,
         selectedText: trimmed,
         path: selection.path,
-        startOffset: selection.startOffset,
-        endOffset: selection.endOffset,
+        startOffset: selection.startOffset + leadingWhitespace,
+        endOffset: selection.endOffset - trailingWhitespace,
       ),
       for (final occurrence in extraOccurrences)
         FieldAssignment(

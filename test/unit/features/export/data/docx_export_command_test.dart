@@ -45,7 +45,6 @@ void main() {
       rowIndexes: const <int>[0, 1, 2, 3],
       placeholders: const <ExportPlaceholder>[
         ExportPlaceholder(
-          pageIndex: 0,
           steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
           startOffset: 5,
           endOffset: 8,
@@ -93,7 +92,6 @@ void main() {
       rowIndexes: const <int>[0, 1, 2],
       placeholders: const <ExportPlaceholder>[
         ExportPlaceholder(
-          pageIndex: 0,
           steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
           startOffset: 5,
           endOffset: 8,

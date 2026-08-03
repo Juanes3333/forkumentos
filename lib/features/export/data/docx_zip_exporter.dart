@@ -8,14 +8,12 @@ import 'package:xml/xml.dart';
 /// One resolved text replacement for a DOCX paragraph path.
 final class DocxTextReplacement {
   const DocxTextReplacement({
-    required this.pageIndex,
     required this.steps,
     required this.startOffset,
     required this.endOffset,
     required this.text,
   });
 
-  final int pageIndex;
   final List<ExportPathStep> steps;
   final int startOffset;
   final int endOffset;
@@ -150,72 +148,38 @@ String _applyToDocumentXml(
   final body = _findBody(document);
   final byPath = <String, List<DocxTextReplacement>>{};
   for (final replacement in replacements) {
-    final key = _pathKey(replacement.pageIndex, replacement.steps);
+    final key = _pathKey(replacement.steps);
     (byPath[key] ??= <DocxTextReplacement>[]).add(replacement);
   }
 
-  var pageIndex = 0;
-  var blockIndexOnPage = 0;
-  // Espejo de `_parseContainerBlocks`, que corta página también con
-  // `w:pageBreakBefore` y con un `w:sectPr` intermedio. `pageBreakBefore`
-  // marca el final del bloque ANTERIOR, así que hace falta saber si ya se
-  // emitió alguno (equivale a `segments.isNotEmpty`) y si ese ya cerraba
-  // página: en ingesta remarcar el flag es idempotente, aquí avanzar dos
-  // veces no lo sería.
-  var hasEmittedBlock = false;
-  var lastBlockEndedPage = false;
+  // Absoluto y monotónico, en orden de documento: espejo exacto de
+  // `enumerateParagraphTexts` (un incremento por segmento de
+  // `_parseContainerBlocks`, incluidos los chunks en los que un párrafo se
+  // divide por salto de página). Nada lo reinicia porque nada aguas abajo
+  // necesita saber en qué página cae un bloque.
+  var blockIndex = 0;
 
   for (final child in body.childElements.toList()) {
     final localName = child.name.local;
     if (localName == 'p') {
-      if (hasEmittedBlock &&
-          !lastBlockEndedPage &&
-          _hasPageBreakBefore(child)) {
-        pageIndex++;
-        blockIndexOnPage = 0;
-        lastBlockEndedPage = true;
-      }
-
       final chunks = _splitParagraphChunks(child);
-      final forcesSectionBreak = _paragraphSectionBreakEndsPage(child);
-      for (var index = 0; index < chunks.length; index++) {
-        final chunk = chunks[index];
+      for (final chunk in chunks) {
         final steps = <ExportPathStep>[
-          ExportPathStep.rootBlock(blockIndex: blockIndexOnPage),
+          ExportPathStep.rootBlock(blockIndex: blockIndex),
         ];
-        final key = _pathKey(pageIndex, steps);
+        final key = _pathKey(steps);
         final pathReplacements = byPath[key];
         if (pathReplacements != null && pathReplacements.isNotEmpty) {
           _applyToTextNodes(chunk.nodes, pathReplacements);
         }
-        blockIndexOnPage++;
-        hasEmittedBlock = true;
-        // El sectPr cierra el ÚLTIMO chunk del párrafo, en OR con el corte
-        // propio del chunk: si ese chunk ya cerraba página, no cuenta dos.
-        final endsPage =
-            chunk.endsWithPageBreak ||
-            (index == chunks.length - 1 && forcesSectionBreak);
-        lastBlockEndedPage = endsPage;
-        if (endsPage) {
-          pageIndex++;
-          blockIndexOnPage = 0;
-        }
+        blockIndex++;
       }
       continue;
     }
 
     if (localName == 'tbl') {
-      _walkTable(
-        child,
-        pageIndex: pageIndex,
-        rootBlockIndex: blockIndexOnPage,
-        byPath: byPath,
-      );
-      blockIndexOnPage++;
-      // Una tabla es un bloque más y nunca cierra página por sí sola, así
-      // que un `pageBreakBefore` en el párrafo siguiente sí debe cortar.
-      hasEmittedBlock = true;
-      lastBlockEndedPage = false;
+      _walkTable(child, rootBlockIndex: blockIndex, byPath: byPath);
+      blockIndex++;
     }
   }
 
@@ -254,7 +218,6 @@ void _stripLastRenderedPageBreaks(XmlDocument document) {
 
 void _walkTable(
   XmlElement table, {
-  required int pageIndex,
   required int rootBlockIndex,
   required Map<String, List<DocxTextReplacement>> byPath,
 }) {
@@ -286,7 +249,7 @@ void _walkTable(
               blockIndex: innerBlockIndex,
             ),
           ];
-          final key = _pathKey(pageIndex, steps);
+          final key = _pathKey(steps);
           final pathReplacements = byPath[key];
           if (pathReplacements != null && pathReplacements.isNotEmpty) {
             _applyToTextNodes(chunk.nodes, pathReplacements);
@@ -329,7 +292,6 @@ void _applyToTextNodes(
       final end = replacement.endOffset.clamp(group.start, group.end);
       local.add(
         DocxTextReplacement(
-          pageIndex: replacement.pageIndex,
           steps: replacement.steps,
           startOffset: replacement.startOffset - group.start,
           endOffset: end - group.start,
@@ -414,8 +376,8 @@ XmlElement _findBody(XmlDocument document) {
   );
 }
 
-String _pathKey(int pageIndex, List<ExportPathStep> steps) {
-  final buffer = StringBuffer('$pageIndex');
+String _pathKey(List<ExportPathStep> steps) {
+  final buffer = StringBuffer();
   for (final step in steps) {
     switch (step) {
       case ExportRootBlockStep(:final blockIndex):
@@ -609,73 +571,6 @@ bool _isInsideTable(XmlElement element) {
     }
   }
   return false;
-}
-
-/// Espejo de `_hasPageBreakBefore` en `docx_document_repository.dart`.
-bool _hasPageBreakBefore(XmlElement paragraph) {
-  final paragraphProperties = _firstChildByLocalName(paragraph, 'pPr');
-  if (paragraphProperties == null) {
-    return false;
-  }
-
-  return _isEnabledProperty(
-    _firstChildByLocalName(paragraphProperties, 'pageBreakBefore'),
-  );
-}
-
-/// Espejo de `_paragraphSectionBreakEndsPage` en
-/// `docx_document_repository.dart`: un `w:sectPr` hijo directo de `w:pPr`
-/// cierra una sección intermedia, y por spec OOXML eso rompe página salvo
-/// `w:type` "continuous" o "nextColumn". La ausencia de `w:type` es el
-/// default "nextPage", que SÍ rompe.
-bool _paragraphSectionBreakEndsPage(XmlElement paragraph) {
-  final paragraphProperties = _firstChildByLocalName(paragraph, 'pPr');
-  if (paragraphProperties == null) {
-    return false;
-  }
-
-  final sectionProperties = _firstChildByLocalName(
-    paragraphProperties,
-    'sectPr',
-  );
-  if (sectionProperties == null) {
-    return false;
-  }
-
-  final sectionType = _firstChildByLocalName(sectionProperties, 'type');
-  if (sectionType == null) {
-    return true;
-  }
-
-  final typeValue = _attributeValue(sectionType, 'val');
-  return typeValue != 'continuous' && typeValue != 'nextColumn';
-}
-
-XmlElement? _firstChildByLocalName(XmlElement parent, String localName) {
-  for (final child in parent.childElements) {
-    if (child.name.local == localName) {
-      return child;
-    }
-  }
-  return null;
-}
-
-bool _isEnabledProperty(XmlElement? property) {
-  if (property == null) {
-    return false;
-  }
-
-  final rawValue = _attributeValue(property, 'val')?.toLowerCase();
-  return rawValue != 'false' && rawValue != '0';
-}
-
-String? _attributeValue(XmlElement element, String localName) {
-  for (final attribute in element.attributes) {
-    if (attribute.name.local == localName) {
-      return attribute.value;
-    }
-  }
-  return null;
 }
 
 final class _TextNodeRef {

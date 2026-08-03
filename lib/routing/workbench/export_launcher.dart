@@ -188,7 +188,6 @@ Future<void> launchExport(
 
 ExportPlaceholder _toPlaceholder(FieldAssignment assignment) {
   return ExportPlaceholder(
-    pageIndex: assignment.path.pageIndex,
     steps: <ExportPathStep>[
       for (final step in assignment.path.steps) _toExportStep(step),
     ],

@@ -11,7 +11,6 @@ void main() {
       fieldHeader: 'email',
       selectedText: 'ana@example.com',
       path: DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[
           DocumentPathStep.rootBlock(blockIndex: 1),
           DocumentPathStep.cellBlock(rowIndex: 0, cellIndex: 1, blockIndex: 0),
@@ -34,7 +33,6 @@ void main() {
       fieldHeader: 'titulo',
       selectedText: 'Ana',
       path: DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
         region: DocumentTextRegion.header,
       ),

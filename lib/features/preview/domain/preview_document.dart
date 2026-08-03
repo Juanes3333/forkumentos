@@ -17,24 +17,23 @@ Document buildPreviewDocument({
     assignments,
     (assignment) => assignment.path,
   );
-  final pagesWithAssignments = <int>{
-    for (final assignment in assignments) assignment.path.pageIndex,
-  };
 
+  // Page boundaries only decide which page a rebuilt block lands back on;
+  // matching itself is by absolute rootBlockIndex (see the DocumentTextPath
+  // doc comment), so this walks a running document-order offset instead of
+  // an index into `document.pages`.
   var anyPageChanged = false;
+  var rootBlockIndex = 0;
   final pages = List<DocumentPage>.generate(document.pages.length, (pageIndex) {
     final original = document.pages[pageIndex];
-    if (!pagesWithAssignments.contains(pageIndex)) {
-      return original;
-    }
-
     final built = _buildPreviewPage(
       original,
-      pageIndex: pageIndex,
+      pageStartIndex: rootBlockIndex,
       assignmentsByPath: assignmentsByPath,
       headers: headers,
       row: row,
     );
+    rootBlockIndex += original.blocks.length;
     if (!identical(built, original)) {
       anyPageChanged = true;
     }
@@ -50,18 +49,21 @@ Document buildPreviewDocument({
 
 DocumentPage _buildPreviewPage(
   DocumentPage page, {
-  required int pageIndex,
+  required int pageStartIndex,
   required Map<DocumentTextPath, List<FieldAssignment>> assignmentsByPath,
   required List<String> headers,
   required List<String?> row,
 }) {
+  final pageEndIndex = pageStartIndex + page.blocks.length;
   final rootBlockIndexes = <int>{};
   for (final path in assignmentsByPath.keys) {
-    if (path.pageIndex != pageIndex || path.steps.isEmpty) {
+    if (path.steps.isEmpty) {
       continue;
     }
     final first = path.steps.first;
-    if (first is RootDocumentBlockStep) {
+    if (first is RootDocumentBlockStep &&
+        first.blockIndex >= pageStartIndex &&
+        first.blockIndex < pageEndIndex) {
       rootBlockIndexes.add(first.blockIndex);
     }
   }
@@ -71,16 +73,16 @@ DocumentPage _buildPreviewPage(
   }
 
   var anyBlockChanged = false;
-  final blocks = List<DocumentBlock>.generate(page.blocks.length, (blockIndex) {
-    final original = page.blocks[blockIndex];
-    if (!rootBlockIndexes.contains(blockIndex)) {
+  final blocks = List<DocumentBlock>.generate(page.blocks.length, (localIndex) {
+    final absoluteIndex = pageStartIndex + localIndex;
+    final original = page.blocks[localIndex];
+    if (!rootBlockIndexes.contains(absoluteIndex)) {
       return original;
     }
 
     final built = _buildPreviewBlock(
       original,
-      pageIndex: pageIndex,
-      rootBlockIndex: blockIndex,
+      rootBlockIndex: absoluteIndex,
       prefixSteps: const <DocumentPathStep>[],
       assignmentsByPath: assignmentsByPath,
       headers: headers,
@@ -101,7 +103,6 @@ DocumentPage _buildPreviewPage(
 
 DocumentBlock _buildPreviewBlock(
   DocumentBlock block, {
-  required int pageIndex,
   required int rootBlockIndex,
   required List<DocumentPathStep> prefixSteps,
   required Map<DocumentTextPath, List<FieldAssignment>> assignmentsByPath,
@@ -111,7 +112,6 @@ DocumentBlock _buildPreviewBlock(
   return switch (block) {
     DocumentParagraphBlock(:final paragraph) => () {
       final path = DocumentTextPath(
-        pageIndex: pageIndex,
         steps: <DocumentPathStep>[
           DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
           ...prefixSteps,
@@ -132,7 +132,6 @@ DocumentBlock _buildPreviewBlock(
     DocumentTableBlock(:final table) => _buildPreviewTableBlock(
       block,
       table: table,
-      pageIndex: pageIndex,
       rootBlockIndex: rootBlockIndex,
       assignmentsByPath: assignmentsByPath,
       headers: headers,
@@ -144,7 +143,6 @@ DocumentBlock _buildPreviewBlock(
 DocumentBlock _buildPreviewTableBlock(
   DocumentBlock original, {
   required DocumentTable table,
-  required int pageIndex,
   required int rootBlockIndex,
   required Map<DocumentTextPath, List<FieldAssignment>> assignmentsByPath,
   required List<String> headers,
@@ -164,7 +162,6 @@ DocumentBlock _buildPreviewTableBlock(
         (blockIndex) {
           final originalBlock = originalCell.blocks[blockIndex];
           final path = DocumentTextPath(
-            pageIndex: pageIndex,
             steps: <DocumentPathStep>[
               DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
               DocumentPathStep.cellBlock(
@@ -180,7 +177,6 @@ DocumentBlock _buildPreviewTableBlock(
 
           final built = _buildPreviewBlock(
             originalBlock,
-            pageIndex: pageIndex,
             rootBlockIndex: rootBlockIndex,
             prefixSteps: <DocumentPathStep>[
               DocumentPathStep.cellBlock(

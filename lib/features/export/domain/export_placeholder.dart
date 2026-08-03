@@ -4,14 +4,12 @@
 /// `features/export` never imports other features.
 final class ExportPlaceholder {
   const ExportPlaceholder({
-    required this.pageIndex,
     required this.steps,
     required this.startOffset,
     required this.endOffset,
     required this.fieldIndex,
   });
 
-  final int pageIndex;
   final List<ExportPathStep> steps;
   final int startOffset;
   final int endOffset;

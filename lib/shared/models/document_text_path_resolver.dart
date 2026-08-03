@@ -8,13 +8,6 @@ DocumentParagraph resolveParagraph(Document document, DocumentTextPath path) {
     );
   }
 
-  if (path.pageIndex < 0 || path.pageIndex >= document.pages.length) {
-    throw DocumentTextPathResolutionException(
-      'La ruta referencia una página inválida: ${path.pageIndex}.',
-    );
-  }
-
-  final page = document.pages[path.pageIndex];
   final firstStep = path.steps.first;
   if (firstStep is! RootDocumentBlockStep) {
     throw const DocumentTextPathResolutionException(
@@ -22,14 +15,19 @@ DocumentParagraph resolveParagraph(Document document, DocumentTextPath path) {
     );
   }
 
-  if (firstStep.blockIndex < 0 || firstStep.blockIndex >= page.blocks.length) {
+  // `blockIndex` is absolute/page-agnostic (see the DocumentTextPath doc
+  // comment), so the body flattens across every page before indexing.
+  final bodyBlocks = <DocumentBlock>[
+    for (final page in document.pages) ...page.blocks,
+  ];
+  if (firstStep.blockIndex < 0 || firstStep.blockIndex >= bodyBlocks.length) {
     throw DocumentTextPathResolutionException(
       'El rootBlock apunta a un índice fuera de rango: '
       '${firstStep.blockIndex}.',
     );
   }
 
-  var currentBlock = page.blocks[firstStep.blockIndex];
+  var currentBlock = bodyBlocks[firstStep.blockIndex];
 
   for (var index = 1; index < path.steps.length; index++) {
     final step = path.steps[index];
@@ -77,6 +75,39 @@ DocumentParagraph resolveParagraph(Document document, DocumentTextPath path) {
   throw const DocumentTextPathResolutionException(
     'La ruta no resuelve a un párrafo.',
   );
+}
+
+/// Which `document.pages` index currently contains the block [path]
+/// addresses — for UI display ("Página N") and scroll-to-page navigation.
+/// Purely a rendering lookup: it has no bearing on where a replacement gets
+/// written, since [path] itself is already page-agnostic (see the
+/// [DocumentTextPath] doc comment).
+///
+/// Header/footer paths have no page of their own, so they resolve to `0` —
+/// unchanged from the pre-migration behavior of pinning `pageIndex` to 0 for
+/// those regions. Returns `null` if [path] doesn't resolve to a real block.
+int? resolvePageNumber(Document document, DocumentTextPath path) {
+  if (path.region != DocumentTextRegion.body) {
+    return 0;
+  }
+  if (path.steps.isEmpty) {
+    return null;
+  }
+
+  final firstStep = path.steps.first;
+  if (firstStep is! RootDocumentBlockStep || firstStep.blockIndex < 0) {
+    return null;
+  }
+
+  var remaining = firstStep.blockIndex;
+  for (var pageIndex = 0; pageIndex < document.pages.length; pageIndex++) {
+    final blockCount = document.pages[pageIndex].blocks.length;
+    if (remaining < blockCount) {
+      return pageIndex;
+    }
+    remaining -= blockCount;
+  }
+  return null;
 }
 
 final class DocumentTextPathResolutionException implements Exception {

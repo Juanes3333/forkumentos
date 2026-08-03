@@ -8,7 +8,6 @@ void main() {
   group('buildMappingReviewSnapshot', () {
     test('marca export listo cuando no hay problemas', () {
       const secondPath = DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 1)],
       );
       final snapshot = buildMappingReviewSnapshot(
@@ -55,6 +54,24 @@ void main() {
       expect(snapshot.isExportReady, isFalse);
       expect(snapshot.invalidAssignments, hasLength(1));
       expect(snapshot.statistics.invalidAssignmentCount, 1);
+    });
+
+    test('una asignación con offsets ajustados al trim sigue coincidiendo '
+        'aunque el párrafo tenga espacios extra alrededor', () {
+      // Reproduce el invariante que confirmAssignment/replaceAssignment
+      // deben mantener: selectedText ya viene trimmeado, así que sus
+      // offsets deben apuntar solo al span sin espacios, no al drag
+      // original con padding.
+      final snapshot = buildMappingReviewSnapshot(
+        assignments: <FieldAssignment>[
+          _assignment(id: 'a1', fieldIndex: 0, startOffset: 2, endOffset: 5),
+        ],
+        datasourceHeaders: <String>['nombre'],
+        document: _documentWithTexts(<String>['  Ana  ']),
+      );
+
+      expect(snapshot.invalidAssignments, isEmpty);
+      expect(snapshot.isExportReady, isTrue);
     });
 
     test('incluye placeholders del documento para navegacion', () {
@@ -107,7 +124,6 @@ void main() {
               id: 'a1',
               fieldIndex: 0,
               path: const DocumentTextPath(
-                pageIndex: 0,
                 steps: <DocumentPathStep>[
                   DocumentPathStep.rootBlock(blockIndex: 0),
                 ],
@@ -126,7 +142,6 @@ void main() {
 }
 
 const _path = DocumentTextPath(
-  pageIndex: 0,
   steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
 );
 

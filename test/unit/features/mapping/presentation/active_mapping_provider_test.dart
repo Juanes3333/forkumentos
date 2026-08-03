@@ -5,15 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/mapping/data/mapping_json.dart';
+import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
+import 'package:forkumentos/shared/models/document.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../support/fakes.dart';
 
@@ -27,7 +30,6 @@ void main() {
         .confirmAssignment(
           selection: const DocumentTextSelection(
             path: DocumentTextPath(
-              pageIndex: 0,
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],
@@ -54,7 +56,6 @@ void main() {
 
     const selection = DocumentTextSelection(
       path: DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
       ),
       startOffset: 0,
@@ -94,12 +95,169 @@ void main() {
     );
   });
 
+  test(
+    'confirmAssignment ajusta los offsets al espacio recortado del trim',
+    () {
+      final container = _createContainer();
+      addTearDown(container.dispose);
+
+      // 'selectedText' simula un drag que agarró espacios incidentales:
+      // el substring real del párrafo en [3, 10) es '  Ana  ', con 'Ana'
+      // ubicado en [5, 8).
+      container
+          .read(activeMappingProvider.notifier)
+          .confirmAssignment(
+            selection: const DocumentTextSelection(
+              path: DocumentTextPath(
+                steps: <DocumentPathStep>[
+                  DocumentPathStep.rootBlock(blockIndex: 0),
+                ],
+              ),
+              startOffset: 3,
+              endOffset: 10,
+              selectedText: '  Ana  ',
+            ),
+            fieldHeader: 'nombre',
+            fieldIndex: 0,
+            headerCount: 1,
+          );
+
+      final assignment = container
+          .read(activeMappingProvider)
+          .state
+          .assignments
+          .single;
+      expect(assignment.selectedText, 'Ana');
+      expect(assignment.startOffset, 5);
+      expect(assignment.endOffset, 8);
+    },
+  );
+
+  test(
+    'replaceAssignment ajusta los offsets al espacio recortado del trim',
+    () {
+      final container = _createContainer();
+      addTearDown(container.dispose);
+
+      const path = DocumentTextPath(
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
+      );
+      final notifier = container.read(activeMappingProvider.notifier)
+        ..confirmAssignment(
+          selection: const DocumentTextSelection(
+            path: path,
+            startOffset: 0,
+            endOffset: 3,
+            selectedText: 'Ana',
+          ),
+          fieldHeader: 'nombre',
+          fieldIndex: 0,
+          headerCount: 1,
+        );
+      final existingAssignment = container
+          .read(activeMappingProvider)
+          .state
+          .assignments
+          .single;
+
+      notifier.replaceAssignment(
+        existingAssignment: existingAssignment,
+        // Mismo caso que en confirmAssignment: 'Bob' real está en [5, 8),
+        // pero la selección arrastró espacios de sobra en [3, 10).
+        selection: const DocumentTextSelection(
+          path: path,
+          startOffset: 3,
+          endOffset: 10,
+          selectedText: '  Bob  ',
+        ),
+        fieldHeader: 'nombre',
+        fieldIndex: 0,
+      );
+
+      final assignment = container
+          .read(activeMappingProvider)
+          .state
+          .assignments
+          .single;
+      expect(assignment.selectedText, 'Bob');
+      expect(assignment.startOffset, 5);
+      expect(assignment.endOffset, 8);
+    },
+  );
+
+  test('applyAutoMapping es una sola mutación deshacible', () {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(activeMappingProvider.notifier)
+      ..confirmAssignment(
+        selection: const DocumentTextSelection(
+          path: DocumentTextPath(
+            steps: <DocumentPathStep>[
+              DocumentPathStep.rootBlock(blockIndex: 2),
+            ],
+          ),
+          startOffset: 0,
+          endOffset: 6,
+          selectedText: 'Previo',
+        ),
+        fieldHeader: 'manual',
+        fieldIndex: 5,
+        headerCount: 6,
+      );
+    final beforeAutoMap = container.read(activeMappingProvider).state;
+
+    final result = buildAutoMapping(
+      document: _documentWithTexts(<String>[
+        'Hola Juan',
+        'Firma: Juan',
+        'Previo',
+      ]),
+      headers: <String>['nombre'],
+      firstRow: <String?>['Juan'],
+      existingAssignments: container
+          .read(activeMappingProvider)
+          .state
+          .assignments,
+      generateId: const Uuid().v4,
+    );
+    final created = notifier.applyAutoMapping(result);
+
+    expect(created, 2);
+    expect(
+      container.read(activeMappingProvider).state.assignments,
+      hasLength(3),
+    );
+
+    notifier.undo();
+    expect(container.read(activeMappingProvider).state, beforeAutoMap);
+  });
+
+  test('applyAutoMapping sin coincidencias no toca el historial', () {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+
+    final result = buildAutoMapping(
+      document: _documentWithTexts(<String>['Hola Ana']),
+      headers: <String>['nombre'],
+      firstRow: <String?>['Juan'],
+      existingAssignments: const <FieldAssignment>[],
+      generateId: const Uuid().v4,
+    );
+    final created = container
+        .read(activeMappingProvider.notifier)
+        .applyAutoMapping(result);
+
+    expect(created, 0);
+    expect(container.read(activeMappingProvider).canUndo, isFalse);
+    expect(container.read(activeMappingProvider).state.assignments, isEmpty);
+  });
+
   test('removeAssignmentsForField elimina todas las ocurrencias del campo', () {
     final container = _createContainer();
     addTearDown(container.dispose);
 
     const path = DocumentTextPath(
-      pageIndex: 0,
       steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
     );
     container.read(activeMappingProvider.notifier)
@@ -146,7 +304,6 @@ void main() {
         .confirmAssignment(
           selection: const DocumentTextSelection(
             path: DocumentTextPath(
-              pageIndex: 0,
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],
@@ -166,6 +323,40 @@ void main() {
     expect(project?.mappingAssignments, hasLength(1));
     expect(project?.isDirty, isTrue);
   });
+}
+
+Document _documentWithTexts(List<String> texts) {
+  return Document(
+    pages: <DocumentPage>[
+      DocumentPage(
+        number: 1,
+        widthPoints: 612,
+        heightPoints: 792,
+        margins: const DocumentMargins(
+          topPoints: 72,
+          rightPoints: 72,
+          bottomPoints: 72,
+          leftPoints: 72,
+        ),
+        blocks: <DocumentBlock>[
+          for (final text in texts)
+            DocumentBlock.paragraph(
+              DocumentParagraph(
+                runs: <DocumentRun>[
+                  DocumentRun(
+                    text: text,
+                    isBold: false,
+                    isItalic: false,
+                    isUnderlined: false,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ],
+    omissions: const <DocumentOmission>{},
+  );
 }
 
 ProviderContainer _createContainer() {
@@ -192,7 +383,6 @@ final class _FakeProjectRepository implements ProjectRepository {
       fieldHeader: 'nombre',
       selectedText: 'Ana',
       path: DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
       ),
       startOffset: 0,

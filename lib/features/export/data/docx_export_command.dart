@@ -80,7 +80,6 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
             replacements: <DocxTextReplacement>[
               for (final placeholder in placeholders)
                 DocxTextReplacement(
-                  pageIndex: placeholder.pageIndex,
                   steps: placeholder.steps,
                   startOffset: placeholder.startOffset,
                   endOffset: placeholder.endOffset,

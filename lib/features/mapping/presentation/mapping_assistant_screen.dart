@@ -336,7 +336,11 @@ final class _MappingAssistantScreenState
       return null;
     }
 
-    return MultipleOccurrencesDialog.show(context, occurrences: additional);
+    return MultipleOccurrencesDialog.show(
+      context,
+      occurrences: additional,
+      document: document,
+    );
   }
 
   Future<bool> _askReplaceAssignment(FieldAssignment existing) async {

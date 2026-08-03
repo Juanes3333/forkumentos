@@ -57,7 +57,6 @@ void main() {
         .confirmAssignment(
           selection: const DocumentTextSelection(
             path: DocumentTextPath(
-              pageIndex: 0,
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],

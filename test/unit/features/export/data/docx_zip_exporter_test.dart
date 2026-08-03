@@ -23,7 +23,6 @@ void main() {
         templateBytes: template,
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 5,
             endOffset: 8,
@@ -72,7 +71,6 @@ void main() {
         templateBytes: template,
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[
               ExportPathStep.rootBlock(blockIndex: 0),
               ExportPathStep.cellBlock(
@@ -110,14 +108,12 @@ void main() {
 ''',
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 0,
             endOffset: 4,
             text: 'Miguel',
           ),
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 5,
             endOffset: 10,
@@ -137,8 +133,8 @@ void main() {
       expect(documentXml, isNot(contains('Pérez')));
     });
 
-    test('w:lastRenderedPageBreak divide el chunk: el campo anterior cae en '
-        'pageIndex 0 y el posterior en pageIndex 1', () {
+    test('w:lastRenderedPageBreak divide el chunk: los dos fragmentos del '
+        'párrafo caen en índices de bloque absolutos consecutivos', () {
       final documentXml = _exportDocumentXml(
         bodyContent: '''
 <w:p>
@@ -149,18 +145,16 @@ void main() {
 ''',
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 0,
             endOffset: 4,
             text: 'Saludos',
           ),
-          // Segundo chunk: los offsets son locales a su propio texto
-          // ("Mundo"), igual que los que calcula el mapeo sobre el bloque
-          // que ingesta emite para la página 1.
+          // Segundo chunk del MISMO párrafo: el índice absoluto avanzó una
+          // vez al cerrar el primer chunk, así que este cae en blockIndex 1,
+          // no en un blockIndex 0 de una "página" distinta.
           DocxTextReplacement(
-            pageIndex: 1,
-            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 1)],
             startOffset: 0,
             endOffset: 5,
             text: 'Planeta',
@@ -183,16 +177,16 @@ void main() {
   <w:r><w:t>Hola </w:t><w:lastRenderedPageBreak /><w:t>Ana</w:t></w:r>
 </w:p>
 ''';
-      // Troceo resultante: el marcador inicial del primer párrafo cierra un
-      // chunk vacío (página 0), así que "Antes" cae en la página 1; el
-      // marcador intermedio del segundo párrafo deja "Hola " en la página 1
-      // (bloque 1) y "Ana" en la página 2. El reemplazo apunta a "Ana".
+      // Troceo resultante en índices absolutos: el marcador inicial del
+      // primer párrafo cierra un chunk vacío (blockIndex 0), y "Antes" cae
+      // en blockIndex 1; el marcador intermedio del segundo párrafo deja
+      // "Hola " en blockIndex 2 y "Ana" en blockIndex 3. El reemplazo
+      // apunta a "Ana".
       final documentXml = _exportDocumentXml(
         bodyContent: body,
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 2,
-            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 3)],
             startOffset: 0,
             endOffset: 3,
             text: 'Eva',
@@ -227,7 +221,6 @@ void main() {
 ''',
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[
               ExportPathStep.rootBlock(blockIndex: 0),
               ExportPathStep.cellBlock(
@@ -246,7 +239,6 @@ void main() {
           // (`_isInsideTable` en docx_document_repository.dart). Un segundo
           // bloque de celda ya no existe.
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[
               ExportPathStep.rootBlock(blockIndex: 0),
               ExportPathStep.cellBlock(
@@ -277,10 +269,10 @@ void main() {
 </w:p>
 ''',
         replacements: const <DocxTextReplacement>[
-          // Offset 8 dentro del SEGUNDO chunk: "Nombre:" (7) + '\t' (1).
+          // Offset 8 dentro del SEGUNDO chunk (blockIndex 1 tras el corte):
+          // "Nombre:" (7) + '\t' (1).
           DocxTextReplacement(
-            pageIndex: 1,
-            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 1)],
             startOffset: 8,
             endOffset: 12,
             text: 'Miguel',
@@ -302,7 +294,6 @@ void main() {
 ''',
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 8,
             endOffset: 12,
@@ -325,7 +316,6 @@ void main() {
 ''',
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 8,
             endOffset: 12,
@@ -348,14 +338,12 @@ void main() {
 ''',
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 0,
             endOffset: 4,
             text: 'Miguel',
           ),
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 4,
             endOffset: 9,
@@ -383,7 +371,6 @@ void main() {
           // debería ocurrir en la práctica (los campos se extraen de
           // texto visible contiguo), pero no debe crashear ni corromper.
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 1,
             endOffset: 4,
@@ -404,7 +391,6 @@ void main() {
         bodyContent: '<w:p><w:r><w:tab/></w:r></w:p>',
         replacements: const <DocxTextReplacement>[
           DocxTextReplacement(
-            pageIndex: 0,
             steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
             startOffset: 0,
             endOffset: 1,
@@ -417,8 +403,9 @@ void main() {
       expect(_countElements(documentXml, 'tab'), 1);
     });
 
-    test('w:pageBreakBefore corta página: el párrafo anterior queda en '
-        'pageIndex 0 y el marcado en pageIndex 1', () {
+    test('w:pageBreakBefore y w:sectPr son marcadores inertes para la '
+        'exportación: no reinician nada, el índice de bloque sigue siendo '
+        'puramente secuencial', () {
       final documentXml = _exportDocumentXml(
         bodyContent: '''
 <w:p><w:r><w:t>Uno</w:t></w:r></w:p>
@@ -426,218 +413,56 @@ void main() {
   <w:pPr><w:pageBreakBefore/></w:pPr>
   <w:r><w:t>Dos</w:t></w:r>
 </w:p>
-''',
-        replacements: <DocxTextReplacement>[
-          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
-          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
-        ],
-      );
-
-      // Sin el espejo, "Dos" caería en (página 0, bloque 1) y el reemplazo
-      // dirigido a (página 1, bloque 0) no encontraría destino.
-      expect(_wTexts(documentXml), <String>['A', 'B']);
-    });
-
-    test('w:pageBreakBefore en el PRIMER párrafo del cuerpo no genera una '
-        'página vacía inicial', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
-<w:p>
-  <w:pPr><w:pageBreakBefore/></w:pPr>
-  <w:r><w:t>Uno</w:t></w:r>
-</w:p>
-<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
-''',
-        replacements: <DocxTextReplacement>[
-          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
-          _rootField(pageIndex: 0, blockIndex: 1, text: 'B'),
-        ],
-      );
-
-      expect(_wTexts(documentXml), <String>['A', 'B']);
-    });
-
-    test('w:pageBreakBefore tras un párrafo que ya cerró página con w:br '
-        'avanza una sola vez', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
-<w:p><w:r><w:t>Uno</w:t><w:br w:type="page"/></w:r></w:p>
-<w:p>
-  <w:pPr><w:pageBreakBefore/></w:pPr>
-  <w:r><w:t>Dos</w:t></w:r>
-</w:p>
-''',
-        replacements: <DocxTextReplacement>[
-          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
-          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
-        ],
-      );
-
-      // Doble avance dejaría "Dos" en pageIndex 2 y sin reemplazar.
-      expect(_wTexts(documentXml), <String>['A', 'B']);
-    });
-
-    test('w:pageBreakBefore tras un párrafo que ya cerró página con '
-        'w:lastRenderedPageBreak avanza una sola vez', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
-<w:p><w:r><w:t>Uno</w:t><w:lastRenderedPageBreak/></w:r></w:p>
-<w:p>
-  <w:pPr><w:pageBreakBefore/></w:pPr>
-  <w:r><w:t>Dos</w:t></w:r>
-</w:p>
-''',
-        replacements: <DocxTextReplacement>[
-          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
-          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
-        ],
-      );
-
-      expect(_wTexts(documentXml), <String>['A', 'B']);
-    });
-
-    test('w:pageBreakBefore en el párrafo siguiente a una w:tbl corta '
-        'página: la tabla no cierra página por sí sola', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
-<w:tbl>
-  <w:tr><w:tc><w:p><w:r><w:t>Celda</w:t></w:r></w:p></w:tc></w:tr>
-</w:tbl>
-<w:p>
-  <w:pPr><w:pageBreakBefore/></w:pPr>
-  <w:r><w:t>Dos</w:t></w:r>
-</w:p>
-''',
-        replacements: <DocxTextReplacement>[
-          const DocxTextReplacement(
-            pageIndex: 0,
-            steps: <ExportPathStep>[
-              ExportPathStep.rootBlock(blockIndex: 0),
-              ExportPathStep.cellBlock(
-                rowIndex: 0,
-                cellIndex: 0,
-                blockIndex: 0,
-              ),
-            ],
-            startOffset: 0,
-            endOffset: 5,
-            text: 'A',
-          ),
-          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
-        ],
-      );
-
-      expect(_wTexts(documentXml), <String>['A', 'B']);
-    });
-
-    test('un w:sectPr intermedio sin w:type usa el default nextPage y corta '
-        'página', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
-<w:p>
-  <w:pPr><w:sectPr/></w:pPr>
-  <w:r><w:t>Uno</w:t></w:r>
-</w:p>
-<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
-''',
-        replacements: <DocxTextReplacement>[
-          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
-          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
-        ],
-      );
-
-      expect(_wTexts(documentXml), <String>['A', 'B']);
-    });
-
-    test('un w:sectPr intermedio con w:type nextPage corta página', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
 <w:p>
   <w:pPr><w:sectPr><w:type w:val="nextPage"/></w:sectPr></w:pPr>
-  <w:r><w:t>Uno</w:t></w:r>
+  <w:r><w:t>Tres</w:t></w:r>
 </w:p>
-<w:p><w:r><w:t>Dos</w:t></w:r></w:p>
+<w:p><w:r><w:t>Cuatro</w:t></w:r></w:p>
 ''',
         replacements: <DocxTextReplacement>[
-          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
-          _rootField(pageIndex: 1, blockIndex: 0, text: 'B'),
+          _rootField(blockIndex: 0, text: 'A'),
+          _rootField(blockIndex: 1, text: 'B'),
+          _rootField(blockIndex: 2, endOffset: 4, text: 'C'),
+          _rootField(blockIndex: 3, endOffset: 6, text: 'D'),
         ],
       );
 
-      expect(_wTexts(documentXml), <String>['A', 'B']);
+      expect(_wTexts(documentXml), <String>['A', 'B', 'C', 'D']);
     });
 
-    test('un w:sectPr intermedio con w:type continuous NO corta página', () {
+    test('un documento sin marcadores de salto de página reemplaza '
+        'correctamente campos en párrafos que la heurística de paginación del '
+        'visor habría repartido en páginas distintas: el índice absoluto de '
+        'bloque nunca depende de dónde caiga un límite de página estimado', () {
       final documentXml = _exportDocumentXml(
         bodyContent: '''
-<w:p>
-  <w:pPr><w:sectPr><w:type w:val="continuous"/></w:sectPr></w:pPr>
-  <w:r><w:t>Uno</w:t></w:r>
-</w:p>
+<w:p><w:r><w:t>Uno</w:t></w:r></w:p>
 <w:p><w:r><w:t>Dos</w:t></w:r></w:p>
-''',
-        replacements: <DocxTextReplacement>[
-          _rootField(pageIndex: 0, blockIndex: 0, text: 'A'),
-          _rootField(pageIndex: 0, blockIndex: 1, text: 'B'),
-        ],
-      );
-
-      expect(_wTexts(documentXml), <String>['A', 'B']);
-    });
-
-    test('w:pageBreakBefore dentro de una celda de tabla NO mueve pageIndex '
-        '(espejo de respectPageBreakBefore: false)', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
-<w:tbl>
-  <w:tr>
-    <w:tc>
-      <w:p><w:r><w:t>Uno</w:t></w:r></w:p>
-      <w:p>
-        <w:pPr><w:pageBreakBefore/></w:pPr>
-        <w:r><w:t>Dos</w:t></w:r>
-      </w:p>
-    </w:tc>
-  </w:tr>
-</w:tbl>
 <w:p><w:r><w:t>Tres</w:t></w:r></w:p>
+<w:p><w:r><w:t>Cuatro</w:t></w:r></w:p>
+<w:p><w:r><w:t>Cinco</w:t></w:r></w:p>
 ''',
         replacements: <DocxTextReplacement>[
-          for (var blockIndex = 0; blockIndex < 2; blockIndex++)
-            DocxTextReplacement(
-              pageIndex: 0,
-              steps: <ExportPathStep>[
-                const ExportPathStep.rootBlock(blockIndex: 0),
-                ExportPathStep.cellBlock(
-                  rowIndex: 0,
-                  cellIndex: 0,
-                  blockIndex: blockIndex,
-                ),
-              ],
-              startOffset: 0,
-              endOffset: 3,
-              text: blockIndex == 0 ? 'A' : 'B',
-            ),
-          _rootField(pageIndex: 0, blockIndex: 1, endOffset: 4, text: 'C'),
+          _rootField(blockIndex: 0, text: 'A'),
+          _rootField(blockIndex: 2, endOffset: 4, text: 'C'),
+          _rootField(blockIndex: 4, endOffset: 5, text: 'E'),
         ],
       );
 
-      expect(_wTexts(documentXml), <String>['A', 'B', 'C']);
+      expect(_wTexts(documentXml), <String>['A', 'Dos', 'C', 'Cuatro', 'E']);
     });
   });
 }
 
 /// Un reemplazo de un párrafo de primer nivel, que es el caso de la mayoría
-/// de estas pruebas de paginación.
+/// de estas pruebas.
 DocxTextReplacement _rootField({
-  required int pageIndex,
   required int blockIndex,
   required String text,
   int startOffset = 0,
   int endOffset = 3,
 }) {
   return DocxTextReplacement(
-    pageIndex: pageIndex,
     steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: blockIndex)],
     startOffset: startOffset,
     endOffset: endOffset,

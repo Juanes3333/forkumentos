@@ -16,7 +16,6 @@ void main() {
 
       expect(occurrences, hasLength(2));
       expect(occurrences.first.startOffset, 5);
-      expect(occurrences.last.path.pageIndex, 0);
     });
 
     test('ignora needle vacío', () {
@@ -40,7 +39,6 @@ void main() {
 
       expect(occurrences, hasLength(1));
       expect(occurrences.single.path.region, DocumentTextRegion.header);
-      expect(occurrences.single.path.pageIndex, 0);
     });
 
     test('encuentra coincidencias en el footer y las marca con su region', () {
@@ -72,7 +70,6 @@ void main() {
   group('findOverlappingAssignment', () {
     test('detecta solapamiento en el mismo párrafo', () {
       const path = DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
       );
       final assignments = <FieldAssignment>[
@@ -99,11 +96,9 @@ void main() {
 
     test('no detecta conflicto en párrafos distintos', () {
       const pathA = DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
       );
       const pathB = DocumentTextPath(
-        pageIndex: 0,
         steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 1)],
       );
       final assignments = <FieldAssignment>[

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_color_palette.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_field_status.dart';
+import 'package:forkumentos/shared/models/document.dart';
+import 'package:forkumentos/shared/models/document_text_path_resolver.dart';
 
 final class MappingReviewSidebar extends StatefulWidget {
   const MappingReviewSidebar({
@@ -11,6 +13,7 @@ final class MappingReviewSidebar extends StatefulWidget {
     required this.onNavigateToAssignment,
     required this.onNavigateToField,
     required this.onFieldHoverChanged,
+    this.document,
     super.key,
   });
 
@@ -20,6 +23,11 @@ final class MappingReviewSidebar extends StatefulWidget {
   final ValueChanged<String> onNavigateToAssignment;
   final ValueChanged<int> onNavigateToField;
   final ValueChanged<int?> onFieldHoverChanged;
+
+  /// Documento activo, para resolver a qué página apunta cada asignación.
+  /// `null` mientras el documento todavía carga: la página simplemente se
+  /// omite del subtítulo hasta que haya uno disponible.
+  final Document? document;
 
   @override
   State<MappingReviewSidebar> createState() => _MappingReviewSidebarState();
@@ -84,9 +92,7 @@ final class _MappingReviewSidebarState extends State<MappingReviewSidebar> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        subtitle: Text(
-                          'Página ${assignment.path.pageIndex + 1}',
-                        ),
+                        subtitle: _pageSubtitle(assignment),
                         trailing: IconButton(
                           tooltip: 'Quitar asignación',
                           icon: const Icon(Icons.delete_outline, size: 18),
@@ -103,5 +109,16 @@ final class _MappingReviewSidebarState extends State<MappingReviewSidebar> {
         },
       ),
     );
+  }
+
+  Widget? _pageSubtitle(FieldAssignment assignment) {
+    final document = widget.document;
+    final pageNumber = document == null
+        ? null
+        : resolvePageNumber(document, assignment.path);
+    if (pageNumber == null) {
+      return null;
+    }
+    return Text('Página ${pageNumber + 1}');
   }
 }

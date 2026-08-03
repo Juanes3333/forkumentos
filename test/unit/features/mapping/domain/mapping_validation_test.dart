@@ -69,7 +69,6 @@ void main() {
               startOffset: 3,
               endOffset: 8,
               path: const DocumentTextPath(
-                pageIndex: 0,
                 steps: <DocumentPathStep>[
                   DocumentPathStep.rootBlock(blockIndex: 0),
                 ],
@@ -112,7 +111,6 @@ void main() {
 }
 
 const _path = DocumentTextPath(
-  pageIndex: 0,
   steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
 );
 

@@ -263,28 +263,10 @@ final class _DocumentViewerScreenState
                                 vertical: _viewportPadding,
                               ),
                               child: Column(
-                                children: <Widget>[
-                                  for (
-                                    var index = 0;
-                                    index < document.pages.length;
-                                    index++
-                                  ) ...<Widget>[
-                                    Align(
-                                      key: _pageKeys[index],
-                                      alignment: Alignment.topCenter,
-                                      child: _DocumentPageSheet(
-                                        pageIndex: index,
-                                        page: document.pages[index],
-                                        header: document.header,
-                                        footer: document.footer,
-                                        scale: effectiveScale,
-                                        viewerOverlay: widget.viewerOverlay,
-                                      ),
-                                    ),
-                                    if (index < document.pages.length - 1)
-                                      const SizedBox(height: _pageSpacing),
-                                  ],
-                                ],
+                                children: _pageSheetChildren(
+                                  document,
+                                  effectiveScale,
+                                ),
                               ),
                             ),
                           ),
@@ -299,6 +281,35 @@ final class _DocumentViewerScreenState
         ],
       ),
     );
+  }
+
+  List<Widget> _pageSheetChildren(Document document, double scale) {
+    final children = <Widget>[];
+    // Absolute, page-agnostic offset (see the DocumentTextPath doc comment):
+    // advances by each page's block count so paragraph paths built further
+    // down never need to know which page they're on.
+    var rootBlockOffset = 0;
+    for (var index = 0; index < document.pages.length; index++) {
+      children.add(
+        Align(
+          key: _pageKeys[index],
+          alignment: Alignment.topCenter,
+          child: _DocumentPageSheet(
+            rootBlockOffset: rootBlockOffset,
+            page: document.pages[index],
+            header: document.header,
+            footer: document.footer,
+            scale: scale,
+            viewerOverlay: widget.viewerOverlay,
+          ),
+        ),
+      );
+      rootBlockOffset += document.pages[index].blocks.length;
+      if (index < document.pages.length - 1) {
+        children.add(const SizedBox(height: _pageSpacing));
+      }
+    }
+    return children;
   }
 
   void _scheduleScaleUpdate(double scale) {
@@ -637,7 +648,7 @@ final class _DocumentToolbar extends StatelessWidget {
 /// solo cambia el tamaño con el que se dibujan.
 final class _DocumentPageSheet extends StatelessWidget {
   const _DocumentPageSheet({
-    required this.pageIndex,
+    required this.rootBlockOffset,
     required this.page,
     required this.header,
     required this.footer,
@@ -645,7 +656,7 @@ final class _DocumentPageSheet extends StatelessWidget {
     this.viewerOverlay,
   });
 
-  final int pageIndex;
+  final int rootBlockOffset;
   final DocumentPage page;
   final List<DocumentBlock> header;
   final List<DocumentBlock> footer;
@@ -698,7 +709,7 @@ final class _DocumentPageSheet extends StatelessWidget {
                 child: _blockColumn(
                   blocks: header,
                   region: DocumentTextRegion.header,
-                  pageIndex: 0,
+                  rootBlockOffset: 0,
                   textStyle: bodyStyle,
                 ),
               ),
@@ -712,7 +723,7 @@ final class _DocumentPageSheet extends StatelessWidget {
                 child: _blockColumn(
                   blocks: page.blocks,
                   region: DocumentTextRegion.body,
-                  pageIndex: pageIndex,
+                  rootBlockOffset: rootBlockOffset,
                   textStyle: bodyStyle,
                 ),
               ),
@@ -729,7 +740,7 @@ final class _DocumentPageSheet extends StatelessWidget {
                 child: _blockColumn(
                   blocks: footer,
                   region: DocumentTextRegion.footer,
-                  pageIndex: 0,
+                  rootBlockOffset: 0,
                   textStyle: bodyStyle,
                 ),
               ),
@@ -743,7 +754,7 @@ final class _DocumentPageSheet extends StatelessWidget {
   Widget? _blockColumn({
     required List<DocumentBlock> blocks,
     required DocumentTextRegion region,
-    required int pageIndex,
+    required int rootBlockOffset,
     required TextStyle textStyle,
   }) {
     if (blocks.isEmpty) {
@@ -756,9 +767,8 @@ final class _DocumentPageSheet extends StatelessWidget {
       children: <Widget>[
         for (var blockIndex = 0; blockIndex < blocks.length; blockIndex++)
           _DocumentBlockWidget(
-            pageIndex: pageIndex,
             region: region,
-            rootBlockIndex: blockIndex,
+            rootBlockIndex: rootBlockOffset + blockIndex,
             block: blocks[blockIndex],
             textStyle: textStyle,
             viewerOverlay: viewerOverlay,
@@ -803,7 +813,6 @@ final class _PageBand extends StatelessWidget {
 
 final class _DocumentBlockWidget extends StatelessWidget {
   const _DocumentBlockWidget({
-    required this.pageIndex,
     required this.rootBlockIndex,
     required this.block,
     required this.textStyle,
@@ -812,7 +821,6 @@ final class _DocumentBlockWidget extends StatelessWidget {
     this.prefixSteps = const <DocumentPathStep>[],
   });
 
-  final int pageIndex;
   final int rootBlockIndex;
   final DocumentBlock block;
   final TextStyle textStyle;
@@ -822,7 +830,6 @@ final class _DocumentBlockWidget extends StatelessWidget {
 
   DocumentTextPath _pathForParagraph() {
     return DocumentTextPath(
-      pageIndex: pageIndex,
       region: region,
       steps: <DocumentPathStep>[
         DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
@@ -850,7 +857,6 @@ final class _DocumentBlockWidget extends StatelessWidget {
         onSelectionChanged: viewerOverlay?.onSelectionChanged,
       ),
       DocumentTableBlock(:final table) => _DocumentTableWidget(
-        pageIndex: pageIndex,
         rootBlockIndex: rootBlockIndex,
         table: table,
         textStyle: textStyle,
@@ -863,7 +869,6 @@ final class _DocumentBlockWidget extends StatelessWidget {
 
 final class _DocumentTableWidget extends StatelessWidget {
   const _DocumentTableWidget({
-    required this.pageIndex,
     required this.rootBlockIndex,
     required this.table,
     required this.textStyle,
@@ -871,7 +876,6 @@ final class _DocumentTableWidget extends StatelessWidget {
     this.viewerOverlay,
   });
 
-  final int pageIndex;
   final int rootBlockIndex;
   final DocumentTable table;
   final TextStyle textStyle;
@@ -908,7 +912,6 @@ final class _DocumentTableWidget extends StatelessWidget {
                     innerBlockIndex++
                   )
                     _DocumentBlockWidget(
-                      pageIndex: pageIndex,
                       rootBlockIndex: rootBlockIndex,
                       block: table
                           .rows[rowIndex]

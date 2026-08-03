@@ -12,6 +12,8 @@ import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provi
 import 'package:forkumentos/features/mapping/presentation/widgets/mapping_preview_panel.dart';
 import 'package:forkumentos/features/mapping/presentation/widgets/mapping_review_sidebar.dart';
 import 'package:forkumentos/features/mapping/presentation/widgets/review_panel.dart';
+import 'package:forkumentos/shared/models/document_text_path.dart';
+import 'package:forkumentos/shared/models/document_text_path_resolver.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
 import 'package:forkumentos/shared/providers/document_content_provider.dart';
 
@@ -114,6 +116,7 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
             snapshot: snapshot,
             headers: widget.headers,
             onExport: snapshot.isExportReady ? () {} : null,
+            document: document,
           ),
           const VerticalDivider(width: 1),
           Expanded(
@@ -182,6 +185,7 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
           MappingReviewSidebar(
             headers: widget.headers,
             assignments: mappingState.assignments,
+            document: document,
             onRemoveAssignment: (assignmentId) {
               ref
                   .read(activeMappingProvider.notifier)
@@ -228,19 +232,25 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
         }
         _focusAssignment(assignment);
       case DocumentPlaceholderNavigationTarget(:final path):
-        setState(() {
-          _focusPageIndex = path.pageIndex;
-          _focusToken++;
-        });
+        final pageNumber = _resolvePageNumber(path);
+        if (pageNumber != null) {
+          setState(() {
+            _focusPageIndex = pageNumber;
+            _focusToken++;
+          });
+        }
         ref.read(emphasizedAssignmentIdProvider.notifier).state = null;
     }
   }
 
   void _focusAssignment(FieldAssignment assignment) {
+    final pageNumber = _resolvePageNumber(assignment.path);
     setState(() {
       _focusedFieldIndex = assignment.fieldIndex;
-      _focusPageIndex = assignment.path.pageIndex;
-      _focusToken++;
+      if (pageNumber != null) {
+        _focusPageIndex = pageNumber;
+        _focusToken++;
+      }
     });
     ref
         .read(activeMappingProvider.notifier)
@@ -253,6 +263,24 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
       }
       ref.read(emphasizedAssignmentIdProvider.notifier).state = null;
     });
+  }
+
+  /// Resuelve a qué página de `document.pages` apunta [path], leyendo el
+  /// documento activo directamente del provider en vez de capturarlo de
+  /// `build` — estos manejadores corren fuera de la fase de build (desde el
+  /// listener de navegación y desde toques en la barra lateral).
+  int? _resolvePageNumber(DocumentTextPath path) {
+    final documentPath = widget.documentPath;
+    if (documentPath == null) {
+      return null;
+    }
+    final document = ref
+        .read(documentContentProvider(documentPath))
+        .valueOrNull;
+    if (document == null) {
+      return null;
+    }
+    return resolvePageNumber(document, path);
   }
 }
 

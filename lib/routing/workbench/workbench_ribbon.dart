@@ -17,10 +17,12 @@ import 'package:forkumentos/features/template/presentation/active_template_provi
 import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/routing/workbench/export_launcher.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
+import 'package:forkumentos/routing/workbench/workbench_mapping_actions.dart';
 import 'package:forkumentos/routing/workbench/workbench_resource_actions.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/document_content_provider.dart';
 import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 
 final class WorkbenchRibbon extends ConsumerWidget {
@@ -218,6 +220,14 @@ final class _HomeRibbonActions extends ConsumerWidget {
     final datasource = ref.watch(activeDatasourceProvider).valueOrNull;
     final previewState = ref.watch(previewStateProvider);
     final mappingSession = ref.watch(activeMappingProvider);
+    final templatePath = ref
+        .watch(activeTemplateProvider)
+        .valueOrNull
+        ?.sourcePath;
+    final hasDocument =
+        templatePath != null &&
+        ref.watch(documentContentProvider(templatePath)).valueOrNull != null;
+    final canAutoMap = datasource != null && hasDocument;
     final headers = datasource?.headers ?? const <String>[];
     final fieldIndex = headers.isEmpty
         ? 0
@@ -227,6 +237,29 @@ final class _HomeRibbonActions extends ConsumerWidget {
 
     return _RibbonActionsRow(
       children: <Widget>[
+        _RibbonGroup(
+          label: 'Mapeo',
+          children: <Widget>[
+            _RibbonActionButton(
+              icon: Icons.auto_awesome,
+              label: 'Auto-mapear',
+              isPrimary: true,
+              tooltip: canAutoMap
+                  ? 'Busca en el documento los valores de la primera fila y '
+                        'asigna cada columna'
+                  : 'Carga una plantilla y una fuente de datos para '
+                        'auto-mapear',
+              onPressed: canAutoMap
+                  ? () => autoMapWorkbench(context, ref)
+                  : null,
+            ),
+          ],
+        ),
+        VerticalDivider(
+          width: 8,
+          thickness: 1,
+          color: AppColors.of(context).border,
+        ),
         _RibbonGroup(
           label: 'Historial',
           children: <Widget>[
@@ -663,6 +696,7 @@ final class _RibbonActionButton extends StatelessWidget {
     required this.onPressed,
     this.tooltip,
     this.isBusy = false,
+    this.isPrimary = false,
   });
 
   final IconData icon;
@@ -671,26 +705,49 @@ final class _RibbonActionButton extends StatelessWidget {
   final String? tooltip;
   final bool isBusy;
 
+  /// Acción de arranque de su grupo: contorno en acento en vez de botón de
+  /// texto plano, para que se lea antes que el resto de la cinta.
+  final bool isPrimary;
+
   @override
   Widget build(BuildContext context) {
-    final button = TextButton.icon(
-      onPressed: onPressed,
-      icon: isBusy
-          ? const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Icon(icon, size: 16),
-      label: Text(label),
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.of(context).foregroundPrimary,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: const Size(0, 36),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-      ),
-    );
+    final colors = AppColors.of(context);
+    final iconWidget = isBusy
+        ? const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(icon, size: 16);
+
+    final button = isPrimary
+        ? OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: iconWidget,
+            label: Text(label),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colors.accent,
+              side: BorderSide(
+                color: onPressed == null ? colors.border : colors.accent,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          )
+        : TextButton.icon(
+            onPressed: onPressed,
+            icon: iconWidget,
+            label: Text(label),
+            style: TextButton.styleFrom(
+              foregroundColor: colors.foregroundPrimary,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          );
 
     final message = tooltip;
     if (message == null) {

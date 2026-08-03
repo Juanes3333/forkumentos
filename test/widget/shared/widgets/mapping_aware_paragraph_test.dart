@@ -225,15 +225,14 @@ void main() {
       const contentWidthPoints = (612.0 - 72 - 72) * _geometryScale;
       const bodyFontSizePoints = 11.0 * _geometryScale;
       // Líneas que el paginador mete en esa banda con su presupuesto de 1.17.
-      final lineCount =
+      const lineCount =
           contentHeightPoints ~/
           (bodyFontSizePoints * _parserAssumedLineHeightRatio);
       // La fuente sintética de flutter_test mide 1.0 para cualquier familia,
       // así que una hoja a tamaño real no probaría nada. Encoger la banda por
       // el ratio de Calibri reproduce, con métricas deterministas, la misma
       // geometría que tiene esa página con la fuente real instalada.
-      const bandHeightPoints =
-          contentHeightPoints / _worstCaseLineHeightRatio;
+      const bandHeightPoints = contentHeightPoints / _worstCaseLineHeightRatio;
 
       // La superficie de prueba por defecto (800x600) recortaría la hoja y el
       // texto se partiría en líneas de más, midiendo cualquier cosa menos lo
@@ -337,7 +336,6 @@ const _bodyStyle = TextStyle(fontSize: 11, color: Colors.black);
 
 DocumentTextPath _pathAt(int blockIndex) {
   return DocumentTextPath(
-    pageIndex: 0,
     steps: <DocumentPathStep>[
       DocumentPathStep.rootBlock(blockIndex: blockIndex),
     ],

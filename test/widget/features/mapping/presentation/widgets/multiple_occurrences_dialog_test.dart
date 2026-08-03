@@ -101,11 +101,8 @@ Future<List<TextOccurrence>?> _showAndAct(
 
 TextOccurrence _occurrence({required int pageIndex, required String text}) {
   return TextOccurrence(
-    path: DocumentTextPath(
-      pageIndex: pageIndex,
-      steps: const <DocumentPathStep>[
-        DocumentPathStep.rootBlock(blockIndex: 0),
-      ],
+    path: const DocumentTextPath(
+      steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
     ),
     startOffset: 0,
     endOffset: text.length,

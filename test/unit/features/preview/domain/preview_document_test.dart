@@ -19,7 +19,6 @@ void main() {
             fieldHeader: 'nombre',
             selectedText: 'Ana',
             path: DocumentTextPath(
-              pageIndex: 0,
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],
@@ -49,7 +48,6 @@ void main() {
             fieldHeader: 'nombre',
             selectedText: 'Ana',
             path: DocumentTextPath(
-              pageIndex: 0,
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],
@@ -80,7 +78,6 @@ void main() {
             fieldHeader: 'nombre',
             selectedText: 'Ana',
             path: DocumentTextPath(
-              pageIndex: 0,
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],
@@ -96,6 +93,44 @@ void main() {
       expect(identical(result.pages[1], pageWithoutAssignments), isTrue);
       expect(identical(result, document), isFalse);
     });
+
+    test(
+      'reemplaza un párrafo de la segunda página por su índice absoluto',
+      () {
+        final document = _twoPageDocument();
+        final result = buildPreviewDocument(
+          document: document,
+          assignments: const <FieldAssignment>[
+            FieldAssignment(
+              id: 'a1',
+              fieldIndex: 0,
+              fieldHeader: 'nombre',
+              selectedText: 'dos',
+              // Absoluto: bloque 2 es "Página dos", el primero de la página 1
+              // (la página 0 ya ocupa los índices 0 y 1). Si el offset
+              // acumulado estuviera mal, esto pisaría "Hola Ana" o "Sin
+              // cambios" en la página 0 en su lugar.
+              path: DocumentTextPath(
+                steps: <DocumentPathStep>[
+                  DocumentPathStep.rootBlock(blockIndex: 2),
+                ],
+              ),
+              startOffset: 7,
+              endOffset: 10,
+            ),
+          ],
+          headers: const <String>['nombre'],
+          row: const <String?>['tres'],
+        );
+
+        final untouchedFirstPage = result.pages[0];
+        expect(identical(untouchedFirstPage, document.pages[0]), isTrue);
+
+        final paragraph =
+            (result.pages[1].blocks[0] as DocumentParagraphBlock).paragraph;
+        expect(paragraph.runs.map((run) => run.text).join(), 'Página tres');
+      },
+    );
 
     test('devuelve el mismo documento si no hay asignaciones', () {
       final document = _twoPageDocument();
@@ -120,7 +155,6 @@ void main() {
             fieldHeader: 'nombre',
             selectedText: 'Ana',
             path: DocumentTextPath(
-              pageIndex: 0,
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],

@@ -41,15 +41,21 @@ FieldAssignment fieldAssignmentFromJson(Map<String, dynamic> json) {
 
 Map<String, dynamic> documentTextPathToJson(DocumentTextPath path) {
   return <String, dynamic>{
-    'pageIndex': path.pageIndex,
     'steps': path.steps.map(documentPathStepToJson).toList(),
     'region': path.region.name,
   };
 }
 
+// A .fork saved before this migration carries a 'pageIndex' key and a
+// rootBlock 'blockIndex' that counted position within that (heuristic) page.
+// Neither is read here anymore: 'pageIndex' is ignored outright, and the old
+// per-page blockIndex gets silently reinterpreted as the new document-order
+// absolute index. That reinterpretation essentially never resolves to the
+// same paragraph, so `_stillMatchesDocument` (mapping_review.dart) correctly
+// flags the assignment invalid rather than silently pointing at the wrong
+// text — the project still opens; only its old field mappings need redoing.
 DocumentTextPath documentTextPathFromJson(Map<String, dynamic> json) {
   return DocumentTextPath(
-    pageIndex: json['pageIndex'] as int,
     steps: (json['steps'] as List<Object?>)
         .whereType<Map<Object?, Object?>>()
         .map((raw) => documentPathStepFromJson(raw.cast<String, dynamic>()))

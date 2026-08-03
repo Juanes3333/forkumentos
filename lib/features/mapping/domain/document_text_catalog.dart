@@ -13,15 +13,19 @@ final class ParagraphTextEntry {
 List<ParagraphTextEntry> enumerateParagraphTexts(Document document) {
   final entries = <ParagraphTextEntry>[];
 
-  for (var pageIndex = 0; pageIndex < document.pages.length; pageIndex++) {
-    final page = document.pages[pageIndex];
-    for (var blockIndex = 0; blockIndex < page.blocks.length; blockIndex++) {
+  // Absolute, page-agnostic counter: advances once per top-level block across
+  // the WHOLE document regardless of which heuristic `DocumentPage` it landed
+  // on, so it can never disagree with the exporter's identical document-order
+  // count (see the DocumentTextPath doc comment).
+  var rootBlockIndex = 0;
+  for (final page in document.pages) {
+    for (final block in page.blocks) {
       _collectParagraphTexts(
-        pageIndex: pageIndex,
-        rootBlockIndex: blockIndex,
-        block: page.blocks[blockIndex],
+        rootBlockIndex: rootBlockIndex,
+        block: block,
         entries: entries,
       );
+      rootBlockIndex++;
     }
   }
 
@@ -46,7 +50,6 @@ void _collectRegionParagraphTexts({
 }) {
   for (var blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
     _collectParagraphTexts(
-      pageIndex: 0,
       rootBlockIndex: blockIndex,
       block: blocks[blockIndex],
       entries: entries,
@@ -62,7 +65,6 @@ List<ParagraphTextEntry> extractDocumentTextPlaceholders(Document document) {
 }
 
 void _collectParagraphTexts({
-  required int pageIndex,
   required int rootBlockIndex,
   required DocumentBlock block,
   required List<ParagraphTextEntry> entries,
@@ -74,7 +76,6 @@ void _collectParagraphTexts({
       entries.add(
         ParagraphTextEntry(
           path: DocumentTextPath(
-            pageIndex: pageIndex,
             steps: <DocumentPathStep>[
               DocumentPathStep.rootBlock(blockIndex: rootBlockIndex),
               ...prefixSteps,
@@ -95,7 +96,6 @@ void _collectParagraphTexts({
             innerBlockIndex++
           ) {
             _collectParagraphTexts(
-              pageIndex: pageIndex,
               rootBlockIndex: rootBlockIndex,
               block: cell.blocks[innerBlockIndex],
               entries: entries,
