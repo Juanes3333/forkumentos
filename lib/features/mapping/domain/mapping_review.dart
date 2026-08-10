@@ -158,6 +158,16 @@ List<String> findInvalidAssignmentIds({
       continue;
     }
 
+    // Si la fuente de datos cambió de columnas (una inserción o reordenamiento
+    // de encabezados) sin volver a mapear, `fieldIndex` sigue apuntando a la
+    // posición vieja pero ahora nombra una columna distinta. El documento no
+    // cambió, así que `_stillMatchesDocument` no lo detecta: hay que comparar
+    // contra el encabezado que la asignación recuerda.
+    if (datasourceHeaders[assignment.fieldIndex] != assignment.fieldHeader) {
+      invalidIds.add(assignment.id);
+      continue;
+    }
+
     if (!_stillMatchesDocument(assignment, documentTexts)) {
       invalidIds.add(assignment.id);
     }

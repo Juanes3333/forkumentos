@@ -9,6 +9,7 @@ final class FilenamePatternEditor extends StatefulWidget {
     required this.sampleRow,
     required this.initialPattern,
     required this.onChanged,
+    required this.templateName,
     super.key,
   });
 
@@ -16,6 +17,7 @@ final class FilenamePatternEditor extends StatefulWidget {
   final List<String?> sampleRow;
   final FilenamePattern initialPattern;
   final ValueChanged<FilenamePattern> onChanged;
+  final String templateName;
 
   @override
   State<FilenamePatternEditor> createState() => _FilenamePatternEditorState();
@@ -65,6 +67,7 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
     final preview = _pattern.resolve(
       row: widget.sampleRow,
       headers: widget.headers,
+      templateName: widget.templateName,
     );
 
     return Column(
@@ -121,7 +124,25 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
               onPressed: _addText,
               child: const Text('Añadir texto'),
             ),
-            const SizedBox(width: 8),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            FilledButton.tonalIcon(
+              onPressed: _addTemplateName,
+              icon: const Icon(Icons.description_outlined, size: 18),
+              label: const Text('Añadir nombre de plantilla'),
+              style: FilledButton.styleFrom(
+                foregroundColor: colors.success,
+                backgroundColor: Color.alphaBlend(
+                  colors.success.withValues(alpha: 0.16),
+                  colors.surface,
+                ),
+              ),
+            ),
             PopupMenuButton<int>(
               tooltip: 'Añadir campo',
               onSelected: (fieldIndex) {
@@ -167,6 +188,16 @@ final class _FilenamePatternEditorState extends State<FilenamePatternEditor> {
     );
   }
 
+  void _addTemplateName() {
+    setState(() {
+      _blocks = <_EditableBlock>[
+        ..._blocks,
+        _EditableBlock(id: _idSeed++, block: const FilenameTemplateBlock()),
+      ];
+    });
+    _emit();
+  }
+
   void _addText() {
     final text = _textController.text;
     if (text.isEmpty) {
@@ -200,31 +231,34 @@ final class _BlockChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final isField = block is FilenameFieldBlock;
+    final isTemplate = block is FilenameTemplateBlock;
+    final accent = isTemplate ? colors.success : colors.accent;
     final label = switch (block) {
       FilenameTextBlock(:final text) => '"$text"',
       FilenameFieldBlock(:final fieldHeader) => fieldHeader,
+      FilenameTemplateBlock() => 'Nombre de plantilla',
     };
 
     return InputChip(
+      avatar: isTemplate
+          ? Icon(Icons.description_outlined, size: 16, color: accent)
+          : null,
       label: Text(
         label,
         style: TextStyle(
-          color: isField ? colors.accent : colors.foregroundPrimary,
+          color: isField || isTemplate ? accent : colors.foregroundPrimary,
           fontWeight: FontWeight.w600,
         ),
       ),
       onDeleted: onRemove,
-      deleteIconColor: isField ? colors.accent : colors.foregroundMuted,
+      deleteIconColor: isField || isTemplate ? accent : colors.foregroundMuted,
       visualDensity: VisualDensity.compact,
-      backgroundColor: isField
-          ? Color.alphaBlend(
-              colors.accent.withValues(alpha: 0.18),
-              colors.surface,
-            )
+      backgroundColor: isField || isTemplate
+          ? Color.alphaBlend(accent.withValues(alpha: 0.18), colors.surface)
           : colors.backgroundSecondary,
       side: BorderSide(
-        color: isField ? colors.accent : colors.border,
-        width: isField ? 1.5 : 1.25,
+        color: isField || isTemplate ? accent : colors.border,
+        width: isField || isTemplate ? 1.5 : 1.25,
       ),
     );
   }

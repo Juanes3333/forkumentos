@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.2.0-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.3.0-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -32,7 +32,7 @@
 
 ---
 
-**Version 1.2.0**
+**Version 1.3.0**
 
 Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine.
 
@@ -44,7 +44,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Visual field mapping with undo/redo, review mode, and optional auto-map
 - WYSIWYG document viewer (color, font size, paragraph spacing from the source DOCX)
 - Live preview against any datasource row
-- Batch export to **DOCX** with optional ZIP packaging
+- Batch export to **DOCX** with optional ZIP packaging and template-based filenames
 - Drag-and-drop import and multi-window project handling on Windows
 
 ---
@@ -86,9 +86,9 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 ### Mapping
 
 - Assign spreadsheet columns to selectable text ranges in the template
-- Multiple occurrences per field
+- Multiple occurrences per field (suggestions skip ranges that already overlap another assignment)
 - Field status (pending / assigned / incomplete)
-- Validation for overlaps and invalid assignments before export
+- Validation for overlaps, stale text, and datasource header drift (`fieldIndex` vs remembered header)
 - Undo / redo (`Ctrl+Z` / `Ctrl+Y`)
 - Optional auto-mapping helpers from the workbench
 
@@ -113,7 +113,8 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 
 ### Filename builder
 
-- Compose export names from literal text blocks and datasource fields
+- Compose export names from literal text, datasource fields, and the **template base name**
+- Default pattern uses the source DOCX filename (without extension)
 - Automatic `_` separators between adjacent blocks
 - Drag-and-drop reorder of blocks with live filename preview
 
@@ -311,4 +312,4 @@ It targets professional desktop document workflows: keep templates and data loca
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
 - Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
-- Version: **1.2.0**
+- Version: **1.3.0**

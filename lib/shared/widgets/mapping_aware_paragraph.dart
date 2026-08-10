@@ -98,10 +98,10 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
     // aplican también a los párrafos vacíos, que en un documento real son la
     // forma habitual de separar bloques.
     final padding = EdgeInsets.only(
-      top: paragraph.spacingBeforePoints,
-      bottom: paragraph.spacingAfterPoints,
-      left: paragraph.indentLeftPoints,
-      right: paragraph.indentRightPoints,
+      top: paragraph.spacingBeforePoints.clamp(0.0, double.infinity),
+      bottom: paragraph.spacingAfterPoints.clamp(0.0, double.infinity),
+      left: paragraph.indentLeftPoints.clamp(0.0, double.infinity),
+      right: paragraph.indentRightPoints.clamp(0.0, double.infinity),
     );
 
     if (content.isEmpty) {

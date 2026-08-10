@@ -25,6 +25,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required this.rowCount,
     required this.currentRowIndex,
     required this.missingFieldHeaders,
+    required this.templateName,
     super.key,
   });
 
@@ -34,6 +35,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
   final int rowCount;
   final int currentRowIndex;
   final List<String> missingFieldHeaders;
+  final String templateName;
 
   static Future<ExportDialogResult?> show(
     BuildContext context, {
@@ -43,6 +45,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required int rowCount,
     required int currentRowIndex,
     required List<String> missingFieldHeaders,
+    required String templateName,
   }) {
     return showDialog<ExportDialogResult>(
       context: context,
@@ -53,6 +56,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
         rowCount: rowCount,
         currentRowIndex: currentRowIndex,
         missingFieldHeaders: missingFieldHeaders,
+        templateName: templateName,
       ),
     );
   }
@@ -69,18 +73,6 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   String? _rangeError;
   var _acknowledgedMissing = false;
   var _defaultsApplied = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.headers.isNotEmpty) {
-      _pattern = FilenamePattern(
-        blocks: <FilenamePatternBlock>[
-          FilenameFieldBlock(fieldIndex: 0, fieldHeader: widget.headers.first),
-        ],
-      );
-    }
-  }
 
   @override
   void didChangeDependencies() {
@@ -202,6 +194,7 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
                 sampleRow: widget.sampleRow,
                 initialPattern: _pattern,
                 onChanged: (pattern) => _pattern = pattern,
+                templateName: widget.templateName,
               ),
               const SizedBox(height: 8),
               CheckboxListTile(
@@ -266,6 +259,7 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
           rangeMode: _rangeMode,
           rowIndexes: rowIndexes,
           createZip: _createZip,
+          templateBaseName: widget.templateName,
           customRangeText: _rangeMode == ExportRangeMode.custom
               ? _rangeController.text
               : null,

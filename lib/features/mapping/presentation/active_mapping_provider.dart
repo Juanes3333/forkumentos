@@ -108,6 +108,16 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
             endOffset: primaryAssignment.endOffset,
           ),
         )
+        .where(
+          (occurrence) =>
+              findOverlappingAssignment(
+                assignments: state.state.assignments,
+                path: occurrence.path,
+                startOffset: occurrence.startOffset,
+                endOffset: occurrence.endOffset,
+              ) ==
+              null,
+        )
         .toList();
   }
 

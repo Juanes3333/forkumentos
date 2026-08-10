@@ -66,8 +66,19 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
           ),
         ),
       );
+
+    final initialPath = ref.read(
+      activeProjectProvider.select(
+        (state) => state.valueOrNull?.embeddedDatasourcePath,
+      ),
+    );
+    if (initialPath != null && initialPath.isNotEmpty) {
+      return ref.read(datasourceRepositoryProvider).load(initialPath);
+    }
+
     return null;
   }
+
 
   Future<void> importDatasource({required String filePath}) async {
     final operationToken = ++_operationToken;

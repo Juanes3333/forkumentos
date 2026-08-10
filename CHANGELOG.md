@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+- Bloque de nombre de plantilla en el constructor de nombres de export (`FilenameTemplateBlock`); el patrón por defecto usa el basename del DOCX.
+- Restauración de plantilla/datasource embebidos al abrir un `.fork` (paths iniciales en providers activos).
+
+### Fixed
+- Mapeos inválidos cuando el datasource reordena o renombra columnas (`fieldIndex` vs `fieldHeader`).
+- Sugerencias de ocurrencias múltiples: se excluyen rangos que ya solapan otra asignación.
+- Padding negativo de spacing/indent/header-footer distance (clamp a ≥ 0) que podía romper el layout del viewer.
+
 ## 1.2.0
 
 ### Added

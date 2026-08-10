@@ -19,6 +19,7 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
     required this.placeholders,
     required this.resolveRow,
     required this.headers,
+    required this.templateBaseName,
   });
 
   final Uint8List templateBytes;
@@ -28,6 +29,7 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
   final List<ExportPlaceholder> placeholders;
   final Future<List<String?>> Function(int rowIndex) resolveRow;
   final List<String> headers;
+  final String templateBaseName;
 
   final Set<String> _usedNames = <String>{};
 
@@ -68,7 +70,11 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
           break;
         }
         final baseName = FilenamePattern.dedupe(
-          filenamePattern.resolve(row: row, headers: headers),
+          filenamePattern.resolve(
+            row: row,
+            headers: headers,
+            templateName: templateBaseName,
+          ),
           _usedNames,
         );
         _usedNames.add(baseName.toLowerCase());

@@ -716,7 +716,7 @@ final class _DocumentPageSheet extends StatelessWidget {
               _PageBand(
                 minHeightPoints: margins.topPoints,
                 padding: EdgeInsets.only(
-                  top: margins.headerDistancePoints,
+                  top: margins.headerDistancePoints.clamp(0.0, double.infinity),
                   left: margins.leftPoints,
                   right: margins.rightPoints,
                 ),
@@ -747,7 +747,7 @@ final class _DocumentPageSheet extends StatelessWidget {
               _PageBand(
                 minHeightPoints: margins.bottomPoints,
                 padding: EdgeInsets.only(
-                  bottom: margins.footerDistancePoints,
+                  bottom: margins.footerDistancePoints.clamp(0.0, double.infinity),
                   left: margins.leftPoints,
                   right: margins.rightPoints,
                 ),

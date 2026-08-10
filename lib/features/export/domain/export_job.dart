@@ -15,6 +15,7 @@ final class ExportJob {
     required this.rangeMode,
     required this.rowIndexes,
     required this.createZip,
+    required this.templateBaseName,
     this.customRangeText,
   });
 
@@ -23,5 +24,6 @@ final class ExportJob {
   final ExportRangeMode rangeMode;
   final List<int> rowIndexes;
   final bool createZip;
+  final String templateBaseName;
   final String? customRangeText;
 }

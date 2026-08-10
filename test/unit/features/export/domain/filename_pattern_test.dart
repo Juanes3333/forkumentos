@@ -37,6 +37,7 @@ void main() {
         pattern.resolve(
           row: <String?>['Ana/Pérez'],
           headers: <String>['nombre'],
+          templateName: 'plantilla',
         ),
         'Contrato - Ana_Pérez',
       );
@@ -55,6 +56,7 @@ void main() {
         pattern.resolve(
           row: <String?>['Juan', 'Gerente'],
           headers: <String>['nombre', 'empresa'],
+          templateName: 'plantilla',
         ),
         'Contrato_Juan_Gerente',
       );
@@ -69,8 +71,41 @@ void main() {
       );
 
       expect(
-        pattern.resolve(row: <String?>['Ana'], headers: <String>['nombre']),
+        pattern.resolve(
+          row: <String?>['Ana'],
+          headers: <String>['nombre'],
+          templateName: 'plantilla',
+        ),
         'Prefijo_Ana',
+      );
+    });
+
+    test('FilenameTemplateBlock resuelve al nombre de plantilla', () {
+      const pattern = FilenamePattern(
+        blocks: <FilenamePatternBlock>[
+          FilenameTemplateBlock(),
+          FilenameFieldBlock(fieldIndex: 0, fieldHeader: 'nombre'),
+        ],
+      );
+
+      expect(
+        pattern.resolve(
+          row: <String?>['Luis'],
+          headers: <String>['nombre'],
+          templateName: 'actaInicio',
+        ),
+        'actaInicio_Luis',
+      );
+    });
+
+    test('defaultPattern es solo el nombre de plantilla', () {
+      expect(
+        FilenamePattern.defaultPattern.resolve(
+          row: <String?>[],
+          headers: <String>[],
+          templateName: 'actaInicio',
+        ),
+        'actaInicio',
       );
     });
   });

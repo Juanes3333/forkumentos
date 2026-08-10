@@ -278,6 +278,78 @@ void main() {
     expect(container.read(activeMappingProvider).canUndo, isTrue);
   });
 
+  test(
+    'findAdditionalOccurrences excluye spans que solapan con '
+    'asignaciones existentes',
+    () {
+      final container = _createContainer();
+      addTearDown(container.dispose);
+
+      final document = _documentWithTexts(<String>[
+        '14.675.586 de Cali (Valle)',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        'texto intermedio',
+        '14.675.586 de Cali',
+      ]);
+
+      final notifier = container.read(activeMappingProvider.notifier)
+        ..confirmAssignment(
+          selection: const DocumentTextSelection(
+            path: DocumentTextPath(
+              steps: <DocumentPathStep>[
+                DocumentPathStep.rootBlock(blockIndex: 0),
+              ],
+            ),
+            startOffset: 0,
+            endOffset: 27,
+            selectedText: '14.675.586 de Cali (Valle)',
+          ),
+          fieldHeader: 'cedulaContratista',
+          fieldIndex: 0,
+          headerCount: 1,
+        );
+
+      const primaryAssignment = FieldAssignment(
+        id: 'manual-selection',
+        fieldIndex: 0,
+        fieldHeader: 'cedulaContratista',
+        selectedText: '14.675.586 de Cali',
+        path: DocumentTextPath(
+          steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 12)],
+        ),
+        startOffset: 0,
+        endOffset: 19,
+      );
+
+      final additional = notifier.findAdditionalOccurrences(
+        document: document,
+        primaryAssignment: primaryAssignment,
+      );
+
+      expect(
+        additional.any(
+          (occurrence) =>
+              occurrence.path ==
+              const DocumentTextPath(
+                steps: <DocumentPathStep>[
+                  DocumentPathStep.rootBlock(blockIndex: 0),
+                ],
+              ),
+        ),
+        isFalse,
+      );
+    },
+  );
+
   test('restaura asignaciones desde el proyecto activo', () async {
     final container = _createContainer();
     addTearDown(container.dispose);

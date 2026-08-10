@@ -86,6 +86,29 @@ void main() {
     });
 
     test(
+      'una asignación cuyo fieldIndex ahora nombra otra columna se marca '
+      'inválida aunque el documento no haya cambiado',
+      () {
+        // Reproduce el bug de "desplazamiento de celdas": la fuente de datos
+        // insertó una columna nueva antes de 'plazo' sin volver a mapear, así
+        // que fieldIndex=1 (guardado para 'plazo') ahora apunta a 'valorNum'
+        // en los headers actuales. El documento no cambió —
+        // _stillMatchesDocument por sí solo no detectaría esto— pero el
+        // header recordado sí difiere.
+        final snapshot = buildMappingReviewSnapshot(
+          assignments: <FieldAssignment>[
+            _assignment(id: 'a1', fieldIndex: 1, fieldHeader: 'plazo'),
+          ],
+          datasourceHeaders: <String>['nombre', 'valorNum', 'plazo'],
+          document: _documentWithTexts(<String>['Ana']),
+        );
+
+        expect(snapshot.isExportReady, isFalse);
+        expect(snapshot.invalidAssignments, hasLength(1));
+      },
+    );
+
+    test(
       'un mismo pageIndex/steps en body y header no se confunden entre si',
       () {
         final document = _documentWithTexts(<String>['Otro']).copyWith(

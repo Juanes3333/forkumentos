@@ -96,6 +96,8 @@ Future<void> launchExport(
     return;
   }
 
+  final templateBaseName = p.basenameWithoutExtension(template.fileName);
+
   final dialogResult = await ExportDialog.show(
     context,
     destinationFolder: destinationFolder,
@@ -107,6 +109,7 @@ Future<void> launchExport(
       datasource.rowCount > 0 ? datasource.rowCount - 1 : 0,
     ),
     missingFieldHeaders: review?.missingFieldHeaders ?? const <String>[],
+    templateName: templateBaseName,
   );
   if (dialogResult == null || !context.mounted) {
     return;
@@ -253,6 +256,7 @@ final class ExportSession {
       placeholders: placeholders,
       resolveRow: resolveRow,
       headers: headers,
+      templateBaseName: job.templateBaseName,
     );
     _active = command;
     final partial = await command.execute(

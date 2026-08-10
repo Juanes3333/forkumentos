@@ -52,6 +52,7 @@ void main() {
         ),
       ],
       headers: const <String>['nombre'],
+      templateBaseName: 'plantilla',
       resolveRow: (rowIndex) async {
         if (rowIndex == 1) {
           command.cancel();
@@ -99,6 +100,7 @@ void main() {
         ),
       ],
       headers: const <String>['nombre'],
+      templateBaseName: 'plantilla',
       resolveRow: (rowIndex) async => rows[rowIndex]!,
     );
 

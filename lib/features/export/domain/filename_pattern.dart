@@ -19,6 +19,11 @@ final class FilenameFieldBlock extends FilenamePatternBlock {
   final String fieldHeader;
 }
 
+/// Resolves to the source DOCX template's base filename (no extension).
+final class FilenameTemplateBlock extends FilenamePatternBlock {
+  const FilenameTemplateBlock();
+}
+
 final class FilenamePattern {
   const FilenamePattern({required this.blocks});
 
@@ -29,14 +34,18 @@ final class FilenamePattern {
   static const String blockSeparator = '_';
 
   static const FilenamePattern defaultPattern = FilenamePattern(
-    blocks: <FilenamePatternBlock>[FilenameTextBlock('documento')],
+    blocks: <FilenamePatternBlock>[FilenameTemplateBlock()],
   );
 
   static final RegExp _edgeSeparator = RegExp(r'[_\-]\s*$');
   static final RegExp _leadingSeparator = RegExp(r'^\s*[_\-]');
 
   /// Resolves the pattern against a sample/export row (live preview).
-  String resolve({required List<String?> row, required List<String> headers}) {
+  String resolve({
+    required List<String?> row,
+    required List<String> headers,
+    required String templateName,
+  }) {
     final parts = <String>[];
     for (final block in blocks) {
       final part = switch (block) {
@@ -47,6 +56,7 @@ final class FilenamePattern {
               : fieldIndex >= 0 && fieldIndex < headers.length
               ? headers[fieldIndex]
               : '',
+        FilenameTemplateBlock() => templateName,
       };
       if (part.isNotEmpty) {
         parts.add(part);

@@ -66,8 +66,19 @@ final class ActiveTemplateNotifier extends AsyncNotifier<Template?> {
               (state.valueOrNull?.id, state.valueOrNull?.embeddedTemplatePath),
         ),
       );
+
+    final initialPath = ref.read(
+      activeProjectProvider.select(
+        (state) => state.valueOrNull?.embeddedTemplatePath,
+      ),
+    );
+    if (initialPath != null && initialPath.isNotEmpty) {
+      return ref.read(templateRepositoryProvider).load(initialPath);
+    }
+
     return null;
   }
+
 
   Future<void> importTemplate({required String filePath}) async {
     final operationToken = ++_operationToken;
