@@ -3,7 +3,6 @@ import 'package:forkumentos/features/mapping/domain/document_text_catalog.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_validation.dart';
 import 'package:forkumentos/shared/models/document.dart';
-import 'package:forkumentos/shared/models/document_text_path.dart';
 
 final class MappingStatistics {
   const MappingStatistics({
@@ -161,37 +160,17 @@ List<String> findInvalidAssignmentIds({
     // Si la fuente de datos cambió de columnas (una inserción o reordenamiento
     // de encabezados) sin volver a mapear, `fieldIndex` sigue apuntando a la
     // posición vieja pero ahora nombra una columna distinta. El documento no
-    // cambió, así que `_stillMatchesDocument` no lo detecta: hay que comparar
-    // contra el encabezado que la asignación recuerda.
+    // cambió, así que `assignmentStillMatchesDocument` no lo detecta: hay que
+    // comparar contra el encabezado que la asignación recuerda.
     if (datasourceHeaders[assignment.fieldIndex] != assignment.fieldHeader) {
       invalidIds.add(assignment.id);
       continue;
     }
 
-    if (!_stillMatchesDocument(assignment, documentTexts)) {
+    if (!assignmentStillMatchesDocument(assignment, documentTexts)) {
       invalidIds.add(assignment.id);
     }
   }
 
   return invalidIds;
-}
-
-bool _stillMatchesDocument(
-  FieldAssignment assignment,
-  Map<DocumentTextPath, String>? documentTexts,
-) {
-  if (documentTexts == null) {
-    return true;
-  }
-
-  final paragraphText = documentTexts[assignment.path];
-  if (paragraphText == null || assignment.endOffset > paragraphText.length) {
-    return false;
-  }
-
-  return paragraphText.substring(
-        assignment.startOffset,
-        assignment.endOffset,
-      ) ==
-      assignment.selectedText;
 }

@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.3.0-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.4.0-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -32,7 +32,7 @@
 
 ---
 
-**Version 1.3.0**
+**Version 1.4.0**
 
 Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine.
 
@@ -42,7 +42,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 
 - Portable `.fork` projects with embedded DOCX template and datasource
 - Visual field mapping with undo/redo, review mode, and optional auto-map
-- **List fields** and multi-paragraph spans for variable-length numbered lists and prose blocks
+- **List fields** and cross-paragraph ranges (`endPath`) for variable-length numbered lists and multi-paragraph prose
 - WYSIWYG document viewer (color, font size, paragraph spacing from the source DOCX)
 - Live preview against any datasource row
 - Batch export to **DOCX** with optional ZIP packaging and template-based filenames
@@ -89,7 +89,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Assign spreadsheet columns to selectable text ranges in the template
 - Multiple occurrences per field (suggestions skip ranges that already overlap another assignment)
 - **List fields** (`isListField`): map a multi-line Excel cell onto a Word numbered list; export expands/contracts list items to match line count (uses DOCX `numId`/`ilvl`)
-- **Multi-paragraph spans** (`paragraphSpan`): expand a prose field across consecutive non-numbered paragraphs (“include next paragraph”)
+- **Cross-paragraph ranges** (`endPath`): map prose that spans consecutive paragraphs by selecting the start, then closing the end with a second selection
 - Field sidebars show sample cell values from the current preview row (not only column headers)
 - Field status (pending / assigned / incomplete)
 - Validation for overlaps, stale text, and datasource header drift (`fieldIndex` vs remembered header)
@@ -110,7 +110,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 ### Export engine
 
 - Export **DOCX** only (same structure as the template, with mapped replacements)
-- List-field and multi-paragraph replacements reshape Word XML (insert/remove list items or consecutive paragraphs) instead of only substituting in-place text
+- List-field and cross-paragraph replacements reshape Word XML (insert/remove list items or consecutive paragraphs) instead of only substituting in-place text
 - Row ranges: current row, all rows, or a custom range
 - Progress dialog with cancel support
 - Optional ZIP of generated files
@@ -237,9 +237,9 @@ forkumentos/
 │   │   ├── project/    # .fork load/save, welcome, lifecycle
 │   │   ├── template/   # DOCX template import
 │   │   ├── datasource/ # CSV/XLSX import
-│   │   ├── mapping/    # Assignments, list/multi-paragraph fields, review, undo/redo, auto-map
+│   │   ├── mapping/    # Assignments, list/cross-paragraph fields, review, undo/redo, auto-map
 │   │   ├── preview/    # Row-based filled document preview
-│   │   ├── export/     # DOCX/ZIP export (incl. list expand/contract) + filename builder
+│   │   ├── export/     # DOCX/ZIP export (list expand + cross-paragraph replace) + filename builder
 │   │   ├── document_viewer/
 │   │   └── settings/   # Persisted AppSettings UI
 │   ├── routing/        # Router, phases, workbench chrome, DnD, export launcher
@@ -317,4 +317,4 @@ It targets professional desktop document workflows: keep templates and data loca
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
 - Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
-- Version: **1.3.0**
+- Version: **1.4.0**

@@ -119,6 +119,18 @@ String paragraphPlainText(DocumentParagraph paragraph) {
   return paragraph.runs.map((run) => run.text).join();
 }
 
+/// Where a global offset into the concatenated document text lands.
+typedef _GlobalLocation = ({DocumentTextPath path, int localOffset});
+
+/// Finds every occurrence of [needle] anywhere in [document], including
+/// matches whose text spans two or more paragraphs (the needle contains a
+/// literal `\n`). All paragraph texts are concatenated into one string
+/// joined by `\n` — the same separator a caller uses to represent a
+/// paragraph break in a copied selection — so `indexOf` can find matches
+/// that cross a paragraph boundary. Each match's start/end global offset is
+/// then mapped back to its owning paragraph; `endPath` is left `null` when
+/// the match stays within a single paragraph (same contract as
+/// [FieldAssignment.endPath]).
 List<TextOccurrence> findExactTextOccurrences({
   required Document document,
   required String needle,
@@ -128,25 +140,55 @@ List<TextOccurrence> findExactTextOccurrences({
     return const <TextOccurrence>[];
   }
 
-  final occurrences = <TextOccurrence>[];
-  for (final entry in enumerateParagraphTexts(document)) {
-    var searchStart = 0;
-    while (true) {
-      final matchIndex = entry.text.indexOf(normalizedNeedle, searchStart);
-      if (matchIndex < 0) {
-        break;
-      }
+  final entries = enumerateParagraphTexts(document);
+  if (entries.isEmpty) {
+    return const <TextOccurrence>[];
+  }
 
-      occurrences.add(
-        TextOccurrence(
-          path: entry.path,
-          startOffset: matchIndex,
-          endOffset: matchIndex + normalizedNeedle.length,
-          matchedText: normalizedNeedle,
-        ),
-      );
-      searchStart = matchIndex + normalizedNeedle.length;
+  final buffer = StringBuffer();
+  final starts = List<int>.filled(entries.length, 0);
+  for (var i = 0; i < entries.length; i++) {
+    starts[i] = buffer.length;
+    buffer.write(entries[i].text);
+    if (i < entries.length - 1) {
+      buffer.write('\n');
     }
+  }
+  final globalText = buffer.toString();
+
+  _GlobalLocation locate(int globalOffset) {
+    for (var i = 0; i < entries.length; i++) {
+      final start = starts[i];
+      final len = entries[i].text.length;
+      if (globalOffset >= start && globalOffset <= start + len) {
+        return (path: entries[i].path, localOffset: globalOffset - start);
+      }
+    }
+    final last = entries.length - 1;
+    return (path: entries[last].path, localOffset: entries[last].text.length);
+  }
+
+  final occurrences = <TextOccurrence>[];
+  var searchStart = 0;
+  while (true) {
+    final matchIndex = globalText.indexOf(normalizedNeedle, searchStart);
+    if (matchIndex < 0) {
+      break;
+    }
+    final matchEnd = matchIndex + normalizedNeedle.length;
+    final start = locate(matchIndex);
+    final end = locate(matchEnd);
+
+    occurrences.add(
+      TextOccurrence(
+        path: start.path,
+        startOffset: start.localOffset,
+        endOffset: end.localOffset,
+        matchedText: normalizedNeedle,
+        endPath: start.path == end.path ? null : end.path,
+      ),
+    );
+    searchStart = matchEnd;
   }
 
   return occurrences;

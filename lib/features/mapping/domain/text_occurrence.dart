@@ -10,5 +10,11 @@ class TextOccurrence with _$TextOccurrence {
     required int startOffset,
     required int endOffset,
     required String matchedText,
+
+    /// Ruta del bloque donde termina la coincidencia, si cruza párrafos.
+    /// Cuando no es nulo, `endOffset` se interpreta dentro de este bloque en
+    /// lugar de dentro de `path` (mismo contrato que
+    /// `FieldAssignment.endPath`).
+    DocumentTextPath? endPath,
   }) = _TextOccurrence;
 }

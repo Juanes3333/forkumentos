@@ -22,6 +22,11 @@ mixin _$TextOccurrence {
   int get endOffset => throw _privateConstructorUsedError;
   String get matchedText => throw _privateConstructorUsedError;
 
+  /// Ruta del bloque donde termina la coincidencia, si cruza párrafos.
+  /// Cuando no es nulo, `endOffset` se interpreta dentro de este bloque en
+  /// lugar de dentro de `path` (mismo contrato que `FieldAssignment.endPath`).
+  DocumentTextPath? get endPath => throw _privateConstructorUsedError;
+
   /// Create a copy of TextOccurrence
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -41,9 +46,11 @@ abstract class $TextOccurrenceCopyWith<$Res> {
     int startOffset,
     int endOffset,
     String matchedText,
+    DocumentTextPath? endPath,
   });
 
   $DocumentTextPathCopyWith<$Res> get path;
+  $DocumentTextPathCopyWith<$Res>? get endPath;
 }
 
 /// @nodoc
@@ -65,6 +72,7 @@ class _$TextOccurrenceCopyWithImpl<$Res, $Val extends TextOccurrence>
     Object? startOffset = null,
     Object? endOffset = null,
     Object? matchedText = null,
+    Object? endPath = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -84,6 +92,10 @@ class _$TextOccurrenceCopyWithImpl<$Res, $Val extends TextOccurrence>
                 ? _value.matchedText
                 : matchedText // ignore: cast_nullable_to_non_nullable
                       as String,
+            endPath: freezed == endPath
+                ? _value.endPath
+                : endPath // ignore: cast_nullable_to_non_nullable
+                      as DocumentTextPath?,
           )
           as $Val,
     );
@@ -96,6 +108,20 @@ class _$TextOccurrenceCopyWithImpl<$Res, $Val extends TextOccurrence>
   $DocumentTextPathCopyWith<$Res> get path {
     return $DocumentTextPathCopyWith<$Res>(_value.path, (value) {
       return _then(_value.copyWith(path: value) as $Val);
+    });
+  }
+
+  /// Create a copy of TextOccurrence
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $DocumentTextPathCopyWith<$Res>? get endPath {
+    if (_value.endPath == null) {
+      return null;
+    }
+
+    return $DocumentTextPathCopyWith<$Res>(_value.endPath!, (value) {
+      return _then(_value.copyWith(endPath: value) as $Val);
     });
   }
 }
@@ -114,10 +140,13 @@ abstract class _$$TextOccurrenceImplCopyWith<$Res>
     int startOffset,
     int endOffset,
     String matchedText,
+    DocumentTextPath? endPath,
   });
 
   @override
   $DocumentTextPathCopyWith<$Res> get path;
+  @override
+  $DocumentTextPathCopyWith<$Res>? get endPath;
 }
 
 /// @nodoc
@@ -138,6 +167,7 @@ class __$$TextOccurrenceImplCopyWithImpl<$Res>
     Object? startOffset = null,
     Object? endOffset = null,
     Object? matchedText = null,
+    Object? endPath = freezed,
   }) {
     return _then(
       _$TextOccurrenceImpl(
@@ -157,6 +187,10 @@ class __$$TextOccurrenceImplCopyWithImpl<$Res>
             ? _value.matchedText
             : matchedText // ignore: cast_nullable_to_non_nullable
                   as String,
+        endPath: freezed == endPath
+            ? _value.endPath
+            : endPath // ignore: cast_nullable_to_non_nullable
+                  as DocumentTextPath?,
       ),
     );
   }
@@ -170,6 +204,7 @@ class _$TextOccurrenceImpl implements _TextOccurrence {
     required this.startOffset,
     required this.endOffset,
     required this.matchedText,
+    this.endPath,
   });
 
   @override
@@ -181,9 +216,15 @@ class _$TextOccurrenceImpl implements _TextOccurrence {
   @override
   final String matchedText;
 
+  /// Ruta del bloque donde termina la coincidencia, si cruza párrafos.
+  /// Cuando no es nulo, `endOffset` se interpreta dentro de este bloque en
+  /// lugar de dentro de `path` (mismo contrato que `FieldAssignment.endPath`).
+  @override
+  final DocumentTextPath? endPath;
+
   @override
   String toString() {
-    return 'TextOccurrence(path: $path, startOffset: $startOffset, endOffset: $endOffset, matchedText: $matchedText)';
+    return 'TextOccurrence(path: $path, startOffset: $startOffset, endOffset: $endOffset, matchedText: $matchedText, endPath: $endPath)';
   }
 
   @override
@@ -197,12 +238,19 @@ class _$TextOccurrenceImpl implements _TextOccurrence {
             (identical(other.endOffset, endOffset) ||
                 other.endOffset == endOffset) &&
             (identical(other.matchedText, matchedText) ||
-                other.matchedText == matchedText));
+                other.matchedText == matchedText) &&
+            (identical(other.endPath, endPath) || other.endPath == endPath));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, path, startOffset, endOffset, matchedText);
+  int get hashCode => Object.hash(
+    runtimeType,
+    path,
+    startOffset,
+    endOffset,
+    matchedText,
+    endPath,
+  );
 
   /// Create a copy of TextOccurrence
   /// with the given fields replaced by the non-null parameter values.
@@ -222,6 +270,7 @@ abstract class _TextOccurrence implements TextOccurrence {
     required final int startOffset,
     required final int endOffset,
     required final String matchedText,
+    final DocumentTextPath? endPath,
   }) = _$TextOccurrenceImpl;
 
   @override
@@ -232,6 +281,12 @@ abstract class _TextOccurrence implements TextOccurrence {
   int get endOffset;
   @override
   String get matchedText;
+
+  /// Ruta del bloque donde termina la coincidencia, si cruza párrafos.
+  /// Cuando no es nulo, `endOffset` se interpreta dentro de este bloque en
+  /// lugar de dentro de `path` (mismo contrato que `FieldAssignment.endPath`).
+  @override
+  DocumentTextPath? get endPath;
 
   /// Create a copy of TextOccurrence
   /// with the given fields replaced by the non-null parameter values.

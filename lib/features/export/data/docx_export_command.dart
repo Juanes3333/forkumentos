@@ -82,11 +82,25 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
 
         final replacements = <DocxTextReplacement>[];
         final listReplacements = <DocxListReplacement>[];
+        final rangeReplacements = <DocxRangeReplacement>[];
         for (final placeholder in placeholders) {
           final value = _valueFor(placeholder.fieldIndex, row);
           final rootStep = placeholder.steps.length == 1
               ? placeholder.steps.first
               : null;
+          final endBlockIndex = placeholder.endBlockIndex;
+          if (endBlockIndex != null && rootStep is ExportRootBlockStep) {
+            rangeReplacements.add(
+              DocxRangeReplacement(
+                startBlockIndex: rootStep.blockIndex,
+                startOffset: placeholder.startOffset,
+                endBlockIndex: endBlockIndex,
+                endOffset: placeholder.endOffset,
+                text: value,
+              ),
+            );
+            continue;
+          }
           if (placeholder.isListField && rootStep is ExportRootBlockStep) {
             listReplacements.add(
               DocxListReplacement(
@@ -129,6 +143,7 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
             outputPath: outputPath,
             replacements: replacements,
             listReplacements: listReplacements,
+            rangeReplacements: rangeReplacements,
           ),
         );
       } on Object catch (error) {
@@ -195,11 +210,13 @@ final class _DocxRowExportJob {
     required this.outputPath,
     required this.replacements,
     required this.listReplacements,
+    required this.rangeReplacements,
   });
 
   final String outputPath;
   final List<DocxTextReplacement> replacements;
   final List<DocxListReplacement> listReplacements;
+  final List<DocxRangeReplacement> rangeReplacements;
 }
 
 List<String> _exportPreparedBatch({
@@ -215,6 +232,7 @@ List<String> _exportPreparedBatch({
       prepared: prepared,
       replacements: job.replacements,
       listReplacements: job.listReplacements,
+      rangeReplacements: job.rangeReplacements,
     );
     File(job.outputPath).writeAsBytesSync(bytes);
     written.add(job.outputPath);

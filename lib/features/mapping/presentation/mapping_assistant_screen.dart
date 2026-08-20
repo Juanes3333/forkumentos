@@ -128,13 +128,19 @@ final class _MappingAssistantScreenState
         currentFieldAssignments.any(
           (assignment) => _paragraphHasNumbering(document, assignment.path),
         );
-    final showParagraphSpanControls =
+    final showRangeEndControl =
         currentFieldAssignments.isNotEmpty &&
         !currentFieldAssignments.first.isListField &&
         !currentFieldIsNumberedList;
-    final currentFieldParagraphSpan = currentFieldAssignments.isEmpty
-        ? null
-        : currentFieldAssignments.first.paragraphSpan;
+    final currentFieldCrossesParagraphs =
+        currentFieldAssignments.isNotEmpty &&
+        currentFieldAssignments.first.endPath != null;
+    final pendingRangeCloseAssignmentId = ref.watch(
+      pendingRangeCloseAssignmentIdProvider,
+    );
+    final isDefiningRangeEnd =
+        currentFieldAssignments.isNotEmpty &&
+        pendingRangeCloseAssignmentId == currentFieldAssignments.first.id;
 
     return Stack(
       children: <Widget>[
@@ -206,6 +212,12 @@ final class _MappingAssistantScreenState
                                   _clearPendingSelection();
                                   return;
                                 }
+                                if (pendingRangeCloseAssignmentId != null) {
+                                  ref
+                                      .read(activeMappingProvider.notifier)
+                                      .completeRangeClose(selection);
+                                  return;
+                                }
                                 _handleTextSelected(selection);
                               },
                             ),
@@ -216,8 +228,6 @@ final class _MappingAssistantScreenState
                     previewRow: widget.previewRow,
                     currentFieldIndex: mappingState.currentFieldIndex,
                     assignmentCounts: assignmentCounts,
-                    showParagraphSpanControls: showParagraphSpanControls,
-                    currentFieldParagraphSpan: currentFieldParagraphSpan,
                     onFieldSelected: (index) {
                       ref
                           .read(activeMappingProvider.notifier)
@@ -233,17 +243,14 @@ final class _MappingAssistantScreenState
                           .read(activeMappingProvider.notifier)
                           .removeAssignmentsForField(index);
                     },
-                    onIncludeNextParagraph: showParagraphSpanControls
-                        ? () => _adjustParagraphSpan(
-                            currentFieldAssignments,
-                            delta: 1,
-                          )
-                        : null,
-                    onExcludeLastParagraph: showParagraphSpanControls
-                        ? () => _adjustParagraphSpan(
-                            currentFieldAssignments,
-                            delta: -1,
-                          )
+                    showRangeEndControl: showRangeEndControl,
+                    currentFieldCrossesParagraphs:
+                        currentFieldCrossesParagraphs,
+                    isDefiningRangeEnd: isDefiningRangeEnd,
+                    onDefineRangeEnd: showRangeEndControl
+                        ? () => ref
+                              .read(activeMappingProvider.notifier)
+                              .beginRangeClose(currentFieldAssignments.first.id)
                         : null,
                   ),
                 ],
@@ -447,21 +454,6 @@ final class _MappingAssistantScreenState
     );
 
     return result ?? false;
-  }
-
-  void _adjustParagraphSpan(
-    List<FieldAssignment> assignments, {
-    required int delta,
-  }) {
-    final notifier = ref.read(activeMappingProvider.notifier);
-    for (final assignment in assignments) {
-      final current = assignment.paragraphSpan ?? 1;
-      final next = current + delta;
-      notifier.setAssignmentParagraphSpan(
-        assignmentId: assignment.id,
-        paragraphSpan: next <= 1 ? null : next,
-      );
-    }
   }
 
   Future<List<TextOccurrence>?> _resolveExtraOccurrences(

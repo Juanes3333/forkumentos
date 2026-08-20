@@ -104,7 +104,10 @@ List<FieldAssignment> synchronizeMappingAssignments({
 
   return assignments
       .where((assignment) => assignment.fieldIndex < datasourceHeaders.length)
-      .where((assignment) => _stillMatchesDocument(assignment, documentTexts))
+      .where(
+        (assignment) =>
+            assignmentStillMatchesDocument(assignment, documentTexts),
+      )
       .map(
         (assignment) => assignment.copyWith(
           fieldHeader: datasourceHeaders[assignment.fieldIndex],
@@ -113,7 +116,20 @@ List<FieldAssignment> synchronizeMappingAssignments({
       .toList();
 }
 
-bool _stillMatchesDocument(
+/// Comprueba si [assignment] todavía referencia texto real en
+/// [documentTexts] (mapa de `path` -> texto plano del párrafo). `null` en
+/// [documentTexts] cuando no hay documento contra el que validar (siempre
+/// "sigue coincidiendo").
+///
+/// Para un rango que cruza párrafos (`endPath != null`), `endOffset` es un
+/// offset dentro de `endPath`, NO de `assignment.path` (ver el doc de
+/// `FieldAssignment.endPath`): nunca puede usarse como límite de
+/// `paragraphText.substring` sobre el párrafo de inicio o lanza `RangeError`
+/// cuando `endOffset < startOffset`. Hoy `completeRangeClose` (capa de
+/// presentación) no reescribe `selectedText` al cerrar el rango, así que no
+/// hay contenido fiable con el que comparar el texto completo del rango;
+/// sólo se valida que ambos extremos sigan existiendo y dentro de rango.
+bool assignmentStillMatchesDocument(
   FieldAssignment assignment,
   Map<DocumentTextPath, String>? documentTexts,
 ) {
@@ -122,13 +138,27 @@ bool _stillMatchesDocument(
   }
 
   final paragraphText = documentTexts[assignment.path];
-  if (paragraphText == null || assignment.endOffset > paragraphText.length) {
+  if (paragraphText == null ||
+      assignment.startOffset < 0 ||
+      assignment.startOffset > paragraphText.length) {
     return false;
   }
 
-  return paragraphText.substring(
-        assignment.startOffset,
-        assignment.endOffset,
-      ) ==
-      assignment.selectedText;
+  final endPath = assignment.endPath;
+  if (endPath == null) {
+    if (assignment.endOffset < assignment.startOffset ||
+        assignment.endOffset > paragraphText.length) {
+      return false;
+    }
+    return paragraphText.substring(
+          assignment.startOffset,
+          assignment.endOffset,
+        ) ==
+        assignment.selectedText;
+  }
+
+  final endParagraphText = documentTexts[endPath];
+  return endParagraphText != null &&
+      assignment.endOffset >= 0 &&
+      assignment.endOffset <= endParagraphText.length;
 }

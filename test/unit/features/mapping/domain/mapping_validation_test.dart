@@ -107,11 +107,41 @@ void main() {
 
       expect(synced, isEmpty);
     });
+
+    test('una asignacion con rango cruzado entre parrafos (endPath) no crashea '
+        'cuando el offset final es menor que el inicial dentro del parrafo de '
+        'inicio', () {
+      // Reproduce el RangeError original: el parrafo de inicio es largo
+      // (868 caracteres) y `endOffset` (1) pertenece al parrafo de fin, no
+      // al de inicio, asi que `paragraphText.substring(50, 1)` lanzaba
+      // `RangeError (end): Invalid value: Not in inclusive range 50..868: 1`.
+      final longParagraph = 'x' * 868;
+      final assignment = _assignment(
+        id: 'a1',
+        fieldIndex: 0,
+        startOffset: 50,
+        endOffset: 1,
+        endPath: _secondPath,
+      );
+
+      expect(
+        () => synchronizeMappingAssignments(
+          assignments: <FieldAssignment>[assignment],
+          datasourceHeaders: <String>['nombre'],
+          document: _documentWithTexts(<String>[longParagraph, 'y']),
+        ),
+        returnsNormally,
+      );
+    });
   });
 }
 
 const _path = DocumentTextPath(
   steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
+);
+
+const _secondPath = DocumentTextPath(
+  steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 1)],
 );
 
 FieldAssignment _assignment({
@@ -122,6 +152,7 @@ FieldAssignment _assignment({
   int startOffset = 0,
   int endOffset = 3,
   DocumentTextPath path = _path,
+  DocumentTextPath? endPath,
 }) {
   return FieldAssignment(
     id: id,
@@ -131,6 +162,7 @@ FieldAssignment _assignment({
     path: path,
     startOffset: startOffset,
     endOffset: endOffset,
+    endPath: endPath,
   );
 }
 

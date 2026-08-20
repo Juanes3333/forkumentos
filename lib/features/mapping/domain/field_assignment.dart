@@ -15,11 +15,9 @@ class FieldAssignment with _$FieldAssignment {
     required int endOffset,
     @Default(false) bool isListField,
 
-    /// Cuántos párrafos consecutivos abarca este campo (incluyendo el
-    /// mapeado). null o 1 = campo normal (un solo párrafo, comportamiento
-    /// actual). >1 = campo multi-párrafo (reemplaza N párrafos
-    /// consecutivos). Cuando el párrafo mapeado tiene numeración, este valor
-    /// se IGNORA: el exportador auto-detecta el rango de la lista vía numId.
-    int? paragraphSpan,
+    /// Ruta del bloque donde termina el rango (si cruza párrafos).
+    /// Si no es nulo, `endOffset` se aplica a este bloque, y el rango en `path`
+    /// va desde `startOffset` hasta el final del párrafo.
+    DocumentTextPath? endPath,
   }) = _FieldAssignment;
 }

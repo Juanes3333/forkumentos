@@ -25,7 +25,8 @@ Map<String, dynamic> fieldAssignmentToJson(FieldAssignment assignment) {
     'startOffset': assignment.startOffset,
     'endOffset': assignment.endOffset,
     'isListField': assignment.isListField,
-    'paragraphSpan': assignment.paragraphSpan,
+    if (assignment.endPath != null)
+      'endPath': documentTextPathToJson(assignment.endPath!),
   };
 }
 
@@ -39,7 +40,9 @@ FieldAssignment fieldAssignmentFromJson(Map<String, dynamic> json) {
     startOffset: json['startOffset'] as int,
     endOffset: json['endOffset'] as int,
     isListField: json['isListField'] as bool? ?? false,
-    paragraphSpan: json['paragraphSpan'] as int?,
+    endPath: json['endPath'] != null
+        ? documentTextPathFromJson(json['endPath'] as Map<String, dynamic>)
+        : null,
   );
 }
 

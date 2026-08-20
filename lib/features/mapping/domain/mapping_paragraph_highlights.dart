@@ -18,14 +18,36 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
   final highlights = <ParagraphHighlightSegment>[];
 
   for (final assignment in assignments) {
+    final endPath = assignment.endPath;
+    final color = mappingColorForFieldIndex(assignment.fieldIndex);
+    final emphasize =
+        emphasizedAssignmentId == assignment.id ||
+        hoveredFieldIndex == assignment.fieldIndex;
+
     if (assignment.path == path) {
-      final color = mappingColorForFieldIndex(assignment.fieldIndex);
-      final emphasize =
-          emphasizedAssignmentId == assignment.id ||
-          hoveredFieldIndex == assignment.fieldIndex;
+      // A cross-paragraph assignment's `endOffset` belongs to `endPath`, not
+      // to this (starting) paragraph, so this paragraph paints from
+      // `startOffset` to its own end instead.
+      final rangeEnd = endPath == null
+          ? assignment.endOffset
+          : (document == null
+                ? assignment.endOffset
+                : _paragraphTextLength(document, path) ?? assignment.endOffset);
       highlights.add(
         ParagraphHighlightSegment(
           startOffset: assignment.startOffset,
+          endOffset: rangeEnd,
+          color: color,
+          emphasize: emphasize,
+        ),
+      );
+      continue;
+    }
+
+    if (endPath != null && endPath == path) {
+      highlights.add(
+        ParagraphHighlightSegment(
+          startOffset: 0,
           endOffset: assignment.endOffset,
           color: color,
           emphasize: emphasize,
@@ -34,7 +56,7 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
       continue;
     }
 
-    if (document == null) {
+    if (document == null || endPath == null) {
       continue;
     }
     if (!_extendedParagraphPaths(document, assignment).contains(path)) {
@@ -49,7 +71,7 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
       ParagraphHighlightSegment(
         startOffset: 0,
         endOffset: extendedLength,
-        color: mappingColorForFieldIndex(assignment.fieldIndex),
+        color: color,
         isExtendedParagraph: true,
       ),
     );
@@ -73,27 +95,32 @@ List<ParagraphHighlightSegment> buildParagraphHighlights({
   return highlights;
 }
 
-/// Rutas de los `assignment.paragraphSpan - 1` párrafos que siguen al
-/// mapeado, para pintarlos como extensión de campo prosa multi-párrafo.
-/// Espeja el criterio de `_collectListGroup` en `docx_zip_exporter.dart`: se
-/// detiene en el primer bloque que no sea un párrafo (p. ej. una tabla) o al
-/// llegar al final del contenedor. Vacío para campos de lista numerada
-/// (esos se auto-detectan por numId al exportar, no aquí) o sin span.
+/// Rutas de los párrafos estrictamente entre `assignment.path` y
+/// `assignment.endPath`, para pintarlos como extensión de campo prosa
+/// multi-párrafo. Espeja el criterio de `_collectListGroup` en
+/// `docx_zip_exporter.dart`: se detiene en el primer bloque que no sea un
+/// párrafo (p. ej. una tabla) o al llegar al final del contenedor. Vacío
+/// para campos de lista numerada (esos se auto-detectan por numId al
+/// exportar, no aquí), sin `endPath`, o cuando ambos extremos no viven en
+/// el mismo contenedor (nivel raíz, o misma celda de tabla).
 List<DocumentTextPath> _extendedParagraphPaths(
   Document document,
   FieldAssignment assignment,
 ) {
-  final span = assignment.paragraphSpan;
-  if (assignment.isListField || span == null || span <= 1) {
+  final endPath = assignment.endPath;
+  if (assignment.isListField || endPath == null) {
     return const <DocumentTextPath>[];
   }
 
   final steps = assignment.path.steps;
-  if (steps.isEmpty) {
+  final endSteps = endPath.steps;
+  if (steps.isEmpty || endSteps.isEmpty || steps.length != endSteps.length) {
     return const <DocumentTextPath>[];
   }
   final firstStep = steps.first;
-  if (firstStep is! RootDocumentBlockStep) {
+  final endFirstStep = endSteps.first;
+  if (firstStep is! RootDocumentBlockStep ||
+      endFirstStep is! RootDocumentBlockStep) {
     return const <DocumentTextPath>[];
   }
 
@@ -102,30 +129,23 @@ List<DocumentTextPath> _extendedParagraphPaths(
   ];
 
   if (steps.length == 1) {
-    final paths = <DocumentTextPath>[];
-    for (var offset = 1; offset < span; offset++) {
-      final blockIndex = firstStep.blockIndex + offset;
-      if (blockIndex < 0 || blockIndex >= bodyBlocks.length) {
-        break;
-      }
-      if (bodyBlocks[blockIndex] is! DocumentParagraphBlock) {
-        break;
-      }
-      paths.add(
-        DocumentTextPath(
-          steps: <DocumentPathStep>[
-            DocumentPathStep.rootBlock(blockIndex: blockIndex),
-          ],
-          region: assignment.path.region,
-        ),
-      );
-    }
-    return paths;
+    return _paragraphsBetween(
+      blocks: bodyBlocks,
+      startBlockIndex: firstStep.blockIndex,
+      endBlockIndex: endFirstStep.blockIndex,
+      pathForBlockIndex: (blockIndex) => DocumentTextPath(
+        steps: <DocumentPathStep>[
+          DocumentPathStep.rootBlock(blockIndex: blockIndex),
+        ],
+        region: assignment.path.region,
+      ),
+    );
   }
 
   // Prosa multi-párrafo dentro de una celda de tabla: sólo el caso común de
-  // un único nivel de anidación (sin tablas dentro de tablas).
-  if (steps.length != 2) {
+  // un único nivel de anidación (sin tablas dentro de tablas), y ambos
+  // extremos deben apuntar a la misma tabla y celda.
+  if (steps.length != 2 || firstStep.blockIndex != endFirstStep.blockIndex) {
     return const <DocumentTextPath>[];
   }
   if (firstStep.blockIndex < 0 || firstStep.blockIndex >= bodyBlocks.length) {
@@ -136,7 +156,11 @@ List<DocumentTextPath> _extendedParagraphPaths(
     return const <DocumentTextPath>[];
   }
   final cellStep = steps[1];
-  if (cellStep is! DocumentTableCellBlockStep) {
+  final endCellStep = endSteps[1];
+  if (cellStep is! DocumentTableCellBlockStep ||
+      endCellStep is! DocumentTableCellBlockStep ||
+      cellStep.rowIndex != endCellStep.rowIndex ||
+      cellStep.cellIndex != endCellStep.cellIndex) {
     return const <DocumentTextPath>[];
   }
   final rows = tableBlock.table.rows;
@@ -149,28 +173,46 @@ List<DocumentTextPath> _extendedParagraphPaths(
   }
   final cellBlocks = cells[cellStep.cellIndex].blocks;
 
+  return _paragraphsBetween(
+    blocks: cellBlocks,
+    startBlockIndex: cellStep.blockIndex,
+    endBlockIndex: endCellStep.blockIndex,
+    pathForBlockIndex: (blockIndex) => DocumentTextPath(
+      steps: <DocumentPathStep>[
+        firstStep,
+        DocumentPathStep.cellBlock(
+          rowIndex: cellStep.rowIndex,
+          cellIndex: cellStep.cellIndex,
+          blockIndex: blockIndex,
+        ),
+      ],
+      region: assignment.path.region,
+    ),
+  );
+}
+
+/// Paths of the paragraph blocks strictly between [startBlockIndex] and
+/// [endBlockIndex] (exclusive on both ends) within [blocks], stopping early
+/// at the first non-paragraph block or out-of-range index.
+List<DocumentTextPath> _paragraphsBetween({
+  required List<DocumentBlock> blocks,
+  required int startBlockIndex,
+  required int endBlockIndex,
+  required DocumentTextPath Function(int blockIndex) pathForBlockIndex,
+}) {
   final paths = <DocumentTextPath>[];
-  for (var offset = 1; offset < span; offset++) {
-    final blockIndex = cellStep.blockIndex + offset;
-    if (blockIndex < 0 || blockIndex >= cellBlocks.length) {
+  for (
+    var blockIndex = startBlockIndex + 1;
+    blockIndex < endBlockIndex;
+    blockIndex++
+  ) {
+    if (blockIndex < 0 || blockIndex >= blocks.length) {
       break;
     }
-    if (cellBlocks[blockIndex] is! DocumentParagraphBlock) {
+    if (blocks[blockIndex] is! DocumentParagraphBlock) {
       break;
     }
-    paths.add(
-      DocumentTextPath(
-        steps: <DocumentPathStep>[
-          firstStep,
-          DocumentPathStep.cellBlock(
-            rowIndex: cellStep.rowIndex,
-            cellIndex: cellStep.cellIndex,
-            blockIndex: blockIndex,
-          ),
-        ],
-        region: assignment.path.region,
-      ),
-    );
+    paths.add(pathForBlockIndex(blockIndex));
   }
   return paths;
 }

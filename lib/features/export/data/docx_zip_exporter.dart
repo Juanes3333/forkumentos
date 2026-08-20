@@ -52,6 +52,35 @@ final class DocxListReplacement {
   final int? paragraphSpan;
 }
 
+/// One resolved cross-paragraph text replacement: the source range starts at
+/// [startOffset] in the root-level `<w:p>` at [startBlockIndex] and ends at
+/// [endOffset] in the root-level `<w:p>` at [endBlockIndex] (mirrors
+/// `FieldAssignment.path`/`startOffset`/`endPath`/`endOffset`).
+///
+/// [text] is split on `\n`; the first line replaces the start paragraph's
+/// tail, the last line replaces the end paragraph's head, and any lines in
+/// between become new cloned paragraphs inserted where the original
+/// in-between `<w:p>`s were removed. A single-line [text] merges both
+/// paragraphs into one and drops the end paragraph.
+///
+/// Root-level only, like [DocxListReplacement]: a range starting/ending
+/// inside a table cell is not supported.
+final class DocxRangeReplacement {
+  const DocxRangeReplacement({
+    required this.startBlockIndex,
+    required this.startOffset,
+    required this.endBlockIndex,
+    required this.endOffset,
+    required this.text,
+  });
+
+  final int startBlockIndex;
+  final int startOffset;
+  final int endBlockIndex;
+  final int endOffset;
+  final String text;
+}
+
 /// Decoded DOCX ZIP entries ready for per-row XML mutation without re-decode.
 final class PreparedDocxTemplate {
   const PreparedDocxTemplate({required this.entries});
@@ -114,6 +143,7 @@ final class DocxZipExporter {
     required PreparedDocxTemplate prepared,
     required List<DocxTextReplacement> replacements,
     List<DocxListReplacement> listReplacements = const [],
+    List<DocxRangeReplacement> rangeReplacements = const [],
   }) {
     final output = Archive();
 
@@ -124,6 +154,7 @@ final class DocxZipExporter {
           xml,
           replacements,
           listReplacements,
+          rangeReplacements,
         );
         final encoded = Uint8List.fromList(utf8.encode(updated));
         output.addFile(
@@ -154,11 +185,13 @@ final class DocxZipExporter {
     required Uint8List templateBytes,
     required List<DocxTextReplacement> replacements,
     List<DocxListReplacement> listReplacements = const [],
+    List<DocxRangeReplacement> rangeReplacements = const [],
   }) {
     return applyPrepared(
       prepared: prepare(templateBytes),
       replacements: replacements,
       listReplacements: listReplacements,
+      rangeReplacements: rangeReplacements,
     );
   }
 }
@@ -175,8 +208,11 @@ String _applyToDocumentXml(
   String xmlContent,
   List<DocxTextReplacement> replacements,
   List<DocxListReplacement> listReplacements,
+  List<DocxRangeReplacement> rangeReplacements,
 ) {
-  if (replacements.isEmpty && listReplacements.isEmpty) {
+  if (replacements.isEmpty &&
+      listReplacements.isEmpty &&
+      rangeReplacements.isEmpty) {
     // Sin reemplazos no se reescribe una sola letra, así que la copia es
     // idéntica a la plantilla y sus `lastRenderedPageBreak` siguen siendo
     // ciertos: no hay nada obsoleto que limpiar y se evita parsear y
@@ -195,6 +231,10 @@ String _applyToDocumentXml(
     for (final listReplacement in listReplacements)
       listReplacement.rootBlockIndex: listReplacement,
   };
+  final byStartBlockIndex = <int, DocxRangeReplacement>{
+    for (final rangeReplacement in rangeReplacements)
+      rangeReplacement.startBlockIndex: rangeReplacement,
+  };
 
   // Absoluto y monotónico, en orden de documento: espejo exacto de
   // `enumerateParagraphTexts` (un incremento por segmento de
@@ -210,12 +250,18 @@ String _applyToDocumentXml(
   // afectado por una mutación de lista en un bloque anterior.
   final children = body.childElements.toList();
   final pendingLists = <_PendingListInsertion>[];
+  // Head blockIndex (primer chunk de cada `<w:p>`, o el único valor de cada
+  // `<w:tbl>`) -> elemento raíz. Espejo del `rootBlockIndex` que ya usan las
+  // listas: permite resolver P1/P2 de un rango cruzado después de terminar
+  // este recorrido, sin repetir la cuenta de blockIndex.
+  final elementByBlockIndex = <int, XmlElement>{};
 
   for (var i = 0; i < children.length; i++) {
     final child = children[i];
     final localName = child.name.local;
     if (localName == 'p') {
       final paragraphBlockIndex = blockIndex;
+      elementByBlockIndex[paragraphBlockIndex] = child;
       final chunks = _splitParagraphChunks(child);
       for (final chunk in chunks) {
         final steps = <ExportPathStep>[
@@ -238,6 +284,7 @@ String _applyToDocumentXml(
     }
 
     if (localName == 'tbl') {
+      elementByBlockIndex[blockIndex] = child;
       _walkTable(child, rootBlockIndex: blockIndex, byPath: byPath);
       blockIndex++;
     }
@@ -248,6 +295,15 @@ String _applyToDocumentXml(
   pendingLists.sort((a, b) => b.blockIndex.compareTo(a.blockIndex));
   for (final pending in pendingLists) {
     _applyListInsertion(body, pending);
+  }
+
+  final pendingRanges = _resolvePendingRanges(
+    children,
+    byStartBlockIndex,
+    elementByBlockIndex,
+  )..sort((a, b) => b.startBlockIndex.compareTo(a.startBlockIndex));
+  for (final pending in pendingRanges) {
+    _applyRangeReplacement(body, pending);
   }
 
   _stripLastRenderedPageBreaks(document);
@@ -326,6 +382,166 @@ void _applyListInsertion(XmlElement body, _PendingListInsertion pending) {
   for (final line in pending.lines) {
     body.children.insert(index, _cloneListParagraph(pending.template, line));
     index++;
+  }
+}
+
+/// Resuelve cada [DocxRangeReplacement] a sus elementos `<w:p>` P1/P2 y a los
+/// elementos raíz que quedan estrictamente entre ambos (a eliminar). Un
+/// rango cuyo `startBlockIndex`/`endBlockIndex` no resuelva a un `<w:p>`
+/// válido en orden creciente se descarta: no hay dónde aplicarlo.
+List<_PendingRangeReplacement> _resolvePendingRanges(
+  List<XmlElement> children,
+  Map<int, DocxRangeReplacement> byStartBlockIndex,
+  Map<int, XmlElement> elementByBlockIndex,
+) {
+  final pending = <_PendingRangeReplacement>[];
+  for (final range in byStartBlockIndex.values) {
+    final startElement = elementByBlockIndex[range.startBlockIndex];
+    final endElement = elementByBlockIndex[range.endBlockIndex];
+    if (startElement == null ||
+        endElement == null ||
+        startElement.name.local != 'p' ||
+        endElement.name.local != 'p') {
+      continue;
+    }
+    final startIndex = children.indexOf(startElement);
+    final endIndex = children.indexOf(endElement);
+    if (startIndex < 0 || endIndex < startIndex) {
+      continue;
+    }
+    pending.add(
+      _PendingRangeReplacement(
+        startElement: startElement,
+        endElement: endElement,
+        between: children.sublist(startIndex + 1, endIndex),
+        text: range.text,
+        startOffset: range.startOffset,
+        endOffset: range.endOffset,
+        startBlockIndex: range.startBlockIndex,
+      ),
+    );
+  }
+  return pending;
+}
+
+/// Aplica un reemplazo cruzado entre párrafos: P1 conserva su prefijo, P2 su
+/// sufijo, los `<w:p>` intermedios se eliminan, y el texto partido por `\n`
+/// se reparte entre P1, clones intermedios y P2. Ver [DocxRangeReplacement].
+void _applyRangeReplacement(XmlElement body, _PendingRangeReplacement pending) {
+  for (final element in pending.between) {
+    body.children.remove(element);
+  }
+
+  final startNodes = _splitParagraphChunks(
+    pending.startElement,
+  ).expand((chunk) => chunk.nodes).toList();
+  final startPlainLen = _plainTextLength(startNodes);
+  final lines = pending.text.split('\n');
+
+  if (identical(pending.startElement, pending.endElement)) {
+    // ponytail: degenerado (mismo párrafo) — no debería ocurrir para un
+    // rango cruzado real, pero se resuelve como un reemplazo normal en vez
+    // de fallar.
+    _spliceEditableRange(
+      startNodes,
+      start: pending.startOffset,
+      end: pending.endOffset.clamp(0, startPlainLen),
+      text: pending.text,
+    );
+    return;
+  }
+
+  final endNodes = _splitParagraphChunks(
+    pending.endElement,
+  ).expand((chunk) => chunk.nodes).toList();
+
+  if (lines.length == 1) {
+    final endPlain = endNodes.map((node) => node.text).join();
+    final suffix = endPlain.substring(
+      pending.endOffset.clamp(0, endPlain.length),
+    );
+    _spliceEditableRange(
+      startNodes,
+      start: pending.startOffset,
+      end: startPlainLen,
+      text: lines.first + suffix,
+    );
+    body.children.remove(pending.endElement);
+    return;
+  }
+
+  _spliceEditableRange(
+    startNodes,
+    start: pending.startOffset,
+    end: startPlainLen,
+    text: lines.first,
+  );
+  _spliceEditableRange(
+    endNodes,
+    start: 0,
+    end: pending.endOffset,
+    text: lines.last,
+  );
+
+  final insertAt = body.children.indexOf(pending.endElement);
+  if (insertAt >= 0) {
+    var index = insertAt;
+    for (final middle in lines.sublist(1, lines.length - 1)) {
+      body.children.insert(
+        index,
+        _cloneListParagraph(pending.startElement, middle),
+      );
+      index++;
+    }
+  }
+}
+
+int _plainTextLength(List<_TextNodeRef> nodes) {
+  var length = 0;
+  for (final node in nodes) {
+    length += node.text.length;
+  }
+  return length;
+}
+
+/// Reemplaza el texto de [nodes] (chunk de un párrafo, incluidos nodos
+/// "gap" como `w:tab`/`w:br`) entre [start] y [end] por [text].
+///
+/// A diferencia de [_applyToTextNodes]/`_applyToEditableGroup` (pensados
+/// para un rango que siempre reemplaza texto existente dentro de un mismo
+/// grupo), esto admite `start == end` en el borde de un grupo editable: el
+/// caso normal que produce un rango cruzado entre párrafos al insertar justo
+/// al final o al principio de un párrafo.
+///
+/// ponytail: si [start]/[end] no caben en un único grupo editable (p.ej. el
+/// rango cruza un `w:tab` dentro del propio párrafo de inicio/fin), se
+/// aplica sobre el primer grupo como mejor esfuerzo en vez de fragmentar el
+/// texto entre grupos — sube a un splice multi-grupo si un template real lo
+/// necesita.
+void _spliceEditableRange(
+  List<_TextNodeRef> nodes, {
+  required int start,
+  required int end,
+  required String text,
+}) {
+  final groups = _editableGroups(nodes);
+  if (groups.isEmpty) {
+    return;
+  }
+  final target = groups.firstWhere(
+    (group) => start >= group.start && end <= group.end,
+    orElse: () => groups.first,
+  );
+  final localStart = (start - target.start).clamp(0, target.end - target.start);
+  final localEnd = (end - target.start)
+      .clamp(0, target.end - target.start)
+      .clamp(localStart, target.end - target.start);
+  final plain = target.nodes.map((node) => node.text).join();
+  final merged =
+      plain.substring(0, localStart) + text + plain.substring(localEnd);
+  target.nodes.first.element.innerText = merged;
+  for (final node in target.nodes.skip(1)) {
+    node.element.innerText = '';
   }
 }
 
@@ -807,4 +1023,27 @@ final class _PendingListInsertion {
   final List<XmlElement> toRemove;
   final List<String> lines;
   final int blockIndex;
+}
+
+/// A cross-paragraph range replacement queued during the read-only body
+/// walk, resolved and applied only after that walk finishes — same reason
+/// as [_PendingListInsertion].
+final class _PendingRangeReplacement {
+  const _PendingRangeReplacement({
+    required this.startElement,
+    required this.endElement,
+    required this.between,
+    required this.text,
+    required this.startOffset,
+    required this.endOffset,
+    required this.startBlockIndex,
+  });
+
+  final XmlElement startElement;
+  final XmlElement endElement;
+  final List<XmlElement> between;
+  final String text;
+  final int startOffset;
+  final int endOffset;
+  final int startBlockIndex;
 }

@@ -112,18 +112,14 @@ final class WorkbenchInspector extends ConsumerWidget {
                                   isListField: isListField,
                                 );
                           },
-                      onAdjustParagraphSpan: ({required assignmentId, required delta}) {
-                        final assignment = mappingState.assignments
-                            .firstWhere((a) => a.id == assignmentId);
-                        final current = assignment.paragraphSpan ?? 1;
-                        final next = current + delta;
+                      onDefineRangeEnd: (assignmentId) {
                         ref
                             .read(activeMappingProvider.notifier)
-                            .setAssignmentParagraphSpan(
-                              assignmentId: assignmentId,
-                              paragraphSpan: next <= 1 ? null : next,
-                            );
+                            .beginRangeClose(assignmentId);
                       },
+                      pendingRangeCloseAssignmentId: ref.watch(
+                        pendingRangeCloseAssignmentIdProvider,
+                      ),
                     ),
             ),
           ],

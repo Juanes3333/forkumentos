@@ -652,6 +652,122 @@ void main() {
       expect(_countElements(documentXml, 'p'), 1);
     });
   });
+
+  group('DocxRangeReplacement (rango cruzado entre párrafos)', () {
+    test('texto de una sola línea fusiona P1 y P2: conserva el prefijo de '
+        'P1 y el sufijo de P2, elimina P2', () {
+      final documentXml = _exportDocumentXmlWithRanges(
+        bodyContent: '''
+<w:p><w:r><w:t>Hola mundo</w:t></w:r></w:p>
+<w:p><w:r><w:t>cruel y frio.</w:t></w:r></w:p>
+''',
+        rangeReplacements: const <DocxRangeReplacement>[
+          DocxRangeReplacement(
+            startBlockIndex: 0,
+            // "Hola " (prefijo) | "mundo" (rango) empieza en offset 5.
+            startOffset: 5,
+            endBlockIndex: 1,
+            // "cruel" (rango) | " y frio." (sufijo) termina en offset 5.
+            endOffset: 5,
+            text: 'Ana',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Hola Ana y frio.']);
+      expect(_countElements(documentXml, 'p'), 1);
+    });
+
+    test('texto con \\n cruzando dos párrafos: P1 = prefijo + línea 0, '
+        'P2 = línea 1 + sufijo, sin párrafos clonados', () {
+      final documentXml = _exportDocumentXmlWithRanges(
+        bodyContent: '''
+<w:p><w:r><w:t>Estimado: </w:t></w:r></w:p>
+<w:p><w:r><w:t>Fin de carta.</w:t></w:r></w:p>
+''',
+        rangeReplacements: const <DocxRangeReplacement>[
+          DocxRangeReplacement(
+            startBlockIndex: 0,
+            startOffset: 10,
+            endBlockIndex: 1,
+            endOffset: 0,
+            text: 'Primera línea.\nSegunda línea.',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>[
+        'Estimado: Primera línea.',
+        'Segunda línea.Fin de carta.',
+      ]);
+      expect(_countElements(documentXml, 'p'), 2);
+    });
+
+    test('texto con \\n cruzando tres párrafos: el párrafo intermedio se '
+        'elimina y se clona uno nuevo por cada línea intermedia', () {
+      final documentXml = _exportDocumentXmlWithRanges(
+        bodyContent: '''
+<w:p><w:r><w:t>Prefijo-</w:t></w:r></w:p>
+<w:p><w:r><w:t>ESTE PARRAFO SE BORRA ENTERO</w:t></w:r></w:p>
+<w:p><w:r><w:t>-sufijo</w:t></w:r></w:p>
+''',
+        rangeReplacements: const <DocxRangeReplacement>[
+          DocxRangeReplacement(
+            startBlockIndex: 0,
+            startOffset: 8,
+            endBlockIndex: 2,
+            endOffset: 0,
+            text: 'Uno.\nDos.\nTres.',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>[
+        'Prefijo-Uno.',
+        'Dos.',
+        'Tres.-sufijo',
+      ]);
+      expect(_countElements(documentXml, 'p'), 3);
+      expect(documentXml, isNot(contains('ESTE PARRAFO SE BORRA ENTERO')));
+    });
+
+    test('el rango cruzado convive con reemplazos normales en otros '
+        'párrafos, sin desalinear sus blockIndex', () {
+      final documentXml = _exportDocumentXmlWithRanges(
+        bodyContent: '''
+<w:p><w:r><w:t>Saludo</w:t></w:r></w:p>
+<w:p><w:r><w:t>Uno.</w:t></w:r></w:p>
+<w:p><w:r><w:t>Dos.</w:t></w:r></w:p>
+<w:p><w:r><w:t>Despedida</w:t></w:r></w:p>
+''',
+        replacements: const <DocxTextReplacement>[
+          DocxTextReplacement(
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            startOffset: 0,
+            endOffset: 6,
+            text: 'Hola',
+          ),
+          DocxTextReplacement(
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 3)],
+            startOffset: 0,
+            endOffset: 9,
+            text: 'Chau',
+          ),
+        ],
+        rangeReplacements: const <DocxRangeReplacement>[
+          DocxRangeReplacement(
+            startBlockIndex: 1,
+            startOffset: 0,
+            endBlockIndex: 2,
+            endOffset: 4,
+            text: 'Junto.',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Hola', 'Junto.', 'Chau']);
+    });
+  });
 }
 
 /// Un reemplazo de un párrafo de primer nivel, que es el caso de la mayoría
@@ -743,6 +859,25 @@ String _exportDocumentXmlWithLists({
     templateBytes: template,
     replacements: replacements,
     listReplacements: listReplacements,
+  );
+  final archive = ZipDecoder().decodeBytes(result);
+  final documentFile = archive.files.firstWhere(
+    (file) => file.name.toLowerCase() == 'word/document.xml',
+  );
+  return utf8.decode(documentFile.content as List<int>);
+}
+
+/// Como [_exportDocumentXml] pero también acepta [rangeReplacements].
+String _exportDocumentXmlWithRanges({
+  required String bodyContent,
+  List<DocxTextReplacement> replacements = const <DocxTextReplacement>[],
+  List<DocxRangeReplacement> rangeReplacements = const <DocxRangeReplacement>[],
+}) {
+  final template = _buildDocxBytes(documentXml: _documentWithBody(bodyContent));
+  final result = const DocxZipExporter().applyReplacements(
+    templateBytes: template,
+    replacements: replacements,
+    rangeReplacements: rangeReplacements,
   );
   final archive = ZipDecoder().decodeBytes(result);
   final documentFile = archive.files.firstWhere(

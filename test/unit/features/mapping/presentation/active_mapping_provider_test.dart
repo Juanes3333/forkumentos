@@ -11,10 +11,17 @@ import 'package:forkumentos/features/mapping/presentation/active_mapping_provide
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
+import 'package:forkumentos/features/template/data/template_repository_provider.dart';
+import 'package:forkumentos/features/template/domain/template.dart';
+import 'package:forkumentos/features/template/domain/template_repository.dart';
+import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
+import 'package:forkumentos/shared/data/document_repository.dart';
+import 'package:forkumentos/shared/data/document_repository_provider.dart';
 import 'package:forkumentos/shared/models/document.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/document_content_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:uuid/uuid.dart';
 
@@ -278,77 +285,194 @@ void main() {
     expect(container.read(activeMappingProvider).canUndo, isTrue);
   });
 
-  test(
-    'findAdditionalOccurrences excluye spans que solapan con '
-    'asignaciones existentes',
-    () {
-      final container = _createContainer();
-      addTearDown(container.dispose);
+  test('findAdditionalOccurrences excluye spans que solapan con '
+      'asignaciones existentes', () {
+    final container = _createContainer();
+    addTearDown(container.dispose);
 
-      final document = _documentWithTexts(<String>[
-        '14.675.586 de Cali (Valle)',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        'texto intermedio',
-        '14.675.586 de Cali',
-      ]);
+    final document = _documentWithTexts(<String>[
+      '14.675.586 de Cali (Valle)',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      'texto intermedio',
+      '14.675.586 de Cali',
+    ]);
 
-      final notifier = container.read(activeMappingProvider.notifier)
-        ..confirmAssignment(
-          selection: const DocumentTextSelection(
-            path: DocumentTextPath(
+    final notifier = container.read(activeMappingProvider.notifier)
+      ..confirmAssignment(
+        selection: const DocumentTextSelection(
+          path: DocumentTextPath(
+            steps: <DocumentPathStep>[
+              DocumentPathStep.rootBlock(blockIndex: 0),
+            ],
+          ),
+          startOffset: 0,
+          endOffset: 27,
+          selectedText: '14.675.586 de Cali (Valle)',
+        ),
+        fieldHeader: 'cedulaContratista',
+        fieldIndex: 0,
+        headerCount: 1,
+      );
+
+    const primaryAssignment = FieldAssignment(
+      id: 'manual-selection',
+      fieldIndex: 0,
+      fieldHeader: 'cedulaContratista',
+      selectedText: '14.675.586 de Cali',
+      path: DocumentTextPath(
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 12)],
+      ),
+      startOffset: 0,
+      endOffset: 19,
+    );
+
+    final additional = notifier.findAdditionalOccurrences(
+      document: document,
+      primaryAssignment: primaryAssignment,
+    );
+
+    expect(
+      additional.any(
+        (occurrence) =>
+            occurrence.path ==
+            const DocumentTextPath(
               steps: <DocumentPathStep>[
                 DocumentPathStep.rootBlock(blockIndex: 0),
               ],
             ),
-            startOffset: 0,
-            endOffset: 27,
-            selectedText: '14.675.586 de Cali (Valle)',
+      ),
+      isFalse,
+    );
+  });
+
+  test(
+    'completeRangeClose reconstruye selectedText del rango cruzado',
+    () async {
+      final document = _documentWithTexts(<String>[
+        'Cláusula primera: el contratista se compromete a',
+        'entregar el bien en un plazo acordado',
+        'contados desde la firma del contrato.',
+      ]);
+      final container = _createContainer(
+        documentRepository: _FakeDocumentRepository(document),
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(activeProjectProvider.notifier)
+          .loadProject(filePath: 'con-plantilla.fork');
+      final template = await container.read(activeTemplateProvider.future);
+      await container.read(
+        documentContentProvider(template!.sourcePath).future,
+      );
+
+      const startPath = DocumentTextPath(
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
+      );
+      const endPath = DocumentTextPath(
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 2)],
+      );
+
+      container.read(activeMappingProvider.notifier)
+        ..confirmAssignment(
+          selection: const DocumentTextSelection(
+            path: startPath,
+            startOffset: 18,
+            endOffset: 48,
+            selectedText: 'el contratista se compromete a',
           ),
-          fieldHeader: 'cedulaContratista',
+          fieldHeader: 'obligacion',
           fieldIndex: 0,
           headerCount: 1,
+        )
+        ..beginRangeClose(
+          container
+              .read(activeMappingProvider)
+              .state
+              .assignments
+              .firstWhere((a) => a.fieldHeader == 'obligacion')
+              .id,
+        )
+        ..completeRangeClose(
+          const DocumentTextSelection(
+            path: endPath,
+            startOffset: 0,
+            endOffset: 17,
+            selectedText: 'contados desde la',
+          ),
         );
 
-      const primaryAssignment = FieldAssignment(
-        id: 'manual-selection',
-        fieldIndex: 0,
-        fieldHeader: 'cedulaContratista',
-        selectedText: '14.675.586 de Cali',
-        path: DocumentTextPath(
-          steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 12)],
-        ),
-        startOffset: 0,
-        endOffset: 19,
-      );
-
-      final additional = notifier.findAdditionalOccurrences(
-        document: document,
-        primaryAssignment: primaryAssignment,
-      );
-
+      final assignment = container
+          .read(activeMappingProvider)
+          .state
+          .assignments
+          .firstWhere((a) => a.fieldHeader == 'obligacion');
+      expect(assignment.endPath, endPath);
+      expect(assignment.endOffset, 17);
       expect(
-        additional.any(
-          (occurrence) =>
-              occurrence.path ==
-              const DocumentTextPath(
-                steps: <DocumentPathStep>[
-                  DocumentPathStep.rootBlock(blockIndex: 0),
-                ],
-              ),
-        ),
-        isFalse,
+        assignment.selectedText,
+        'el contratista se compromete a\n'
+        'entregar el bien en un plazo acordado\n'
+        'contados desde la',
       );
+      expect(container.read(pendingRangeCloseAssignmentIdProvider), isNull);
     },
   );
+
+  test('completeRangeClose conserva selectedText si el documento no está '
+      'disponible', () {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+
+    const path = DocumentTextPath(
+      steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
+    );
+    final notifier = container.read(activeMappingProvider.notifier)
+      ..confirmAssignment(
+        selection: const DocumentTextSelection(
+          path: path,
+          startOffset: 0,
+          endOffset: 3,
+          selectedText: 'Ana',
+        ),
+        fieldHeader: 'nombre',
+        fieldIndex: 0,
+        headerCount: 1,
+      );
+    final assignmentId = container
+        .read(activeMappingProvider)
+        .state
+        .assignments
+        .single
+        .id;
+
+    notifier
+      ..beginRangeClose(assignmentId)
+      ..completeRangeClose(
+        const DocumentTextSelection(
+          path: path,
+          startOffset: 0,
+          endOffset: 3,
+          selectedText: 'Ana',
+        ),
+      );
+
+    final assignment = container
+        .read(activeMappingProvider)
+        .state
+        .assignments
+        .single;
+    expect(assignment.selectedText, 'Ana');
+  });
 
   test('restaura asignaciones desde el proyecto activo', () async {
     final container = _createContainer();
@@ -431,16 +555,42 @@ Document _documentWithTexts(List<String> texts) {
   );
 }
 
-ProviderContainer _createContainer() {
+ProviderContainer _createContainer({DocumentRepository? documentRepository}) {
   return ProviderContainer(
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(_FakeProjectRepository()),
+      templateRepositoryProvider.overrideWithValue(_FakeTemplateRepository()),
+      documentRepositoryProvider.overrideWithValue(
+        documentRepository ??
+            _FakeDocumentRepository(_documentWithTexts(<String>[])),
+      ),
       workspacePathsProvider.overrideWithValue(
         WorkspacePaths(root: Directory.systemTemp.path),
       ),
     ],
   );
+}
+
+final class _FakeTemplateRepository implements TemplateRepository {
+  @override
+  Future<Template> load(String filePath) async {
+    return Template(
+      sourcePath: filePath,
+      fileName: 'template.docx',
+      fileSizeBytes: 100,
+      importedAt: DateTime.utc(2026),
+    );
+  }
+}
+
+final class _FakeDocumentRepository implements DocumentRepository {
+  _FakeDocumentRepository(this.document);
+
+  final Document document;
+
+  @override
+  Future<Document> load(String filePath) async => document;
 }
 
 final class _FakeProjectRepository implements ProjectRepository {
@@ -470,6 +620,7 @@ final class _FakeProjectRepository implements ProjectRepository {
         assignment,
       ]),
       filePath: filePath,
+      embeddedTemplatePath: 'template.docx',
     );
   }
 

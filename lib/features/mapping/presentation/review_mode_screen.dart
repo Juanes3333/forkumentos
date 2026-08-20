@@ -99,6 +99,9 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
     );
     final document = documentState.valueOrNull;
     final emphasizedAssignmentId = ref.watch(emphasizedAssignmentIdProvider);
+    final pendingRangeCloseAssignmentId = ref.watch(
+      pendingRangeCloseAssignmentIdProvider,
+    );
 
     final assignmentCounts = List<int>.generate(widget.headers.length, (index) {
       return mappingState.assignments
@@ -175,7 +178,17 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
                                       mappingState.currentFieldIndex,
                                   emphasizedAssignmentId:
                                       emphasizedAssignmentId,
+                                  document: document,
                                 ),
+                            onSelectionChanged: (selection) {
+                              if (selection == null ||
+                                  pendingRangeCloseAssignmentId == null) {
+                                return;
+                              }
+                              ref
+                                  .read(activeMappingProvider.notifier)
+                                  .completeRangeClose(selection);
+                            },
                           ),
                   ),
                 ),
@@ -193,18 +206,14 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
                   .removeAssignment(assignmentId);
             },
             onNavigateToAssignment: (assignmentId) {
-              final assignment = mappingState.assignments
-                  .firstWhere((a) => a.id == assignmentId);
-              _documentViewerKey.currentState?.scrollToPath(assignment.path);
+              ref
+                  .read(mappingNavigationProvider.notifier)
+                  .navigateTo(AssignmentNavigationTarget(assignmentId));
             },
             onNavigateToField: (fieldIndex) {
-              final firstAssignment = mappingState.assignments
-                  .where((a) => a.fieldIndex == fieldIndex)
-                  .firstOrNull;
-              if (firstAssignment != null) {
-                _documentViewerKey.currentState
-                    ?.scrollToPath(firstAssignment.path);
-              }
+              ref
+                  .read(mappingNavigationProvider.notifier)
+                  .navigateTo(DatasourceFieldNavigationTarget(fieldIndex));
             },
             onFieldHoverChanged: (fieldIndex) {
               ref
@@ -220,18 +229,12 @@ final class _ReviewModeScreenState extends ConsumerState<ReviewModeScreen> {
                         isListField: isListField,
                       );
                 },
-            onAdjustParagraphSpan: ({required assignmentId, required delta}) {
-              final assignment = mappingState.assignments
-                  .firstWhere((a) => a.id == assignmentId);
-              final current = assignment.paragraphSpan ?? 1;
-              final next = current + delta;
+            onDefineRangeEnd: (assignmentId) {
               ref
                   .read(activeMappingProvider.notifier)
-                  .setAssignmentParagraphSpan(
-                    assignmentId: assignmentId,
-                    paragraphSpan: next <= 1 ? null : next,
-                  );
+                  .beginRangeClose(assignmentId);
             },
+            pendingRangeCloseAssignmentId: pendingRangeCloseAssignmentId,
           ),
         ],
       ),

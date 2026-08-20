@@ -91,6 +91,9 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
     final emphasizedAssignmentId = ref.watch(emphasizedAssignmentIdProvider);
     final viewerController = ref.watch(documentViewerControllerProvider);
     final isPreview = reviewMode == WorkbenchReviewRenderMode.preview;
+    final document = templatePath == null
+        ? null
+        : ref.watch(documentContentProvider(templatePath)).valueOrNull;
 
     if (templatePath == null) {
       if (templateState.isLoading) {
@@ -141,6 +144,7 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
                         .hoveredFieldIndex,
                     activeFieldIndex: currentFieldIndex,
                     emphasizedAssignmentId: emphasizedAssignmentId,
+                    document: document,
                   ),
             // null (not empty callback): SelectableText would stale TextSpans.
             onSelectionChanged: isPreview || headers.isEmpty
@@ -156,6 +160,11 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
 
   void _handleSelectionChanged(DocumentTextSelection? selection) {
     if (selection == null || selection.anchor == null) {
+      ref.read(workbenchSelectionProvider.notifier).clearSelection();
+      return;
+    }
+    if (ref.read(pendingRangeCloseAssignmentIdProvider) != null) {
+      ref.read(activeMappingProvider.notifier).completeRangeClose(selection);
       ref.read(workbenchSelectionProvider.notifier).clearSelection();
       return;
     }

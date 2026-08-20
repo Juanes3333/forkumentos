@@ -15,7 +15,8 @@ final class MappingReviewSidebar extends StatefulWidget {
     required this.onNavigateToField,
     required this.onFieldHoverChanged,
     required this.onSetAssignmentIsListField,
-    required this.onAdjustParagraphSpan,
+    required this.onDefineRangeEnd,
+    this.pendingRangeCloseAssignmentId,
     this.document,
     super.key,
   });
@@ -33,9 +34,14 @@ final class MappingReviewSidebar extends StatefulWidget {
   final void Function({required String assignmentId, required bool isListField})
   onSetAssignmentIsListField;
 
-  /// Invocado cuando el usuario usa los botones de expandir prosa multi-párrafo.
-  final void Function({required String assignmentId, required int delta})
-  onAdjustParagraphSpan;
+  /// Invocado cuando el usuario hace clic en "Definir fin de rango" para una
+  /// asignación: pone la app en modo "esperando selección" para esa
+  /// asignación.
+  final ValueChanged<String> onDefineRangeEnd;
+
+  /// Id de la asignación que está esperando que el usuario seleccione texto
+  /// para cerrar su rango, o `null` si ninguna lo está.
+  final String? pendingRangeCloseAssignmentId;
 
   /// Documento activo, para resolver a qué página apunta cada asignación.
   /// `null` mientras el documento todavía carga: la página simplemente se
@@ -173,44 +179,54 @@ final class _MappingReviewSidebarState extends State<MappingReviewSidebar> {
                         onTap: () =>
                             widget.onNavigateToAssignment(assignment.id),
                       ),
-                      if (!_paragraphHasNumbering(assignment) && !assignment.isListField)
+                      if (!_paragraphHasNumbering(assignment) &&
+                          !assignment.isListField)
                         Padding(
-                          padding: const EdgeInsets.only(left: 48, right: 16, bottom: 8),
+                          padding: const EdgeInsets.only(
+                            left: 48,
+                            right: 16,
+                            bottom: 8,
+                          ),
                           child: Wrap(
                             spacing: 6,
                             runSpacing: 4,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: <Widget>[
-                              if ((assignment.paragraphSpan ?? 1) > 1)
+                              if (assignment.endPath != null)
                                 Text(
-                                  'Abarca ${assignment.paragraphSpan} párrafos',
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: Theme.of(context).disabledColor,
-                                  ),
+                                  'Cruza varios párrafos',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: Theme.of(context).disabledColor,
+                                      ),
                                 ),
-                              OutlinedButton.icon(
-                                onPressed: () => widget.onAdjustParagraphSpan(
-                                  assignmentId: assignment.id,
-                                  delta: 1,
-                                ),
-                                icon: const Icon(Icons.arrow_downward, size: 14),
-                                label: const Text('Incluir siguiente'),
-                                style: OutlinedButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  textStyle: Theme.of(context).textTheme.labelSmall,
-                                ),
-                              ),
-                              if ((assignment.paragraphSpan ?? 1) > 1)
+                              if (widget.pendingRangeCloseAssignmentId ==
+                                  assignment.id)
+                                Text(
+                                  'Selecciona el texto donde termina el '
+                                  'rango...',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                )
+                              else
                                 OutlinedButton.icon(
-                                  onPressed: () => widget.onAdjustParagraphSpan(
-                                    assignmentId: assignment.id,
-                                    delta: -1,
+                                  onPressed: () =>
+                                      widget.onDefineRangeEnd(assignment.id),
+                                  icon: const Icon(
+                                    Icons.linear_scale,
+                                    size: 14,
                                   ),
-                                  icon: const Icon(Icons.arrow_upward, size: 14),
-                                  label: const Text('Excluir último'),
+                                  label: const Text('Definir fin de rango'),
                                   style: OutlinedButton.styleFrom(
                                     visualDensity: VisualDensity.compact,
-                                    textStyle: Theme.of(context).textTheme.labelSmall,
+                                    textStyle: Theme.of(
+                                      context,
+                                    ).textTheme.labelSmall,
                                   ),
                                 ),
                             ],

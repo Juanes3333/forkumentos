@@ -12,10 +12,10 @@ final class MappingFieldSidebar extends StatelessWidget {
     required this.onFieldSelected,
     required this.onFieldHoverChanged,
     required this.onRemoveFieldAssignments,
-    this.showParagraphSpanControls = false,
-    this.currentFieldParagraphSpan,
-    this.onIncludeNextParagraph,
-    this.onExcludeLastParagraph,
+    this.showRangeEndControl = false,
+    this.currentFieldCrossesParagraphs = false,
+    this.isDefiningRangeEnd = false,
+    this.onDefineRangeEnd,
     super.key,
   });
 
@@ -27,18 +27,21 @@ final class MappingFieldSidebar extends StatelessWidget {
   final ValueChanged<int?> onFieldHoverChanged;
   final ValueChanged<int> onRemoveFieldAssignments;
 
-  /// Cuando es `true`, se muestran los controles de "Incluir/Excluir
-  /// siguiente párrafo" debajo del campo activo. El llamador decide esto:
-  /// requiere al menos una asignación en el campo activo, cuyo párrafo no
-  /// pertenezca a una lista numerada (esas usan auto-detección por numId) ni
-  /// esté marcado manualmente como campo de lista.
-  final bool showParagraphSpanControls;
+  /// Cuando es `true`, se muestra el control "Definir fin de rango" debajo
+  /// del campo activo. El llamador decide esto: requiere al menos una
+  /// asignación en el campo activo, cuyo párrafo no pertenezca a una lista
+  /// numerada (esas usan auto-detección por numId) ni esté marcado
+  /// manualmente como campo de lista.
+  final bool showRangeEndControl;
 
-  /// Cuántos párrafos abarca la asignación activa. `null` o `1` = un solo
-  /// párrafo.
-  final int? currentFieldParagraphSpan;
-  final VoidCallback? onIncludeNextParagraph;
-  final VoidCallback? onExcludeLastParagraph;
+  /// `true` si la asignación activa ya cruza varios párrafos (tiene
+  /// `endPath`).
+  final bool currentFieldCrossesParagraphs;
+
+  /// `true` mientras la app espera que el usuario seleccione texto para
+  /// cerrar el rango de la asignación activa.
+  final bool isDefiningRangeEnd;
+  final VoidCallback? onDefineRangeEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -104,11 +107,11 @@ final class MappingFieldSidebar extends StatelessWidget {
                         : null,
                     onTap: () => onFieldSelected(index),
                   ),
-                  if (isActive && showParagraphSpanControls)
-                    _ParagraphSpanControls(
-                      paragraphSpan: currentFieldParagraphSpan,
-                      onIncludeNextParagraph: onIncludeNextParagraph,
-                      onExcludeLastParagraph: onExcludeLastParagraph,
+                  if (isActive && showRangeEndControl)
+                    _RangeEndControl(
+                      crossesParagraphs: currentFieldCrossesParagraphs,
+                      isDefiningRangeEnd: isDefiningRangeEnd,
+                      onDefineRangeEnd: onDefineRangeEnd,
                     ),
                 ],
               ),
@@ -120,58 +123,50 @@ final class MappingFieldSidebar extends StatelessWidget {
   }
 }
 
-final class _ParagraphSpanControls extends StatelessWidget {
-  const _ParagraphSpanControls({
-    required this.paragraphSpan,
-    required this.onIncludeNextParagraph,
-    required this.onExcludeLastParagraph,
+final class _RangeEndControl extends StatelessWidget {
+  const _RangeEndControl({
+    required this.crossesParagraphs,
+    required this.isDefiningRangeEnd,
+    required this.onDefineRangeEnd,
   });
 
-  final int? paragraphSpan;
-  final VoidCallback? onIncludeNextParagraph;
-  final VoidCallback? onExcludeLastParagraph;
+  final bool crossesParagraphs;
+  final bool isDefiningRangeEnd;
+  final VoidCallback? onDefineRangeEnd;
 
   @override
   Widget build(BuildContext context) {
-    final spansMultiple = (paragraphSpan ?? 1) > 1;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          if (spansMultiple)
+          if (crossesParagraphs)
             Text(
-              'Este campo abarca $paragraphSpan párrafos',
+              'Este campo cruza varios párrafos',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: AppColors.of(context).foregroundMuted,
               ),
             ),
           const SizedBox(height: 4),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: <Widget>[
-              OutlinedButton.icon(
-                onPressed: onIncludeNextParagraph,
-                icon: const Icon(Icons.arrow_downward, size: 14),
-                label: const Text('Incluir siguiente párrafo'),
-                style: OutlinedButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  textStyle: Theme.of(context).textTheme.labelSmall,
-                ),
+          if (isDefiningRangeEnd)
+            Text(
+              'Selecciona el texto donde termina el rango...',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
               ),
-              if (spansMultiple)
-                OutlinedButton.icon(
-                  onPressed: onExcludeLastParagraph,
-                  icon: const Icon(Icons.arrow_upward, size: 14),
-                  label: const Text('Excluir último párrafo'),
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    textStyle: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ),
-            ],
-          ),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: onDefineRangeEnd,
+              icon: const Icon(Icons.linear_scale, size: 14),
+              label: const Text('Definir fin de rango'),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                textStyle: Theme.of(context).textTheme.labelSmall,
+              ),
+            ),
         ],
       ),
     );

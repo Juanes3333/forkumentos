@@ -10,6 +10,7 @@ final class ExportPlaceholder {
     required this.fieldIndex,
     this.isListField = false,
     this.paragraphSpan,
+    this.endBlockIndex,
   });
 
   final List<ExportPathStep> steps;
@@ -27,6 +28,14 @@ final class ExportPlaceholder {
   /// paragraphs starting at `steps`' root blockIndex, instead of substituting
   /// text in place.
   final int? paragraphSpan;
+
+  /// Root blockIndex where a cross-paragraph range ends (mirrors
+  /// `FieldAssignment.endPath` resolved to its root blockIndex). When set,
+  /// [endOffset] applies to this end block instead of `steps`' block: the
+  /// source range runs from `steps`' block/[startOffset] through the
+  /// paragraphs in between to this block/[endOffset]. Root-level only, like
+  /// [isListField] — a range ending inside a table cell is not supported.
+  final int? endBlockIndex;
 }
 
 /// Simple path step mirroring document body walk order.

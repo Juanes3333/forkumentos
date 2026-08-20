@@ -65,6 +65,55 @@ void main() {
 
       expect(occurrences.single.path.region, DocumentTextRegion.body);
     });
+
+    test(
+      'needle con \\n cruza párrafos y preserva prefijo/sufijo en endPath',
+      () {
+        final document = _documentWithTexts(<String>[
+          'Estimado Ana Pérez,',
+          'Calle Falsa 123, Springfield',
+        ]);
+
+        final occurrences = findExactTextOccurrences(
+          document: document,
+          needle: 'Ana Pérez,\nCalle Falsa',
+        );
+
+        expect(occurrences, hasLength(1));
+        final occurrence = occurrences.single;
+        expect(
+          occurrence.path,
+          const DocumentTextPath(
+            steps: <DocumentPathStep>[
+              DocumentPathStep.rootBlock(blockIndex: 0),
+            ],
+          ),
+        );
+        // 'Estimado ' es el prefijo preservado antes del match.
+        expect(occurrence.startOffset, 'Estimado '.length);
+        expect(
+          occurrence.endPath,
+          const DocumentTextPath(
+            steps: <DocumentPathStep>[
+              DocumentPathStep.rootBlock(blockIndex: 1),
+            ],
+          ),
+        );
+        // ', Springfield' es el sufijo preservado tras el match.
+        expect(occurrence.endOffset, 'Calle Falsa'.length);
+      },
+    );
+
+    test('needle sin \\n dentro de un solo párrafo deja endPath en null', () {
+      final document = _documentWithTexts(<String>['Hola Ana', 'Ana Pérez']);
+
+      final occurrences = findExactTextOccurrences(
+        document: document,
+        needle: 'Ana',
+      );
+
+      expect(occurrences.every((o) => o.endPath == null), isTrue);
+    });
   });
 
   group('findOverlappingAssignment', () {

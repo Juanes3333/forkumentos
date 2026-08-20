@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+- Rangos multi-párrafo con `endPath`/`endOffset`: cerrar el extremo final con una segunda selección en el documento.
+- Export DOCX con `endBlockIndex` para reemplazar prosa que cruza párrafos de forma estructural.
+- Modo UI `beginRangeClose` / `completeRangeClose` para completar campos de rango cruzado.
+
+### Changed
+- Sustituye `paragraphSpan` (conteo fijo de párrafos) por rutas de inicio/fin explícitas (`FieldAssignment.endPath`, `TextOccurrence.endPath`).
+- Validación y highlights adaptados a rangos cross-paragraph; catálogo de texto busca ocurrencias multi-párrafo.
+
+### Fixed
+- `assignmentStillMatchesDocument` ya no usa `endOffset` del párrafo de inicio cuando el rango termina en otro bloque (evita `RangeError`).
+
 ## 1.3.0
 
 ### Added

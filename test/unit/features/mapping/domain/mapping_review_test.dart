@@ -85,28 +85,25 @@ void main() {
       expect(snapshot.documentPlaceholders.first.text, 'Ana');
     });
 
-    test(
-      'una asignación cuyo fieldIndex ahora nombra otra columna se marca '
-      'inválida aunque el documento no haya cambiado',
-      () {
-        // Reproduce el bug de "desplazamiento de celdas": la fuente de datos
-        // insertó una columna nueva antes de 'plazo' sin volver a mapear, así
-        // que fieldIndex=1 (guardado para 'plazo') ahora apunta a 'valorNum'
-        // en los headers actuales. El documento no cambió —
-        // _stillMatchesDocument por sí solo no detectaría esto— pero el
-        // header recordado sí difiere.
-        final snapshot = buildMappingReviewSnapshot(
-          assignments: <FieldAssignment>[
-            _assignment(id: 'a1', fieldIndex: 1, fieldHeader: 'plazo'),
-          ],
-          datasourceHeaders: <String>['nombre', 'valorNum', 'plazo'],
-          document: _documentWithTexts(<String>['Ana']),
-        );
+    test('una asignación cuyo fieldIndex ahora nombra otra columna se marca '
+        'inválida aunque el documento no haya cambiado', () {
+      // Reproduce el bug de "desplazamiento de celdas": la fuente de datos
+      // insertó una columna nueva antes de 'plazo' sin volver a mapear, así
+      // que fieldIndex=1 (guardado para 'plazo') ahora apunta a 'valorNum'
+      // en los headers actuales. El documento no cambió —
+      // _stillMatchesDocument por sí solo no detectaría esto— pero el
+      // header recordado sí difiere.
+      final snapshot = buildMappingReviewSnapshot(
+        assignments: <FieldAssignment>[
+          _assignment(id: 'a1', fieldIndex: 1, fieldHeader: 'plazo'),
+        ],
+        datasourceHeaders: <String>['nombre', 'valorNum', 'plazo'],
+        document: _documentWithTexts(<String>['Ana']),
+      );
 
-        expect(snapshot.isExportReady, isFalse);
-        expect(snapshot.invalidAssignments, hasLength(1));
-      },
-    );
+      expect(snapshot.isExportReady, isFalse);
+      expect(snapshot.invalidAssignments, hasLength(1));
+    });
 
     test(
       'un mismo pageIndex/steps en body y header no se confunden entre si',
@@ -161,6 +158,35 @@ void main() {
         expect(headerSnapshot.invalidAssignments, isEmpty);
       },
     );
+
+    test('una asignacion con rango cruzado entre parrafos (endPath) no crashea '
+        'al revisar cuando endOffset (del parrafo final) es menor que '
+        'startOffset (del parrafo inicial)', () {
+      // Reproduce el RangeError original: `endOffset` pertenece al
+      // parrafo de fin (`endPath`), no al de inicio, asi que comparar
+      // `paragraphText.substring(startOffset, endOffset)` sobre el
+      // parrafo de inicio lanzaba
+      // `RangeError (end): Invalid value: Not in inclusive range 50..868: 1`.
+      final longParagraph = 'x' * 868;
+      final assignment = _assignment(
+        id: 'a1',
+        fieldIndex: 0,
+        startOffset: 50,
+        endOffset: 1,
+        endPath: const DocumentTextPath(
+          steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 1)],
+        ),
+      );
+
+      expect(
+        () => buildMappingReviewSnapshot(
+          assignments: <FieldAssignment>[assignment],
+          datasourceHeaders: <String>['nombre'],
+          document: _documentWithTexts(<String>[longParagraph, 'y']),
+        ),
+        returnsNormally,
+      );
+    });
   });
 }
 
@@ -176,6 +202,7 @@ FieldAssignment _assignment({
   int startOffset = 0,
   int endOffset = 3,
   DocumentTextPath path = _path,
+  DocumentTextPath? endPath,
 }) {
   return FieldAssignment(
     id: id,
@@ -185,6 +212,7 @@ FieldAssignment _assignment({
     path: path,
     startOffset: startOffset,
     endOffset: endOffset,
+    endPath: endPath,
   );
 }
 
