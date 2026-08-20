@@ -13,5 +13,6 @@ class FieldAssignment with _$FieldAssignment {
     required DocumentTextPath path,
     required int startOffset,
     required int endOffset,
+    @Default(false) bool isListField,
   }) = _FieldAssignment;
 }

@@ -74,4 +74,51 @@ void main() {
       expect(restored.single.path.region, DocumentTextRegion.body);
     },
   );
+
+  test('serializa y restaura isListField', () {
+    const assignment = FieldAssignment(
+      id: 'assignment-3',
+      fieldIndex: 1,
+      fieldHeader: 'actividades',
+      selectedText: '1. Primer item',
+      path: DocumentTextPath(
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 3)],
+      ),
+      startOffset: 0,
+      endOffset: 14,
+      isListField: true,
+    );
+
+    final json = mappingAssignmentsToJson(<FieldAssignment>[assignment]);
+    final restored = mappingAssignmentsFromJson(json);
+
+    expect(restored, <FieldAssignment>[assignment]);
+  });
+
+  test('un JSON de proyecto viejo sin la clave isListField se restaura como '
+      'false', () {
+    final legacyJson = <Map<String, dynamic>>[
+      <String, dynamic>{
+        'id': 'assignment-4',
+        'fieldIndex': 0,
+        'fieldHeader': 'titulo',
+        'selectedText': 'Ana',
+        'path': <String, dynamic>{
+          'steps': <Map<String, dynamic>>[
+            <String, dynamic>{'type': 'rootBlock', 'blockIndex': 0},
+          ],
+          'region': 'body',
+        },
+        'startOffset': 0,
+        'endOffset': 3,
+        // sin clave 'isListField': simula un proyecto .fork guardado antes
+        // de que existiera el campo.
+      },
+    ];
+
+    final restored = mappingAssignmentsFromJson(legacyJson);
+
+    expect(restored, hasLength(1));
+    expect(restored.single.isListField, isFalse);
+  });
 }

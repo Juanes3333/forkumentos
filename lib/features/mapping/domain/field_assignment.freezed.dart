@@ -24,6 +24,7 @@ mixin _$FieldAssignment {
   DocumentTextPath get path => throw _privateConstructorUsedError;
   int get startOffset => throw _privateConstructorUsedError;
   int get endOffset => throw _privateConstructorUsedError;
+  bool get isListField => throw _privateConstructorUsedError;
 
   /// Create a copy of FieldAssignment
   /// with the given fields replaced by the non-null parameter values.
@@ -47,6 +48,7 @@ abstract class $FieldAssignmentCopyWith<$Res> {
     DocumentTextPath path,
     int startOffset,
     int endOffset,
+    bool isListField,
   });
 
   $DocumentTextPathCopyWith<$Res> get path;
@@ -74,6 +76,7 @@ class _$FieldAssignmentCopyWithImpl<$Res, $Val extends FieldAssignment>
     Object? path = null,
     Object? startOffset = null,
     Object? endOffset = null,
+    Object? isListField = null,
   }) {
     return _then(
       _value.copyWith(
@@ -105,6 +108,10 @@ class _$FieldAssignmentCopyWithImpl<$Res, $Val extends FieldAssignment>
                 ? _value.endOffset
                 : endOffset // ignore: cast_nullable_to_non_nullable
                       as int,
+            isListField: null == isListField
+                ? _value.isListField
+                : isListField // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -138,6 +145,7 @@ abstract class _$$FieldAssignmentImplCopyWith<$Res>
     DocumentTextPath path,
     int startOffset,
     int endOffset,
+    bool isListField,
   });
 
   @override
@@ -165,6 +173,7 @@ class __$$FieldAssignmentImplCopyWithImpl<$Res>
     Object? path = null,
     Object? startOffset = null,
     Object? endOffset = null,
+    Object? isListField = null,
   }) {
     return _then(
       _$FieldAssignmentImpl(
@@ -196,6 +205,10 @@ class __$$FieldAssignmentImplCopyWithImpl<$Res>
             ? _value.endOffset
             : endOffset // ignore: cast_nullable_to_non_nullable
                   as int,
+        isListField: null == isListField
+            ? _value.isListField
+            : isListField // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -212,6 +225,7 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
     required this.path,
     required this.startOffset,
     required this.endOffset,
+    this.isListField = false,
   });
 
   @override
@@ -228,10 +242,13 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
   final int startOffset;
   @override
   final int endOffset;
+  @override
+  @JsonKey()
+  final bool isListField;
 
   @override
   String toString() {
-    return 'FieldAssignment(id: $id, fieldIndex: $fieldIndex, fieldHeader: $fieldHeader, selectedText: $selectedText, path: $path, startOffset: $startOffset, endOffset: $endOffset)';
+    return 'FieldAssignment(id: $id, fieldIndex: $fieldIndex, fieldHeader: $fieldHeader, selectedText: $selectedText, path: $path, startOffset: $startOffset, endOffset: $endOffset, isListField: $isListField)';
   }
 
   @override
@@ -250,7 +267,9 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
             (identical(other.startOffset, startOffset) ||
                 other.startOffset == startOffset) &&
             (identical(other.endOffset, endOffset) ||
-                other.endOffset == endOffset));
+                other.endOffset == endOffset) &&
+            (identical(other.isListField, isListField) ||
+                other.isListField == isListField));
   }
 
   @override
@@ -263,6 +282,7 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
     path,
     startOffset,
     endOffset,
+    isListField,
   );
 
   /// Create a copy of FieldAssignment
@@ -286,6 +306,7 @@ abstract class _FieldAssignment implements FieldAssignment {
     required final DocumentTextPath path,
     required final int startOffset,
     required final int endOffset,
+    final bool isListField,
   }) = _$FieldAssignmentImpl;
 
   @override
@@ -302,6 +323,8 @@ abstract class _FieldAssignment implements FieldAssignment {
   int get startOffset;
   @override
   int get endOffset;
+  @override
+  bool get isListField;
 
   /// Create a copy of FieldAssignment
   /// with the given fields replaced by the non-null parameter values.
