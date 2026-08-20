@@ -282,6 +282,8 @@ DocumentBlock _blockFromPayload(Object? blockRaw) {
       lineSpacingExactPoints: _asNullableDouble(
         blockMap['lineSpacingExactPoints'],
       ),
+      numberingId: _asNullableInt(blockMap['numberingId']),
+      numberingLevel: _asNullableInt(blockMap['numberingLevel']),
     ),
   );
 }
@@ -391,6 +393,8 @@ double _asDouble(Object? value, double fallback) {
 
 double? _asNullableDouble(Object? value) =>
     value is num ? value.toDouble() : null;
+
+int? _asNullableInt(Object? value) => value is num ? value.toInt() : null;
 
 Archive _decodeArchive(Uint8List bytes) {
   if (!_looksLikeZip(bytes)) {
@@ -916,6 +920,7 @@ List<_SerializedBlockSegment> _parseContainerBlocks(
 
       final styleId = _paragraphStyleId(child);
       final paragraphStyle = _resolveParagraphStyle(child, context);
+      final numbering = _paragraphNumbering(child);
       final chunks = _splitParagraphByPageBreak(child, context, paragraphStyle);
       // Un sectPr embebido en pPr marca fin de sección intermedia, que por
       // defecto en OOXML SIEMPRE implica salto de página. Se aplica al
@@ -945,6 +950,8 @@ List<_SerializedBlockSegment> _parseContainerBlocks(
               'indentFirstLinePoints': paragraphStyle.indentFirstLinePoints,
               'lineSpacingMultiple': paragraphStyle.lineSpacingMultiple,
               'lineSpacingExactPoints': paragraphStyle.lineSpacingExactPoints,
+              'numberingId': numbering.numId,
+              'numberingLevel': numbering.ilvl,
             },
             endsWithPageBreak:
                 chunk.endsWithPageBreak || (isLastChunk && forcesSectionBreak),
@@ -1182,6 +1189,32 @@ String? _paragraphStyleId(XmlElement paragraph) {
     return null;
   }
   return _attributeValue(pStyle, 'val');
+}
+
+// ponytail: numId/ilvl se leen únicamente del `w:numPr` directo del propio
+// párrafo, sin resolver la cascada de estilos (`w:pStyle` también puede
+// declarar numPr). Igual que el resto del parser, formato directo no
+// heredado es suficiente para el caso común; el techo es el mismo que ya
+// aplica a `_paragraphStyleId`.
+({int? numId, int? ilvl}) _paragraphNumbering(XmlElement paragraph) {
+  final paragraphProperties = _firstChildByLocalName(paragraph, 'pPr');
+  if (paragraphProperties == null) {
+    return (numId: null, ilvl: null);
+  }
+  final numPr = _firstChildByLocalName(paragraphProperties, 'numPr');
+  if (numPr == null) {
+    return (numId: null, ilvl: null);
+  }
+  final numIdElement = _firstChildByLocalName(numPr, 'numId');
+  final ilvlElement = _firstChildByLocalName(numPr, 'ilvl');
+  return (
+    numId: numIdElement == null
+        ? null
+        : int.tryParse(_attributeValue(numIdElement, 'val') ?? ''),
+    ilvl: ilvlElement == null
+        ? null
+        : int.tryParse(_attributeValue(ilvlElement, 'val') ?? ''),
+  );
 }
 
 /// Cascada completa del párrafo: docDefaults -> cadena `w:basedOn` del estilo

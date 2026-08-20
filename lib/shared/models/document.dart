@@ -107,6 +107,11 @@ class DocumentParagraph with _$DocumentParagraph {
     // Ambos null = interlineado sencillo (el natural de la fuente).
     double? lineSpacingMultiple,
     double? lineSpacingExactPoints,
+    // `w:numPr/w:numId` y `w:numPr/w:ilvl`: identificador de la lista y nivel
+    // de anidación de Word. Ambos null = el párrafo no pertenece a una lista
+    // numerada.
+    int? numberingId,
+    int? numberingLevel,
   }) = _DocumentParagraph;
 }
 

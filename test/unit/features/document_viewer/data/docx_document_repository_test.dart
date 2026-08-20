@@ -818,6 +818,37 @@ void main() {
     expect(paragraphs[1].lineSpacingMultiple, isNull);
   });
 
+  test(
+    'w:numPr expone numberingId/numberingLevel; sin numPr quedan null',
+    () async {
+      final filePath = p.join(tempDirectory.path, 'numeracion.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p>
+  <w:pPr>
+    <w:numPr>
+      <w:ilvl w:val="0" />
+      <w:numId w:val="1" />
+    </w:numPr>
+  </w:pPr>
+  <w:r><w:t>Item de lista</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Sin lista</w:t></w:r></w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      final paragraphs = _paragraphs(document.pages.single);
+      expect(paragraphs[0].numberingId, 1);
+      expect(paragraphs[0].numberingLevel, 0);
+      expect(paragraphs[1].numberingId, isNull);
+      expect(paragraphs[1].numberingLevel, isNull);
+    },
+  );
+
   test('w:rFonts resuelve la fuente del tema y el formato directo gana '
       'sobre el estilo', () async {
     final filePath = p.join(tempDirectory.path, 'fuentes.docx');

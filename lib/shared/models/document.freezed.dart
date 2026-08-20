@@ -1758,7 +1758,12 @@ mixin _$DocumentParagraph {
   // `w:lineRule="auto"`, o alto fijo en puntos para "exact"/"atLeast".
   // Ambos null = interlineado sencillo (el natural de la fuente).
   double? get lineSpacingMultiple => throw _privateConstructorUsedError;
-  double? get lineSpacingExactPoints => throw _privateConstructorUsedError;
+  double? get lineSpacingExactPoints =>
+      throw _privateConstructorUsedError; // `w:numPr/w:numId` y `w:numPr/w:ilvl`: identificador de la lista y nivel
+  // de anidación de Word. Ambos null = el párrafo no pertenece a una lista
+  // numerada.
+  int? get numberingId => throw _privateConstructorUsedError;
+  int? get numberingLevel => throw _privateConstructorUsedError;
 
   /// Create a copy of DocumentParagraph
   /// with the given fields replaced by the non-null parameter values.
@@ -1785,6 +1790,8 @@ abstract class $DocumentParagraphCopyWith<$Res> {
     double indentFirstLinePoints,
     double? lineSpacingMultiple,
     double? lineSpacingExactPoints,
+    int? numberingId,
+    int? numberingLevel,
   });
 }
 
@@ -1813,6 +1820,8 @@ class _$DocumentParagraphCopyWithImpl<$Res, $Val extends DocumentParagraph>
     Object? indentFirstLinePoints = null,
     Object? lineSpacingMultiple = freezed,
     Object? lineSpacingExactPoints = freezed,
+    Object? numberingId = freezed,
+    Object? numberingLevel = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -1856,6 +1865,14 @@ class _$DocumentParagraphCopyWithImpl<$Res, $Val extends DocumentParagraph>
                 ? _value.lineSpacingExactPoints
                 : lineSpacingExactPoints // ignore: cast_nullable_to_non_nullable
                       as double?,
+            numberingId: freezed == numberingId
+                ? _value.numberingId
+                : numberingId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            numberingLevel: freezed == numberingLevel
+                ? _value.numberingLevel
+                : numberingLevel // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -1882,6 +1899,8 @@ abstract class _$$DocumentParagraphImplCopyWith<$Res>
     double indentFirstLinePoints,
     double? lineSpacingMultiple,
     double? lineSpacingExactPoints,
+    int? numberingId,
+    int? numberingLevel,
   });
 }
 
@@ -1909,6 +1928,8 @@ class __$$DocumentParagraphImplCopyWithImpl<$Res>
     Object? indentFirstLinePoints = null,
     Object? lineSpacingMultiple = freezed,
     Object? lineSpacingExactPoints = freezed,
+    Object? numberingId = freezed,
+    Object? numberingLevel = freezed,
   }) {
     return _then(
       _$DocumentParagraphImpl(
@@ -1952,6 +1973,14 @@ class __$$DocumentParagraphImplCopyWithImpl<$Res>
             ? _value.lineSpacingExactPoints
             : lineSpacingExactPoints // ignore: cast_nullable_to_non_nullable
                   as double?,
+        numberingId: freezed == numberingId
+            ? _value.numberingId
+            : numberingId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        numberingLevel: freezed == numberingLevel
+            ? _value.numberingLevel
+            : numberingLevel // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -1971,6 +2000,8 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
     this.indentFirstLinePoints = 0,
     this.lineSpacingMultiple,
     this.lineSpacingExactPoints,
+    this.numberingId,
+    this.numberingLevel,
   }) : _runs = runs;
 
   final List<DocumentRun> _runs;
@@ -2016,10 +2047,17 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
   final double? lineSpacingMultiple;
   @override
   final double? lineSpacingExactPoints;
+  // `w:numPr/w:numId` y `w:numPr/w:ilvl`: identificador de la lista y nivel
+  // de anidación de Word. Ambos null = el párrafo no pertenece a una lista
+  // numerada.
+  @override
+  final int? numberingId;
+  @override
+  final int? numberingLevel;
 
   @override
   String toString() {
-    return 'DocumentParagraph(runs: $runs, spacingBeforePoints: $spacingBeforePoints, spacingAfterPoints: $spacingAfterPoints, keepWithNext: $keepWithNext, alignment: $alignment, indentLeftPoints: $indentLeftPoints, indentRightPoints: $indentRightPoints, indentFirstLinePoints: $indentFirstLinePoints, lineSpacingMultiple: $lineSpacingMultiple, lineSpacingExactPoints: $lineSpacingExactPoints)';
+    return 'DocumentParagraph(runs: $runs, spacingBeforePoints: $spacingBeforePoints, spacingAfterPoints: $spacingAfterPoints, keepWithNext: $keepWithNext, alignment: $alignment, indentLeftPoints: $indentLeftPoints, indentRightPoints: $indentRightPoints, indentFirstLinePoints: $indentFirstLinePoints, lineSpacingMultiple: $lineSpacingMultiple, lineSpacingExactPoints: $lineSpacingExactPoints, numberingId: $numberingId, numberingLevel: $numberingLevel)';
   }
 
   @override
@@ -2045,7 +2083,11 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
             (identical(other.lineSpacingMultiple, lineSpacingMultiple) ||
                 other.lineSpacingMultiple == lineSpacingMultiple) &&
             (identical(other.lineSpacingExactPoints, lineSpacingExactPoints) ||
-                other.lineSpacingExactPoints == lineSpacingExactPoints));
+                other.lineSpacingExactPoints == lineSpacingExactPoints) &&
+            (identical(other.numberingId, numberingId) ||
+                other.numberingId == numberingId) &&
+            (identical(other.numberingLevel, numberingLevel) ||
+                other.numberingLevel == numberingLevel));
   }
 
   @override
@@ -2061,6 +2103,8 @@ class _$DocumentParagraphImpl implements _DocumentParagraph {
     indentFirstLinePoints,
     lineSpacingMultiple,
     lineSpacingExactPoints,
+    numberingId,
+    numberingLevel,
   );
 
   /// Create a copy of DocumentParagraph
@@ -2087,6 +2131,8 @@ abstract class _DocumentParagraph implements DocumentParagraph {
     final double indentFirstLinePoints,
     final double? lineSpacingMultiple,
     final double? lineSpacingExactPoints,
+    final int? numberingId,
+    final int? numberingLevel,
   }) = _$DocumentParagraphImpl;
 
   @override
@@ -2115,7 +2161,13 @@ abstract class _DocumentParagraph implements DocumentParagraph {
   @override
   double? get lineSpacingMultiple;
   @override
-  double? get lineSpacingExactPoints;
+  double? get lineSpacingExactPoints; // `w:numPr/w:numId` y `w:numPr/w:ilvl`: identificador de la lista y nivel
+  // de anidación de Word. Ambos null = el párrafo no pertenece a una lista
+  // numerada.
+  @override
+  int? get numberingId;
+  @override
+  int? get numberingLevel;
 
   /// Create a copy of DocumentParagraph
   /// with the given fields replaced by the non-null parameter values.
