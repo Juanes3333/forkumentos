@@ -11,6 +11,7 @@ final class ParagraphHighlightSegment {
     required this.color,
     this.isSuggestion = false,
     this.emphasize = false,
+    this.isExtendedParagraph = false,
   });
 
   final int startOffset;
@@ -18,6 +19,11 @@ final class ParagraphHighlightSegment {
   final Color color;
   final bool isSuggestion;
   final bool emphasize;
+
+  /// `true` para un párrafo que un campo prosa multi-párrafo abarca por
+  /// extensión (no el párrafo donde el usuario hizo la selección original).
+  /// Se pinta más tenue para distinguirlo del párrafo principal.
+  final bool isExtendedParagraph;
 }
 
 /// Un párrafo del documento dibujado con la tipografía que declara el DOCX:
@@ -458,14 +464,18 @@ final class _MappingAwareParagraphState extends State<MappingAwareParagraph> {
     }
 
     return runStyle.copyWith(
-      backgroundColor: highlight.color.withValues(alpha: 0.28),
+      backgroundColor: highlight.color.withValues(
+        alpha: highlight.isExtendedParagraph ? 0.12 : 0.28,
+      ),
       decoration: highlight.isSuggestion
           ? TextDecoration.underline
           : TextDecoration.combine(<TextDecoration>[
               if (runStyle.decoration != null) runStyle.decoration!,
               TextDecoration.underline,
             ]),
-      decorationColor: highlight.color,
+      decorationColor: highlight.color.withValues(
+        alpha: highlight.isExtendedParagraph ? 0.6 : 1,
+      ),
       decorationThickness: highlight.isSuggestion ? 1.2 : 2,
     );
   }

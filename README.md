@@ -42,6 +42,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 
 - Portable `.fork` projects with embedded DOCX template and datasource
 - Visual field mapping with undo/redo, review mode, and optional auto-map
+- **List fields** and multi-paragraph spans for variable-length numbered lists and prose blocks
 - WYSIWYG document viewer (color, font size, paragraph spacing from the source DOCX)
 - Live preview against any datasource row
 - Batch export to **DOCX** with optional ZIP packaging and template-based filenames
@@ -87,6 +88,9 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 
 - Assign spreadsheet columns to selectable text ranges in the template
 - Multiple occurrences per field (suggestions skip ranges that already overlap another assignment)
+- **List fields** (`isListField`): map a multi-line Excel cell onto a Word numbered list; export expands/contracts list items to match line count (uses DOCX `numId`/`ilvl`)
+- **Multi-paragraph spans** (`paragraphSpan`): expand a prose field across consecutive non-numbered paragraphs (“include next paragraph”)
+- Field sidebars show sample cell values from the current preview row (not only column headers)
 - Field status (pending / assigned / incomplete)
 - Validation for overlaps, stale text, and datasource header drift (`fieldIndex` vs remembered header)
 - Undo / redo (`Ctrl+Z` / `Ctrl+Y`)
@@ -106,6 +110,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 ### Export engine
 
 - Export **DOCX** only (same structure as the template, with mapped replacements)
+- List-field and multi-paragraph replacements reshape Word XML (insert/remove list items or consecutive paragraphs) instead of only substituting in-place text
 - Row ranges: current row, all rows, or a custom range
 - Progress dialog with cancel support
 - Optional ZIP of generated files
@@ -232,9 +237,9 @@ forkumentos/
 │   │   ├── project/    # .fork load/save, welcome, lifecycle
 │   │   ├── template/   # DOCX template import
 │   │   ├── datasource/ # CSV/XLSX import
-│   │   ├── mapping/    # Assignments, review, undo/redo, auto-map
+│   │   ├── mapping/    # Assignments, list/multi-paragraph fields, review, undo/redo, auto-map
 │   │   ├── preview/    # Row-based filled document preview
-│   │   ├── export/     # DOCX/ZIP export + filename builder
+│   │   ├── export/     # DOCX/ZIP export (incl. list expand/contract) + filename builder
 │   │   ├── document_viewer/
 │   │   └── settings/   # Persisted AppSettings UI
 │   ├── routing/        # Router, phases, workbench chrome, DnD, export launcher

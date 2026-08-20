@@ -173,6 +173,8 @@ ExportPlaceholder _toPlaceholder(FieldAssignment assignment) {
     startOffset: assignment.startOffset,
     endOffset: assignment.endOffset,
     fieldIndex: assignment.fieldIndex,
+    isListField: assignment.isListField,
+    paragraphSpan: assignment.paragraphSpan,
   );
 }
 

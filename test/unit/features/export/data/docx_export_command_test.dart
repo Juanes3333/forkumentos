@@ -126,6 +126,96 @@ void main() {
     expect(texts[1], contains('Luis'));
     expect(texts[2], contains('Eva'));
   });
+
+  test('un placeholder con paragraphSpan > 1 colapsa los párrafos de origen '
+      'en el DOCX exportado (modo prosa multi-párrafo, no lista)', () async {
+    final template = _buildDocxBytes(
+      documentXml: _documentWithBody(
+        '<w:p><w:r><w:t>Uno.</w:t></w:r></w:p>'
+        '<w:p><w:r><w:t>Dos.</w:t></w:r></w:p>',
+      ),
+    );
+
+    final command = DocxExportCommand(
+      templateBytes: template,
+      destinationFolder: tempDirectory.path,
+      filenamePattern: const FilenamePattern(
+        blocks: <FilenamePatternBlock>[FilenameTextBlock('doc')],
+      ),
+      rowIndexes: const <int>[0],
+      placeholders: const <ExportPlaceholder>[
+        ExportPlaceholder(
+          steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+          startOffset: 0,
+          endOffset: 0,
+          fieldIndex: 0,
+          paragraphSpan: 2,
+        ),
+      ],
+      headers: const <String>['nota'],
+      templateBaseName: 'plantilla',
+      resolveRow: (rowIndex) async => const <String?>['Texto combinado.'],
+    );
+
+    final result = await command.execute();
+
+    expect(result.exportedCount, 1);
+    final archive = ZipDecoder().decodeBytes(
+      File(result.writtenFiles.single).readAsBytesSync(),
+    );
+    final document = archive.files.firstWhere(
+      (file) => file.name.toLowerCase() == 'word/document.xml',
+    );
+    final documentXml = utf8.decode(document.content as List<int>);
+
+    expect(documentXml, contains('Texto combinado.'));
+    expect(documentXml, isNot(contains('Uno.')));
+    expect(documentXml, isNot(contains('Dos.')));
+  });
+
+  test('un placeholder normal (paragraphSpan null) sigue reemplazando texto '
+      'in-place vía DocxTextReplacement, no vía DocxListReplacement', () async {
+    final template = _buildDocxBytes(
+      documentXml: _documentWithBody(
+        '<w:p><w:r><w:t>Hola Ana</w:t></w:r></w:p>',
+      ),
+    );
+
+    final command = DocxExportCommand(
+      templateBytes: template,
+      destinationFolder: tempDirectory.path,
+      filenamePattern: const FilenamePattern(
+        blocks: <FilenamePatternBlock>[FilenameTextBlock('doc')],
+      ),
+      rowIndexes: const <int>[0],
+      placeholders: const <ExportPlaceholder>[
+        ExportPlaceholder(
+          steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+          startOffset: 5,
+          endOffset: 8,
+          fieldIndex: 0,
+        ),
+      ],
+      headers: const <String>['nombre'],
+      templateBaseName: 'plantilla',
+      resolveRow: (rowIndex) async => const <String?>['Eva'],
+    );
+
+    final result = await command.execute();
+
+    expect(result.exportedCount, 1);
+    final archive = ZipDecoder().decodeBytes(
+      File(result.writtenFiles.single).readAsBytesSync(),
+    );
+    final document = archive.files.firstWhere(
+      (file) => file.name.toLowerCase() == 'word/document.xml',
+    );
+    final documentXml = utf8.decode(document.content as List<int>);
+
+    expect(documentXml, contains('Hola Eva'));
+    // Un solo párrafo: no se disparó el camino de lista/prosa multi-párrafo.
+    expect('<w:p>'.allMatches(documentXml).length, 1);
+  });
 }
 
 Uint8List _buildDocxBytes({required String documentXml}) {

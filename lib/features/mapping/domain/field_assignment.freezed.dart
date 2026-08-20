@@ -26,6 +26,13 @@ mixin _$FieldAssignment {
   int get endOffset => throw _privateConstructorUsedError;
   bool get isListField => throw _privateConstructorUsedError;
 
+  /// Cuántos párrafos consecutivos abarca este campo (incluyendo el
+  /// mapeado). null o 1 = campo normal (un solo párrafo, comportamiento
+  /// actual). >1 = campo multi-párrafo (reemplaza N párrafos
+  /// consecutivos). Cuando el párrafo mapeado tiene numeración, este valor
+  /// se IGNORA: el exportador auto-detecta el rango de la lista vía numId.
+  int? get paragraphSpan => throw _privateConstructorUsedError;
+
   /// Create a copy of FieldAssignment
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,6 +56,7 @@ abstract class $FieldAssignmentCopyWith<$Res> {
     int startOffset,
     int endOffset,
     bool isListField,
+    int? paragraphSpan,
   });
 
   $DocumentTextPathCopyWith<$Res> get path;
@@ -77,6 +85,7 @@ class _$FieldAssignmentCopyWithImpl<$Res, $Val extends FieldAssignment>
     Object? startOffset = null,
     Object? endOffset = null,
     Object? isListField = null,
+    Object? paragraphSpan = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -112,6 +121,10 @@ class _$FieldAssignmentCopyWithImpl<$Res, $Val extends FieldAssignment>
                 ? _value.isListField
                 : isListField // ignore: cast_nullable_to_non_nullable
                       as bool,
+            paragraphSpan: freezed == paragraphSpan
+                ? _value.paragraphSpan
+                : paragraphSpan // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -146,6 +159,7 @@ abstract class _$$FieldAssignmentImplCopyWith<$Res>
     int startOffset,
     int endOffset,
     bool isListField,
+    int? paragraphSpan,
   });
 
   @override
@@ -174,6 +188,7 @@ class __$$FieldAssignmentImplCopyWithImpl<$Res>
     Object? startOffset = null,
     Object? endOffset = null,
     Object? isListField = null,
+    Object? paragraphSpan = freezed,
   }) {
     return _then(
       _$FieldAssignmentImpl(
@@ -209,6 +224,10 @@ class __$$FieldAssignmentImplCopyWithImpl<$Res>
             ? _value.isListField
             : isListField // ignore: cast_nullable_to_non_nullable
                   as bool,
+        paragraphSpan: freezed == paragraphSpan
+            ? _value.paragraphSpan
+            : paragraphSpan // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -226,6 +245,7 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
     required this.startOffset,
     required this.endOffset,
     this.isListField = false,
+    this.paragraphSpan,
   });
 
   @override
@@ -246,9 +266,17 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
   @JsonKey()
   final bool isListField;
 
+  /// Cuántos párrafos consecutivos abarca este campo (incluyendo el
+  /// mapeado). null o 1 = campo normal (un solo párrafo, comportamiento
+  /// actual). >1 = campo multi-párrafo (reemplaza N párrafos
+  /// consecutivos). Cuando el párrafo mapeado tiene numeración, este valor
+  /// se IGNORA: el exportador auto-detecta el rango de la lista vía numId.
+  @override
+  final int? paragraphSpan;
+
   @override
   String toString() {
-    return 'FieldAssignment(id: $id, fieldIndex: $fieldIndex, fieldHeader: $fieldHeader, selectedText: $selectedText, path: $path, startOffset: $startOffset, endOffset: $endOffset, isListField: $isListField)';
+    return 'FieldAssignment(id: $id, fieldIndex: $fieldIndex, fieldHeader: $fieldHeader, selectedText: $selectedText, path: $path, startOffset: $startOffset, endOffset: $endOffset, isListField: $isListField, paragraphSpan: $paragraphSpan)';
   }
 
   @override
@@ -269,7 +297,9 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
             (identical(other.endOffset, endOffset) ||
                 other.endOffset == endOffset) &&
             (identical(other.isListField, isListField) ||
-                other.isListField == isListField));
+                other.isListField == isListField) &&
+            (identical(other.paragraphSpan, paragraphSpan) ||
+                other.paragraphSpan == paragraphSpan));
   }
 
   @override
@@ -283,6 +313,7 @@ class _$FieldAssignmentImpl implements _FieldAssignment {
     startOffset,
     endOffset,
     isListField,
+    paragraphSpan,
   );
 
   /// Create a copy of FieldAssignment
@@ -307,6 +338,7 @@ abstract class _FieldAssignment implements FieldAssignment {
     required final int startOffset,
     required final int endOffset,
     final bool isListField,
+    final int? paragraphSpan,
   }) = _$FieldAssignmentImpl;
 
   @override
@@ -325,6 +357,14 @@ abstract class _FieldAssignment implements FieldAssignment {
   int get endOffset;
   @override
   bool get isListField;
+
+  /// Cuántos párrafos consecutivos abarca este campo (incluyendo el
+  /// mapeado). null o 1 = campo normal (un solo párrafo, comportamiento
+  /// actual). >1 = campo multi-párrafo (reemplaza N párrafos
+  /// consecutivos). Cuando el párrafo mapeado tiene numeración, este valor
+  /// se IGNORA: el exportador auto-detecta el rango de la lista vía numId.
+  @override
+  int? get paragraphSpan;
 
   /// Create a copy of FieldAssignment
   /// with the given fields replaced by the non-null parameter values.

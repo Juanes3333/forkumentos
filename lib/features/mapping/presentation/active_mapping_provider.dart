@@ -277,6 +277,48 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     _syncProjectAssignments();
   }
 
+  void setAssignmentIsListField({
+    required String assignmentId,
+    required bool isListField,
+  }) {
+    final index = state.state.assignments.indexWhere(
+      (assignment) => assignment.id == assignmentId,
+    );
+    if (index == -1 ||
+        state.state.assignments[index].isListField == isListField) {
+      return;
+    }
+
+    final nextAssignments = <FieldAssignment>[...state.state.assignments];
+    nextAssignments[index] = nextAssignments[index].copyWith(
+      isListField: isListField,
+    );
+
+    _applyMutation(state.state.copyWith(assignments: nextAssignments));
+    _syncProjectAssignments();
+  }
+
+  void setAssignmentParagraphSpan({
+    required String assignmentId,
+    required int? paragraphSpan,
+  }) {
+    final index = state.state.assignments.indexWhere(
+      (assignment) => assignment.id == assignmentId,
+    );
+    if (index == -1 ||
+        state.state.assignments[index].paragraphSpan == paragraphSpan) {
+      return;
+    }
+
+    final nextAssignments = <FieldAssignment>[...state.state.assignments];
+    nextAssignments[index] = nextAssignments[index].copyWith(
+      paragraphSpan: paragraphSpan,
+    );
+
+    _applyMutation(state.state.copyWith(assignments: nextAssignments));
+    _syncProjectAssignments();
+  }
+
   void removeAssignment(String assignmentId) {
     final nextAssignments = removeAssignmentsById(
       state.state.assignments,

@@ -73,6 +73,7 @@ final class WorkbenchInspector extends ConsumerWidget {
                     )
                   : MappingReviewSidebar(
                       headers: headers,
+                      previewRow: datasource?.previewRow ?? const <String?>[],
                       assignments: mappingState.assignments,
                       document: document,
                       onRemoveAssignment: (assignmentId) {
@@ -101,6 +102,27 @@ final class WorkbenchInspector extends ConsumerWidget {
                         ref
                             .read(activeMappingProvider.notifier)
                             .setHoveredFieldIndex(fieldIndex);
+                      },
+                      onSetAssignmentIsListField:
+                          ({required assignmentId, required isListField}) {
+                            ref
+                                .read(activeMappingProvider.notifier)
+                                .setAssignmentIsListField(
+                                  assignmentId: assignmentId,
+                                  isListField: isListField,
+                                );
+                          },
+                      onAdjustParagraphSpan: ({required assignmentId, required delta}) {
+                        final assignment = mappingState.assignments
+                            .firstWhere((a) => a.id == assignmentId);
+                        final current = assignment.paragraphSpan ?? 1;
+                        final next = current + delta;
+                        ref
+                            .read(activeMappingProvider.notifier)
+                            .setAssignmentParagraphSpan(
+                              assignmentId: assignmentId,
+                              paragraphSpan: next <= 1 ? null : next,
+                            );
                       },
                     ),
             ),

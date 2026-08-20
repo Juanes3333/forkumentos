@@ -80,18 +80,55 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
         _usedNames.add(baseName.toLowerCase());
         final outputPath = p.join(destinationFolder, '$baseName.docx');
 
+        final replacements = <DocxTextReplacement>[];
+        final listReplacements = <DocxListReplacement>[];
+        for (final placeholder in placeholders) {
+          final value = _valueFor(placeholder.fieldIndex, row);
+          final rootStep = placeholder.steps.length == 1
+              ? placeholder.steps.first
+              : null;
+          if (placeholder.isListField && rootStep is ExportRootBlockStep) {
+            listReplacements.add(
+              DocxListReplacement(
+                rootBlockIndex: rootStep.blockIndex,
+                lines: value
+                    .split('\n')
+                    .where((line) => line.trim().isNotEmpty)
+                    .toList(),
+                isNumberedList: true,
+              ),
+            );
+            continue;
+          }
+          final paragraphSpan = placeholder.paragraphSpan;
+          if (paragraphSpan != null &&
+              paragraphSpan > 1 &&
+              rootStep is ExportRootBlockStep) {
+            listReplacements.add(
+              DocxListReplacement(
+                rootBlockIndex: rootStep.blockIndex,
+                lines: value.split('\n'),
+                isNumberedList: false,
+                paragraphSpan: paragraphSpan,
+              ),
+            );
+            continue;
+          }
+          replacements.add(
+            DocxTextReplacement(
+              steps: placeholder.steps,
+              startOffset: placeholder.startOffset,
+              endOffset: placeholder.endOffset,
+              text: value,
+            ),
+          );
+        }
+
         pending.add(
           _DocxRowExportJob(
             outputPath: outputPath,
-            replacements: <DocxTextReplacement>[
-              for (final placeholder in placeholders)
-                DocxTextReplacement(
-                  steps: placeholder.steps,
-                  startOffset: placeholder.startOffset,
-                  endOffset: placeholder.endOffset,
-                  text: _valueFor(placeholder.fieldIndex, row),
-                ),
-            ],
+            replacements: replacements,
+            listReplacements: listReplacements,
           ),
         );
       } on Object catch (error) {
@@ -157,10 +194,12 @@ final class _DocxRowExportJob {
   const _DocxRowExportJob({
     required this.outputPath,
     required this.replacements,
+    required this.listReplacements,
   });
 
   final String outputPath;
   final List<DocxTextReplacement> replacements;
+  final List<DocxListReplacement> listReplacements;
 }
 
 List<String> _exportPreparedBatch({
@@ -175,6 +214,7 @@ List<String> _exportPreparedBatch({
     final bytes = exporter.applyPrepared(
       prepared: prepared,
       replacements: job.replacements,
+      listReplacements: job.listReplacements,
     );
     File(job.outputPath).writeAsBytesSync(bytes);
     written.add(job.outputPath);

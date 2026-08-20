@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,8 @@ import 'package:forkumentos/features/mapping/presentation/widgets/mapping_field_
 import 'package:forkumentos/features/mapping/presentation/widgets/mapping_preview_panel.dart';
 import 'package:forkumentos/features/mapping/presentation/widgets/multiple_occurrences_dialog.dart';
 import 'package:forkumentos/shared/models/document.dart';
+import 'package:forkumentos/shared/models/document_text_path.dart';
+import 'package:forkumentos/shared/models/document_text_path_resolver.dart';
 import 'package:forkumentos/shared/models/document_viewer_overlay.dart';
 import 'package:forkumentos/shared/providers/document_content_provider.dart';
 
@@ -114,6 +117,25 @@ final class _MappingAssistantScreenState
           .length;
     });
 
+    final currentFieldAssignments = mappingState.assignments
+        .where(
+          (assignment) =>
+              assignment.fieldIndex == mappingState.currentFieldIndex,
+        )
+        .toList();
+    final currentFieldIsNumberedList =
+        document != null &&
+        currentFieldAssignments.any(
+          (assignment) => _paragraphHasNumbering(document, assignment.path),
+        );
+    final showParagraphSpanControls =
+        currentFieldAssignments.isNotEmpty &&
+        !currentFieldAssignments.first.isListField &&
+        !currentFieldIsNumberedList;
+    final currentFieldParagraphSpan = currentFieldAssignments.isEmpty
+        ? null
+        : currentFieldAssignments.first.paragraphSpan;
+
     return Stack(
       children: <Widget>[
         Column(
@@ -177,6 +199,7 @@ final class _MappingAssistantScreenState
                                         mappingState.hoveredFieldIndex,
                                     activeFieldIndex:
                                         mappingState.currentFieldIndex,
+                                    document: document,
                                   ),
                               onSelectionChanged: (selection) {
                                 if (selection == null) {
@@ -190,8 +213,11 @@ final class _MappingAssistantScreenState
                   ),
                   MappingFieldSidebar(
                     headers: widget.headers,
+                    previewRow: widget.previewRow,
                     currentFieldIndex: mappingState.currentFieldIndex,
                     assignmentCounts: assignmentCounts,
+                    showParagraphSpanControls: showParagraphSpanControls,
+                    currentFieldParagraphSpan: currentFieldParagraphSpan,
                     onFieldSelected: (index) {
                       ref
                           .read(activeMappingProvider.notifier)
@@ -207,6 +233,18 @@ final class _MappingAssistantScreenState
                           .read(activeMappingProvider.notifier)
                           .removeAssignmentsForField(index);
                     },
+                    onIncludeNextParagraph: showParagraphSpanControls
+                        ? () => _adjustParagraphSpan(
+                            currentFieldAssignments,
+                            delta: 1,
+                          )
+                        : null,
+                    onExcludeLastParagraph: showParagraphSpanControls
+                        ? () => _adjustParagraphSpan(
+                            currentFieldAssignments,
+                            delta: -1,
+                          )
+                        : null,
                   ),
                 ],
               ),
@@ -289,6 +327,11 @@ final class _MappingAssistantScreenState
         fieldIndex: fieldIndex,
         extraOccurrences: extras,
       );
+      await _maybeOfferListFieldDialog(
+        document: document,
+        selection: selection,
+        fieldIndex: fieldIndex,
+      );
       _clearPendingSelection();
       return;
     }
@@ -315,7 +358,110 @@ final class _MappingAssistantScreenState
       headerCount: widget.headers.length,
       extraOccurrences: extras,
     );
+    await _maybeOfferListFieldDialog(
+      document: document,
+      selection: selection,
+      fieldIndex: fieldIndex,
+    );
     _clearPendingSelection();
+  }
+
+  /// Tras crear una asignación, si el párrafo mapeado pertenece a una lista
+  /// numerada, ofrece marcarla como "campo de lista" (Paso 8): el usuario
+  /// puede aceptar para que el exportador auto-detecte el rango completo de
+  /// la lista por `numId`, o rechazar y dejarla como campo normal. El
+  /// checkbox manual de `MappingReviewSidebar` sigue disponible como
+  /// alternativa/override.
+  Future<void> _maybeOfferListFieldDialog({
+    required Document document,
+    required DocumentTextSelection selection,
+    required int fieldIndex,
+  }) async {
+    if (!_paragraphHasNumbering(document, selection.path)) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    final shouldMark = await _askMarkAsListField();
+    if (!shouldMark) {
+      return;
+    }
+
+    final leadingWhitespace =
+        selection.selectedText.length -
+        selection.selectedText.trimLeft().length;
+    final trailingWhitespace =
+        selection.selectedText.length -
+        selection.selectedText.trimRight().length;
+    final expectedStart = selection.startOffset + leadingWhitespace;
+    final expectedEnd = selection.endOffset - trailingWhitespace;
+
+    final assignments = ref.read(activeMappingProvider).state.assignments;
+    final created = assignments.firstWhereOrNull(
+      (assignment) =>
+          assignment.fieldIndex == fieldIndex &&
+          assignment.path == selection.path &&
+          assignment.startOffset == expectedStart &&
+          assignment.endOffset == expectedEnd,
+    );
+    if (created == null) {
+      return;
+    }
+
+    ref
+        .read(activeMappingProvider.notifier)
+        .setAssignmentIsListField(assignmentId: created.id, isListField: true);
+  }
+
+  Future<bool> _askMarkAsListField() async {
+    if (!mounted) {
+      return false;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Lista numerada detectada'),
+          content: const Text(
+            'Este párrafo pertenece a una lista numerada. ¿Deseas marcar '
+            'este campo como "campo de lista"? Si lo haces, al exportar el '
+            'programa detectará automáticamente todos los ítems de la '
+            'lista y los reemplazará con las líneas de la celda del Excel '
+            '(separadas por saltos de línea).',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('No, solo este párrafo'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Sí, es campo de lista'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  void _adjustParagraphSpan(
+    List<FieldAssignment> assignments, {
+    required int delta,
+  }) {
+    final notifier = ref.read(activeMappingProvider.notifier);
+    for (final assignment in assignments) {
+      final current = assignment.paragraphSpan ?? 1;
+      final next = current + delta;
+      notifier.setAssignmentParagraphSpan(
+        assignmentId: assignment.id,
+        paragraphSpan: next <= 1 ? null : next,
+      );
+    }
   }
 
   Future<List<TextOccurrence>?> _resolveExtraOccurrences(
@@ -372,6 +518,14 @@ final class _MappingAssistantScreenState
     );
 
     return result ?? false;
+  }
+}
+
+bool _paragraphHasNumbering(Document document, DocumentTextPath path) {
+  try {
+    return resolveParagraph(document, path).numberingId != null;
+  } on DocumentTextPathResolutionException {
+    return false;
   }
 }
 

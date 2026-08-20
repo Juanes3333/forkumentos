@@ -20,6 +20,38 @@ final class DocxTextReplacement {
   final String text;
 }
 
+/// One resolved multi-paragraph replacement: expands/contracts the
+/// paragraph(s) starting at [rootBlockIndex] to exactly `lines.length`
+/// output paragraphs. Covers two source ranges:
+/// - [isNumberedList] `true` ("campo de lista"): the range is auto-detected
+///   by scanning forward for paragraphs sharing the root's `<w:numId>`.
+/// - [isNumberedList] `false` (multi-paragraph prose): the range is exactly
+///   [paragraphSpan] consecutive paragraphs starting at [rootBlockIndex],
+///   `<w:numId>` is never consulted.
+final class DocxListReplacement {
+  const DocxListReplacement({
+    required this.rootBlockIndex,
+    required this.lines,
+    required this.isNumberedList,
+    this.paragraphSpan,
+  });
+
+  /// blockIndex (root-level, same numbering as [DocxTextReplacement.steps]'
+  /// `ExportRootBlockStep`) of the first `<w:p>` of the range.
+  final int rootBlockIndex;
+
+  /// Cell value split by `\n`; one output paragraph per line.
+  final List<String> lines;
+
+  /// `true` to auto-detect the source range by `<w:numId>` (numbered list).
+  /// `false` to use exactly [paragraphSpan] consecutive paragraphs.
+  final bool isNumberedList;
+
+  /// Number of consecutive source paragraphs to replace when
+  /// [isNumberedList] is `false`. Unused otherwise.
+  final int? paragraphSpan;
+}
+
 /// Decoded DOCX ZIP entries ready for per-row XML mutation without re-decode.
 final class PreparedDocxTemplate {
   const PreparedDocxTemplate({required this.entries});
@@ -81,13 +113,18 @@ final class DocxZipExporter {
   Uint8List applyPrepared({
     required PreparedDocxTemplate prepared,
     required List<DocxTextReplacement> replacements,
+    List<DocxListReplacement> listReplacements = const [],
   }) {
     final output = Archive();
 
     for (final entry in prepared.entries) {
       if (entry.name.toLowerCase() == 'word/document.xml') {
         final xml = utf8.decode(entry.bytes, allowMalformed: true);
-        final updated = _applyToDocumentXml(xml, replacements);
+        final updated = _applyToDocumentXml(
+          xml,
+          replacements,
+          listReplacements,
+        );
         final encoded = Uint8List.fromList(utf8.encode(updated));
         output.addFile(
           ArchiveFile(entry.name, encoded.length, encoded)
@@ -116,10 +153,12 @@ final class DocxZipExporter {
   Uint8List applyReplacements({
     required Uint8List templateBytes,
     required List<DocxTextReplacement> replacements,
+    List<DocxListReplacement> listReplacements = const [],
   }) {
     return applyPrepared(
       prepared: prepare(templateBytes),
       replacements: replacements,
+      listReplacements: listReplacements,
     );
   }
 }
@@ -135,8 +174,9 @@ Archive _decodeArchive(Uint8List bytes) {
 String _applyToDocumentXml(
   String xmlContent,
   List<DocxTextReplacement> replacements,
+  List<DocxListReplacement> listReplacements,
 ) {
-  if (replacements.isEmpty) {
+  if (replacements.isEmpty && listReplacements.isEmpty) {
     // Sin reemplazos no se reescribe una sola letra, así que la copia es
     // idéntica a la plantilla y sus `lastRenderedPageBreak` siguen siendo
     // ciertos: no hay nada obsoleto que limpiar y se evita parsear y
@@ -151,6 +191,10 @@ String _applyToDocumentXml(
     final key = _pathKey(replacement.steps);
     (byPath[key] ??= <DocxTextReplacement>[]).add(replacement);
   }
+  final byRootBlockIndex = <int, DocxListReplacement>{
+    for (final listReplacement in listReplacements)
+      listReplacement.rootBlockIndex: listReplacement,
+  };
 
   // Absoluto y monotónico, en orden de documento: espejo exacto de
   // `enumerateParagraphTexts` (un incremento por segmento de
@@ -159,9 +203,19 @@ String _applyToDocumentXml(
   // necesita saber en qué página cae un bloque.
   var blockIndex = 0;
 
-  for (final child in body.childElements.toList()) {
+  // Snapshot de los `<w:p>`/`<w:tbl>` de nivel raíz ANTES de mutar nada: las
+  // listas se recopilan aquí (por referencia de elemento) pero solo se
+  // insertan/eliminan después de terminar este recorrido completo, así que
+  // el conteo de `blockIndex` que ven los reemplazos normales nunca se ve
+  // afectado por una mutación de lista en un bloque anterior.
+  final children = body.childElements.toList();
+  final pendingLists = <_PendingListInsertion>[];
+
+  for (var i = 0; i < children.length; i++) {
+    final child = children[i];
     final localName = child.name.local;
     if (localName == 'p') {
+      final paragraphBlockIndex = blockIndex;
       final chunks = _splitParagraphChunks(child);
       for (final chunk in chunks) {
         final steps = <ExportPathStep>[
@@ -174,6 +228,12 @@ String _applyToDocumentXml(
         }
         blockIndex++;
       }
+      final listReplacement = byRootBlockIndex[paragraphBlockIndex];
+      if (listReplacement != null) {
+        pendingLists.add(
+          _collectListGroup(children, i, paragraphBlockIndex, listReplacement),
+        );
+      }
       continue;
     }
 
@@ -183,8 +243,140 @@ String _applyToDocumentXml(
     }
   }
 
+  // Orden inverso de blockIndex: las mutaciones de una lista posterior nunca
+  // desplazan la posición todavía-no-procesada de una lista anterior.
+  pendingLists.sort((a, b) => b.blockIndex.compareTo(a.blockIndex));
+  for (final pending in pendingLists) {
+    _applyListInsertion(body, pending);
+  }
+
   _stripLastRenderedPageBreaks(document);
   return document.toXmlString();
+}
+
+/// Recopila el rango de `<w:p>` de origen empezando en
+/// `children[startIndex]` (rootBlockIndex ya verificado por el llamador).
+///
+/// - Lista numerada ([DocxListReplacement.isNumberedList] `true`): el rango
+///   son el párrafo raíz y todos los `<w:p>` siguientes que comparten su
+///   mismo `<w:numId>`. Si el párrafo mapeado no tiene `<w:numPr>`, la lista
+///   degenera a ese único párrafo (no hay como saber dónde termina).
+/// - Prosa multi-párrafo (`isNumberedList` `false`): el rango son
+///   exactamente [DocxListReplacement.paragraphSpan] párrafos consecutivos;
+///   `<w:numId>` no se consulta. Un `paragraphSpan` nulo o <=1 degenera al
+///   único párrafo raíz.
+_PendingListInsertion _collectListGroup(
+  List<XmlElement> children,
+  int startIndex,
+  int blockIndex,
+  DocxListReplacement replacement,
+) {
+  final head = children[startIndex];
+  final group = <XmlElement>[head];
+
+  if (replacement.isNumberedList) {
+    final numId = _numIdOf(head);
+    if (numId != null) {
+      var j = startIndex + 1;
+      while (j < children.length) {
+        final next = children[j];
+        if (next.name.local != 'p' || _numIdOf(next) != numId) {
+          break;
+        }
+        group.add(next);
+        j++;
+      }
+    }
+  } else {
+    final span = replacement.paragraphSpan ?? 1;
+    var j = startIndex + 1;
+    while (group.length < span && j < children.length) {
+      final next = children[j];
+      if (next.name.local != 'p') {
+        break;
+      }
+      group.add(next);
+      j++;
+    }
+  }
+
+  return _PendingListInsertion(
+    template: head.copy(),
+    toRemove: group,
+    lines: replacement.lines,
+    blockIndex: blockIndex,
+  );
+}
+
+/// Elimina [_PendingListInsertion.toRemove] de [body] y en su lugar inserta
+/// un clon del párrafo plantilla por cada línea (mismo `<w:numPr>`, así que
+/// Word renumera la lista automáticamente).
+void _applyListInsertion(XmlElement body, _PendingListInsertion pending) {
+  final insertAt = body.children.indexOf(pending.toRemove.first);
+  if (insertAt < 0) {
+    // ponytail: no debería ocurrir (el elemento viene del mismo snapshot de
+    // body.children), pero si pasa, no hay dónde insertar — se deja intacto
+    // en vez de lanzar y perder el resto de la fila.
+    return;
+  }
+  for (final element in pending.toRemove) {
+    body.children.remove(element);
+  }
+  var index = insertAt;
+  for (final line in pending.lines) {
+    body.children.insert(index, _cloneListParagraph(pending.template, line));
+    index++;
+  }
+}
+
+/// Clona el `<w:p>` plantilla y pone [text] en el primer `<w:t>` de su
+/// primer `<w:r>`, eliminando los demás runs — el clon más simple que
+/// preserva el formato del primer run y el `<w:numPr>` heredado.
+XmlElement _cloneListParagraph(XmlElement template, String text) {
+  final clone = template.copy();
+  final runs = clone.childElements
+      .where((element) => element.name.local == 'r')
+      .toList();
+  if (runs.isEmpty) {
+    return clone;
+  }
+  for (final extra in runs.skip(1)) {
+    extra.remove();
+  }
+  final textNodes = runs.first.descendants
+      .whereType<XmlElement>()
+      .where((element) => element.name.local == 't')
+      .toList();
+  if (textNodes.isEmpty) {
+    return clone;
+  }
+  textNodes.first.innerText = text;
+  for (final extra in textNodes.skip(1)) {
+    extra.innerText = '';
+  }
+  return clone;
+}
+
+/// Lee `<w:pPr><w:numPr><w:numId w:val="X"/></w:numPr></w:pPr>` de [paragraph].
+int? _numIdOf(XmlElement paragraph) {
+  for (final pPr in paragraph.childElements.where(
+    (element) => element.name.local == 'pPr',
+  )) {
+    for (final numPr in pPr.childElements.where(
+      (element) => element.name.local == 'numPr',
+    )) {
+      for (final numId in numPr.childElements.where(
+        (element) => element.name.local == 'numId',
+      )) {
+        for (final attribute in numId.attributes) {
+          if (attribute.name.local == 'val') {
+            return int.tryParse(attribute.value);
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /// Borra todo `w:lastRenderedPageBreak` del documento exportado.
@@ -598,4 +790,21 @@ final class _ParagraphChunkNodes {
 
   final List<_TextNodeRef> nodes;
   final bool endsWithPageBreak;
+}
+
+/// A numbered-list expansion queued during the read-only body walk, applied
+/// only after that walk finishes so it never perturbs `blockIndex` for
+/// normal-text replacements computed in the same pass.
+final class _PendingListInsertion {
+  const _PendingListInsertion({
+    required this.template,
+    required this.toRemove,
+    required this.lines,
+    required this.blockIndex,
+  });
+
+  final XmlElement template;
+  final List<XmlElement> toRemove;
+  final List<String> lines;
+  final int blockIndex;
 }

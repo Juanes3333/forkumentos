@@ -121,4 +121,52 @@ void main() {
     expect(restored, hasLength(1));
     expect(restored.single.isListField, isFalse);
   });
+
+  test('serializa y restaura paragraphSpan', () {
+    const assignment = FieldAssignment(
+      id: 'assignment-5',
+      fieldIndex: 3,
+      fieldHeader: 'observaciones',
+      selectedText: 'Primer párrafo',
+      path: DocumentTextPath(
+        steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 5)],
+      ),
+      startOffset: 0,
+      endOffset: 14,
+      paragraphSpan: 3,
+    );
+
+    final json = mappingAssignmentsToJson(<FieldAssignment>[assignment]);
+    final restored = mappingAssignmentsFromJson(json);
+
+    expect(restored, <FieldAssignment>[assignment]);
+  });
+
+  test('un JSON de proyecto viejo sin la clave paragraphSpan se restaura como '
+      'null', () {
+    final legacyJson = <Map<String, dynamic>>[
+      <String, dynamic>{
+        'id': 'assignment-6',
+        'fieldIndex': 0,
+        'fieldHeader': 'titulo',
+        'selectedText': 'Ana',
+        'path': <String, dynamic>{
+          'steps': <Map<String, dynamic>>[
+            <String, dynamic>{'type': 'rootBlock', 'blockIndex': 0},
+          ],
+          'region': 'body',
+        },
+        'startOffset': 0,
+        'endOffset': 3,
+        'isListField': false,
+        // sin clave 'paragraphSpan': simula un proyecto .fork guardado
+        // antes de que existiera el campo.
+      },
+    ];
+
+    final restored = mappingAssignmentsFromJson(legacyJson);
+
+    expect(restored, hasLength(1));
+    expect(restored.single.paragraphSpan, isNull);
+  });
 }

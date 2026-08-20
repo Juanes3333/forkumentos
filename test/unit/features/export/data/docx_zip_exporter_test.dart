@@ -513,6 +513,144 @@ void main() {
 
       expect(_wTexts(documentXml), <String>['A', 'Dos', 'C', 'Cuatro', 'E']);
     });
+
+    test('un campo de lista con menos líneas que ítems originales contrae la '
+        'lista numerada sin dejar residuos de los ítems sobrantes', () {
+      final documentXml = _exportDocumentXmlWithLists(
+        bodyContent: _numberedListBody(itemCount: 8),
+        listReplacements: const <DocxListReplacement>[
+          DocxListReplacement(
+            rootBlockIndex: 0,
+            lines: <String>['Uno', 'Dos', 'Tres'],
+            isNumberedList: true,
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Uno', 'Dos', 'Tres']);
+      expect(_countElements(documentXml, 'p'), 3);
+      // Cada párrafo nuevo conserva el numId de la plantilla, así que Word
+      // sigue numerando la lista automáticamente.
+      expect(_numIds(documentXml), <int>[1, 1, 1]);
+    });
+
+    test('un campo de lista con más líneas que ítems originales expande la '
+        'lista numerada clonando el párrafo plantilla', () {
+      final lines = List<String>.generate(12, (i) => 'Item ${i + 1}');
+      final documentXml = _exportDocumentXmlWithLists(
+        bodyContent: _numberedListBody(itemCount: 8),
+        listReplacements: <DocxListReplacement>[
+          DocxListReplacement(
+            rootBlockIndex: 0,
+            lines: lines,
+            isNumberedList: true,
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), lines);
+      expect(_countElements(documentXml, 'p'), 12);
+      expect(_numIds(documentXml), List<int>.filled(12, 1));
+    });
+
+    test(
+      'un campo de lista convive con un reemplazo de texto normal en un '
+      'párrafo posterior sin que la contracción de la lista lo desalinee',
+      () {
+        final documentXml = _exportDocumentXmlWithLists(
+          bodyContent:
+              '${_numberedListBody(itemCount: 8)}'
+              '<w:p><w:r><w:t>Firma: XXX</w:t></w:r></w:p>',
+          replacements: const <DocxTextReplacement>[
+            // blockIndex 8: el noveno <w:p> del body, tras los 8 de la lista.
+            DocxTextReplacement(
+              steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 8)],
+              startOffset: 7,
+              endOffset: 10,
+              text: 'Ana',
+            ),
+          ],
+          listReplacements: const <DocxListReplacement>[
+            DocxListReplacement(
+              rootBlockIndex: 0,
+              lines: <String>['Solo uno'],
+              isNumberedList: true,
+            ),
+          ],
+        );
+
+        expect(_wTexts(documentXml), <String>['Solo uno', 'Firma: Ana']);
+      },
+    );
+
+    test('un campo de prosa multi-párrafo (isNumberedList: false) colapsa '
+        'paragraphSpan párrafos consecutivos a una sola línea, sin mirar '
+        'w:numId', () {
+      final documentXml = _exportDocumentXmlWithLists(
+        bodyContent: '''
+<w:p><w:r><w:t>Primer párrafo.</w:t></w:r></w:p>
+<w:p><w:r><w:t>Segundo párrafo.</w:t></w:r></w:p>
+''',
+        listReplacements: const <DocxListReplacement>[
+          DocxListReplacement(
+            rootBlockIndex: 0,
+            lines: <String>['Texto unificado.'],
+            isNumberedList: false,
+            paragraphSpan: 2,
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Texto unificado.']);
+      expect(_countElements(documentXml, 'p'), 1);
+    });
+
+    test('un campo de prosa multi-párrafo expande su rango de origen '
+        '(paragraphSpan) a lines.length párrafos de salida, igual que el '
+        'modo lista', () {
+      final documentXml = _exportDocumentXmlWithLists(
+        bodyContent: '''
+<w:p><w:r><w:t>Uno.</w:t></w:r></w:p>
+<w:p><w:r><w:t>Dos.</w:t></w:r></w:p>
+''',
+        listReplacements: const <DocxListReplacement>[
+          DocxListReplacement(
+            rootBlockIndex: 0,
+            lines: <String>['A', 'B', 'C'],
+            isNumberedList: false,
+            paragraphSpan: 2,
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['A', 'B', 'C']);
+      expect(_countElements(documentXml, 'p'), 3);
+    });
+
+    test('un campo de prosa multi-párrafo ignora w:numId por completo: dos '
+        'párrafos con numId distinto igual se colapsan porque el rango es '
+        'por paragraphSpan, no por lista', () {
+      final documentXml = _exportDocumentXmlWithLists(
+        bodyContent: '''
+<w:p>
+  <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
+  <w:r><w:t>Uno.</w:t></w:r>
+</w:p>
+<w:p><w:r><w:t>Dos.</w:t></w:r></w:p>
+''',
+        listReplacements: const <DocxListReplacement>[
+          DocxListReplacement(
+            rootBlockIndex: 0,
+            lines: <String>['Junto.'],
+            isNumberedList: false,
+            paragraphSpan: 2,
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Junto.']);
+      expect(_countElements(documentXml, 'p'), 1);
+    });
   });
 }
 
@@ -592,4 +730,58 @@ int _countElements(String documentXml, String localName) {
       .whereType<XmlElement>()
       .where((element) => element.name.local == localName)
       .length;
+}
+
+/// Como [_exportDocumentXml] pero también acepta [listReplacements].
+String _exportDocumentXmlWithLists({
+  required String bodyContent,
+  List<DocxTextReplacement> replacements = const <DocxTextReplacement>[],
+  List<DocxListReplacement> listReplacements = const <DocxListReplacement>[],
+}) {
+  final template = _buildDocxBytes(documentXml: _documentWithBody(bodyContent));
+  final result = const DocxZipExporter().applyReplacements(
+    templateBytes: template,
+    replacements: replacements,
+    listReplacements: listReplacements,
+  );
+  final archive = ZipDecoder().decodeBytes(result);
+  final documentFile = archive.files.firstWhere(
+    (file) => file.name.toLowerCase() == 'word/document.xml',
+  );
+  return utf8.decode(documentFile.content as List<int>);
+}
+
+/// `bodyContent` de una lista numerada de [itemCount] ítems, cada uno un
+/// `<w:p>` con `<w:numPr>` compartiendo `w:numId="1"`, como la lista de 8
+/// ítems del template real que motiva esta feature.
+String _numberedListBody({required int itemCount}) {
+  final buffer = StringBuffer();
+  for (var i = 1; i <= itemCount; i++) {
+    buffer.write('''
+<w:p>
+  <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
+  <w:r><w:t>Item $i</w:t></w:r>
+</w:p>
+''');
+  }
+  return buffer.toString();
+}
+
+/// `w:numId` de cada `<w:p>` en orden de documento (falta = se omite).
+List<int> _numIds(String documentXml) {
+  final ids = <int>[];
+  for (final p in XmlDocument.parse(
+    documentXml,
+  ).descendants.whereType<XmlElement>().where((e) => e.name.local == 'p')) {
+    for (final numId in p.descendants.whereType<XmlElement>().where(
+      (e) => e.name.local == 'numId',
+    )) {
+      for (final attr in numId.attributes) {
+        if (attr.name.local == 'val') {
+          ids.add(int.parse(attr.value));
+        }
+      }
+    }
+  }
+  return ids;
 }

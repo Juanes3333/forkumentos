@@ -8,12 +8,25 @@ final class ExportPlaceholder {
     required this.startOffset,
     required this.endOffset,
     required this.fieldIndex,
+    this.isListField = false,
+    this.paragraphSpan,
   });
 
   final List<ExportPathStep> steps;
   final int startOffset;
   final int endOffset;
   final int fieldIndex;
+
+  /// When true, this is a "campo de lista": the exporter expands/contracts
+  /// the numbered list starting at `steps`' root blockIndex to match the
+  /// resolved value's line count, instead of substituting text in place.
+  final bool isListField;
+
+  /// When set and >1 (and [isListField] is false), this is a multi-paragraph
+  /// prose field: the exporter replaces exactly this many consecutive
+  /// paragraphs starting at `steps`' root blockIndex, instead of substituting
+  /// text in place.
+  final int? paragraphSpan;
 }
 
 /// Simple path step mirroring document body walk order.
