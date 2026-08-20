@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+### Added
+- **Refrescar datos**: relee el datasource desde `datasourceExternalPath` (archivo original en disco), sin destruir el estado si el archivo no cambió o no existe.
+- Persistencia de `datasourceExternalPath` en `project.json` del `.fork` (compatible con proyectos viejos: ausente → null).
+- Acciones de refresco en ribbon y card de datasource; feedback de delta de filas / no encontrado / error.
+
 ## 1.4.0
 
 ### Added

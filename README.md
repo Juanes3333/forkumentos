@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.4.0-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.5.0-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -32,9 +32,9 @@
 
 ---
 
-**Version 1.4.0**
+**Version 1.5.0**
 
-Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine.
+Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy).
 
 ---
 
@@ -47,6 +47,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Live preview against any datasource row
 - Batch export to **DOCX** with optional ZIP packaging and template-based filenames
 - Drag-and-drop import and multi-window project handling on Windows
+- **Refresh datasource** from the original CSV/XLSX path without reopening the project
 
 ---
 
@@ -83,6 +84,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - XLSX uses the first sheet that has non-empty headers
 - Date/number cells are normalized to readable values (not raw Excel package strings)
 - Replace the active datasource from the ribbon or by drag-and-drop
+- **Refrescar datos**: re-read from the original file path stored in the project (`datasourceExternalPath`), with row-delta feedback when content changed
 
 ### Mapping
 

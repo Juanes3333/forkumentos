@@ -22,6 +22,12 @@ class Project with _$Project {
     String? embeddedTemplatePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? embeddedDatasourcePath,
+    // Not part of the standard freezed toJson: LocalProjectRepository reads
+    // and writes this key manually in project.json (see save()/load()),
+    // consistent with how embeddedTemplatePath/embeddedDatasourcePath are
+    // already handled outside the generated serializer.
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? datasourceExternalPath,
   }) = _Project;
 
   factory Project.fromJson(Map<String, dynamic> json) =>

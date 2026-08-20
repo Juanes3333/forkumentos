@@ -431,6 +431,19 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
                   : () => _replaceDatasource(ref),
             ),
             _RibbonActionButton(
+              icon: Icons.cloud_sync_outlined,
+              label: 'Refrescar datos',
+              tooltip: ref.watch(datasourceRefreshAvailableProvider)
+                  ? 'Vuelve a leer el archivo de datos desde su ruta original'
+                  : 'No se encontró el archivo original en esta ruta — usa '
+                        'Reemplazar datos',
+              onPressed:
+                  !ref.watch(datasourceRefreshAvailableProvider) ||
+                      datasourceState.isLoading
+                  ? null
+                  : () => _refreshDatasource(context, ref),
+            ),
+            _RibbonActionButton(
               icon: Icons.file_download_outlined,
               label: 'Exportar datos',
               onPressed: datasource == null || datasourceState.isLoading
@@ -503,7 +516,45 @@ Future<void> _replaceDatasource(WidgetRef ref) async {
     ref
         .read(activeProjectProvider.notifier)
         .setEmbeddedArtifactPaths(datasourcePath: path);
+    ref.read(activeProjectProvider.notifier).setDatasourceExternalPath(path);
   }
+}
+
+Future<void> _refreshDatasource(BuildContext context, WidgetRef ref) async {
+  final result = await ref
+      .read(activeDatasourceProvider.notifier)
+      .refreshDatasource();
+
+  final String message;
+  switch (result.status) {
+    case DatasourceRefreshStatus.unchanged:
+      message = 'El archivo no tiene cambios.';
+    case DatasourceRefreshStatus.updated:
+      final path = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
+      if (path != null) {
+        ref
+            .read(activeProjectProvider.notifier)
+            .setEmbeddedArtifactPaths(datasourcePath: path);
+      }
+      final delta = result.rowDelta ?? 0;
+      message = switch (delta) {
+        > 0 => 'Datos actualizados: +$delta filas nuevas',
+        < 0 => 'Datos actualizados: $delta filas',
+        _ => 'Datos actualizados',
+      };
+    case DatasourceRefreshStatus.notFound:
+      message = 'El archivo ya no está disponible en su ruta original.';
+    case DatasourceRefreshStatus.error:
+      message =
+          result.message ?? 'Ocurrió un error al refrescar la fuente de datos.';
+  }
+
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 Future<void> _showDatasourceInfo(BuildContext context, Datasource datasource) {

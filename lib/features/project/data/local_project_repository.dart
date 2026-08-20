@@ -60,6 +60,10 @@ final class LocalProjectRepository implements ProjectRepository {
       isDirty: false,
       embeddedTemplatePath: extracted.embeddedTemplatePath,
       embeddedDatasourcePath: extracted.embeddedDatasourcePath,
+      // Absent in projects saved before this field existed; null is the
+      // correct, backward-compatible result in that case.
+      datasourceExternalPath:
+          extracted.projectJson['datasourceExternalPath'] as String?,
     );
   }
 
@@ -85,6 +89,8 @@ final class LocalProjectRepository implements ProjectRepository {
       'name': project.name,
       'createdAt': project.createdAt.toUtc().toIso8601String(),
       'updatedAt': now.toIso8601String(),
+      if (project.datasourceExternalPath != null)
+        'datasourceExternalPath': project.datasourceExternalPath,
     };
     archive
       ..addFile(_utf8File(_projectFileName, jsonEncode(projectPayload)))

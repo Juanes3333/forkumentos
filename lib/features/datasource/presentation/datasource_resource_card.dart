@@ -84,7 +84,9 @@ final class DatasourceResourceCard extends ConsumerWidget {
             _LoadedState(
               datasource: datasource,
               isLoading: isLoading,
+              refreshAvailable: ref.watch(datasourceRefreshAvailableProvider),
               onReplace: () => _pickAndImport(ref),
+              onRefresh: () => _refresh(context, ref),
             ),
           ],
         ),
@@ -111,6 +113,7 @@ Future<void> _pickAndImport(WidgetRef ref) async {
       .read(activeDatasourceProvider.notifier)
       .importDatasource(filePath: filePath);
   _syncEmbeddedDatasourcePath(ref);
+  ref.read(activeProjectProvider.notifier).setDatasourceExternalPath(filePath);
 }
 
 void _syncEmbeddedDatasourcePath(WidgetRef ref) {
@@ -121,6 +124,38 @@ void _syncEmbeddedDatasourcePath(WidgetRef ref) {
   ref
       .read(activeProjectProvider.notifier)
       .setEmbeddedArtifactPaths(datasourcePath: path);
+}
+
+Future<void> _refresh(BuildContext context, WidgetRef ref) async {
+  final result = await ref
+      .read(activeDatasourceProvider.notifier)
+      .refreshDatasource();
+
+  final String message;
+  switch (result.status) {
+    case DatasourceRefreshStatus.unchanged:
+      message = 'El archivo no tiene cambios.';
+    case DatasourceRefreshStatus.updated:
+      _syncEmbeddedDatasourcePath(ref);
+      final delta = result.rowDelta ?? 0;
+      message = switch (delta) {
+        > 0 => 'Datos actualizados: +$delta filas nuevas',
+        < 0 => 'Datos actualizados: $delta filas',
+        _ => 'Datos actualizados',
+      };
+    case DatasourceRefreshStatus.notFound:
+      message = 'El archivo ya no está disponible en su ruta original.';
+    case DatasourceRefreshStatus.error:
+      message =
+          result.message ?? 'Ocurrió un error al refrescar la fuente de datos.';
+  }
+
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 String? _resolveErrorMessage(Object? error) {
@@ -139,15 +174,21 @@ final class _LoadedState extends StatelessWidget {
   const _LoadedState({
     required this.datasource,
     required this.isLoading,
+    required this.refreshAvailable,
     required this.onReplace,
+    required this.onRefresh,
   });
 
   final Datasource datasource;
   final bool isLoading;
+  final bool refreshAvailable;
   final VoidCallback onReplace;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
+    final refreshEnabled = refreshAvailable && !isLoading;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -162,10 +203,27 @@ final class _LoadedState extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: isLoading ? null : onReplace,
-          icon: const Icon(Icons.sync_outlined),
-          label: const Text('Reemplazar'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            OutlinedButton.icon(
+              onPressed: isLoading ? null : onReplace,
+              icon: const Icon(Icons.sync_outlined),
+              label: const Text('Reemplazar'),
+            ),
+            Tooltip(
+              message: refreshAvailable
+                  ? 'Vuelve a leer el archivo original y actualiza los datos'
+                  : 'No se encontró el archivo original en esta ruta — '
+                        'usa Reemplazar',
+              child: OutlinedButton.icon(
+                onPressed: refreshEnabled ? onRefresh : null,
+                icon: const Icon(Icons.cloud_sync_outlined),
+                label: const Text('Refrescar datos'),
+              ),
+            ),
+          ],
         ),
       ],
     );

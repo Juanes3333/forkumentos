@@ -76,6 +76,67 @@ void main() {
     expect(File(loadedProject.embeddedDatasourcePath!).existsSync(), isTrue);
   });
 
+  test('datasourceExternalPath persiste en project.json y sobrevive el '
+      'round-trip', () async {
+    final datasourceSource = File(p.join(tempDirectory.path, 'datos.csv'))
+      ..writeAsStringSync('nombre,correo\nAna,a@x.com\n');
+    final externalPath = p.join(tempDirectory.path, 'original', 'datos.csv');
+
+    final sourceProject = Project(
+      id: 'project-2',
+      name: 'Proyecto con Ruta Externa',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026, 1, 2),
+      datasourceExternalPath: externalPath,
+    );
+    final filePath = p.join(tempDirectory.path, 'con_ruta_externa.fork');
+
+    await repository.save(
+      project: sourceProject,
+      filePath: filePath,
+      datasourceSourcePath: datasourceSource.path,
+      cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+    );
+
+    final bytes = await File(filePath).readAsBytes();
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final projectJson =
+        jsonDecode(
+              utf8.decode(
+                archive.findFile('project.json')!.content as List<int>,
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(projectJson['datasourceExternalPath'], externalPath);
+
+    final loadedProject = await repository.load(
+      filePath,
+      cacheDirectory: p.join(tempDirectory.path, 'LoadCache2'),
+    );
+    expect(loadedProject.datasourceExternalPath, externalPath);
+  });
+
+  test(
+    'proyectos guardados sin datasourceExternalPath cargan con null',
+    () async {
+      final sourceProject = Project(
+        id: 'project-3',
+        name: 'Proyecto Viejo',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026, 1, 2),
+      );
+      final filePath = p.join(tempDirectory.path, 'sin_ruta_externa.fork');
+
+      await repository.save(project: sourceProject, filePath: filePath);
+
+      final loadedProject = await repository.load(
+        filePath,
+        cacheDirectory: p.join(tempDirectory.path, 'LoadCache3'),
+      );
+      expect(loadedProject.datasourceExternalPath, isNull);
+    },
+  );
+
   test('save sobre mismo path reemplaza sin dejar tmp o bak', () async {
     final filePath = p.join(tempDirectory.path, 'proyecto_reemplazo.fork');
     final firstProject = Project(

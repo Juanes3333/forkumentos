@@ -187,6 +187,44 @@ void main() {
     },
   );
 
+  test(
+    'setDatasourceExternalPath registra la ruta y marca el proyecto dirty',
+    () async {
+      final fakeRepository = FakeProjectRepository();
+      final container = _createContainer(fakeRepository, tempDirectory.path);
+      addTearDown(container.dispose);
+
+      final notifier = container.read(activeProjectProvider.notifier);
+      await notifier.createProject(name: 'Proyecto con Datos');
+      await notifier.saveProject(
+        filePath: p.join(tempDirectory.path, 'con_datos.fork'),
+      );
+      expect(
+        container.read(activeProjectProvider).valueOrNull?.isDirty,
+        isFalse,
+      );
+
+      final externalPath = p.join(tempDirectory.path, 'origen.csv');
+      notifier.setDatasourceExternalPath(externalPath);
+
+      final project = container.read(activeProjectProvider).valueOrNull;
+      expect(project?.datasourceExternalPath, externalPath);
+      expect(project?.isDirty, isTrue);
+    },
+  );
+
+  test('setDatasourceExternalPath no hace nada sin proyecto activo', () async {
+    final fakeRepository = FakeProjectRepository();
+    final container = _createContainer(fakeRepository, tempDirectory.path);
+    addTearDown(container.dispose);
+
+    container
+        .read(activeProjectProvider.notifier)
+        .setDatasourceExternalPath('/tmp/origen.csv');
+
+    expect(container.read(activeProjectProvider).valueOrNull, isNull);
+  });
+
   test('closeProject limpia completamente el estado', () async {
     final fakeRepository = FakeProjectRepository();
     final container = _createContainer(fakeRepository, tempDirectory.path);

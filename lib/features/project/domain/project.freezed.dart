@@ -34,7 +34,12 @@ mixin _$Project {
   @JsonKey(includeFromJson: false, includeToJson: false)
   String? get embeddedTemplatePath => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
-  String? get embeddedDatasourcePath => throw _privateConstructorUsedError;
+  String? get embeddedDatasourcePath => throw _privateConstructorUsedError; // Not part of the standard freezed toJson: LocalProjectRepository reads
+  // and writes this key manually in project.json (see save()/load()),
+  // consistent with how embeddedTemplatePath/embeddedDatasourcePath are
+  // already handled outside the generated serializer.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get datasourceExternalPath => throw _privateConstructorUsedError;
 
   /// Serializes this Project to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -62,6 +67,8 @@ abstract class $ProjectCopyWith<$Res> {
     String? embeddedTemplatePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? embeddedDatasourcePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? datasourceExternalPath,
   });
 }
 
@@ -89,6 +96,7 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? isDirty = null,
     Object? embeddedTemplatePath = freezed,
     Object? embeddedDatasourcePath = freezed,
+    Object? datasourceExternalPath = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -128,6 +136,10 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
                 ? _value.embeddedDatasourcePath
                 : embeddedDatasourcePath // ignore: cast_nullable_to_non_nullable
                       as String?,
+            datasourceExternalPath: freezed == datasourceExternalPath
+                ? _value.datasourceExternalPath
+                : datasourceExternalPath // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -154,6 +166,8 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
     String? embeddedTemplatePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? embeddedDatasourcePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? datasourceExternalPath,
   });
 }
 
@@ -180,6 +194,7 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? isDirty = null,
     Object? embeddedTemplatePath = freezed,
     Object? embeddedDatasourcePath = freezed,
+    Object? datasourceExternalPath = freezed,
   }) {
     return _then(
       _$ProjectImpl(
@@ -219,6 +234,10 @@ class __$$ProjectImplCopyWithImpl<$Res>
             ? _value.embeddedDatasourcePath
             : embeddedDatasourcePath // ignore: cast_nullable_to_non_nullable
                   as String?,
+        datasourceExternalPath: freezed == datasourceExternalPath
+            ? _value.datasourceExternalPath
+            : datasourceExternalPath // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -240,6 +259,8 @@ class _$ProjectImpl implements _Project {
     this.embeddedTemplatePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     this.embeddedDatasourcePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    this.datasourceExternalPath,
   }) : _mappingAssignments = mappingAssignments;
 
   factory _$ProjectImpl.fromJson(Map<String, dynamic> json) =>
@@ -275,10 +296,17 @@ class _$ProjectImpl implements _Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final String? embeddedDatasourcePath;
+  // Not part of the standard freezed toJson: LocalProjectRepository reads
+  // and writes this key manually in project.json (see save()/load()),
+  // consistent with how embeddedTemplatePath/embeddedDatasourcePath are
+  // already handled outside the generated serializer.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final String? datasourceExternalPath;
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath)';
+    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath, datasourceExternalPath: $datasourceExternalPath)';
   }
 
   @override
@@ -302,7 +330,9 @@ class _$ProjectImpl implements _Project {
             (identical(other.embeddedTemplatePath, embeddedTemplatePath) ||
                 other.embeddedTemplatePath == embeddedTemplatePath) &&
             (identical(other.embeddedDatasourcePath, embeddedDatasourcePath) ||
-                other.embeddedDatasourcePath == embeddedDatasourcePath));
+                other.embeddedDatasourcePath == embeddedDatasourcePath) &&
+            (identical(other.datasourceExternalPath, datasourceExternalPath) ||
+                other.datasourceExternalPath == datasourceExternalPath));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -318,6 +348,7 @@ class _$ProjectImpl implements _Project {
     isDirty,
     embeddedTemplatePath,
     embeddedDatasourcePath,
+    datasourceExternalPath,
   );
 
   /// Create a copy of Project
@@ -348,6 +379,8 @@ abstract class _Project implements Project {
     final String? embeddedTemplatePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final String? embeddedDatasourcePath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final String? datasourceExternalPath,
   }) = _$ProjectImpl;
 
   factory _Project.fromJson(Map<String, dynamic> json) = _$ProjectImpl.fromJson;
@@ -373,7 +406,13 @@ abstract class _Project implements Project {
   String? get embeddedTemplatePath;
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
-  String? get embeddedDatasourcePath;
+  String? get embeddedDatasourcePath; // Not part of the standard freezed toJson: LocalProjectRepository reads
+  // and writes this key manually in project.json (see save()/load()),
+  // consistent with how embeddedTemplatePath/embeddedDatasourcePath are
+  // already handled outside the generated serializer.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get datasourceExternalPath;
 
   /// Create a copy of Project
   /// with the given fields replaced by the non-null parameter values.

@@ -24,7 +24,8 @@ mixin _$TextOccurrence {
 
   /// Ruta del bloque donde termina la coincidencia, si cruza párrafos.
   /// Cuando no es nulo, `endOffset` se interpreta dentro de este bloque en
-  /// lugar de dentro de `path` (mismo contrato que `FieldAssignment.endPath`).
+  /// lugar de dentro de `path` (mismo contrato que
+  /// `FieldAssignment.endPath`).
   DocumentTextPath? get endPath => throw _privateConstructorUsedError;
 
   /// Create a copy of TextOccurrence
@@ -218,7 +219,8 @@ class _$TextOccurrenceImpl implements _TextOccurrence {
 
   /// Ruta del bloque donde termina la coincidencia, si cruza párrafos.
   /// Cuando no es nulo, `endOffset` se interpreta dentro de este bloque en
-  /// lugar de dentro de `path` (mismo contrato que `FieldAssignment.endPath`).
+  /// lugar de dentro de `path` (mismo contrato que
+  /// `FieldAssignment.endPath`).
   @override
   final DocumentTextPath? endPath;
 
@@ -284,7 +286,8 @@ abstract class _TextOccurrence implements TextOccurrence {
 
   /// Ruta del bloque donde termina la coincidencia, si cruza párrafos.
   /// Cuando no es nulo, `endOffset` se interpreta dentro de este bloque en
-  /// lugar de dentro de `path` (mismo contrato que `FieldAssignment.endPath`).
+  /// lugar de dentro de `path` (mismo contrato que
+  /// `FieldAssignment.endPath`).
   @override
   DocumentTextPath? get endPath;
 

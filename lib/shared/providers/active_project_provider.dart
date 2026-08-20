@@ -216,6 +216,24 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
     );
   }
 
+  /// Records the external path the user picked for the datasource, kept
+  /// separate from [Project.embeddedDatasourcePath] (which becomes a cache
+  /// path after the first save). Powers "Refrescar datos": re-reading from
+  /// where the user's file actually lives on disk.
+  void setDatasourceExternalPath(String path) {
+    final currentProject = state.valueOrNull;
+    if (currentProject == null || path.isEmpty) {
+      return;
+    }
+    if (currentProject.datasourceExternalPath == path) {
+      return;
+    }
+
+    state = AsyncData(
+      currentProject.copyWith(datasourceExternalPath: path, isDirty: true),
+    );
+  }
+
   Future<void> updateMappingAssignments(
     List<Map<String, dynamic>> mappingAssignments,
   ) {
