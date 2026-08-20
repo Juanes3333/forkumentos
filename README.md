@@ -319,4 +319,4 @@ It targets professional desktop document workflows: keep templates and data loca
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
 - Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
-- Version: **1.4.0**
+- Version: **1.5.0**
