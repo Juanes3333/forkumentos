@@ -127,6 +127,55 @@ void main() {
     expect(texts[2], contains('Eva'));
   });
 
+  test('manualFilenames nombra por posición; el resto usa el patrón', () async {
+    final template = _buildDocxBytes(
+      documentXml: _documentWithBody(
+        '<w:p><w:r><w:t>Hola Ana</w:t></w:r></w:p>',
+      ),
+    );
+    final rows = <int, List<String?>>{
+      0: const <String?>['Ana'],
+      5: const <String?>['Luis'],
+      9: const <String?>['Eva'],
+    };
+
+    final command = DocxExportCommand(
+      templateBytes: template,
+      destinationFolder: tempDirectory.path,
+      filenamePattern: const FilenamePattern(
+        blocks: <FilenamePatternBlock>[
+          FilenameFieldBlock(fieldIndex: 0, fieldHeader: 'nombre'),
+        ],
+      ),
+      rowIndexes: const <int>[0, 5, 9],
+      placeholders: const <ExportPlaceholder>[
+        ExportPlaceholder(
+          steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+          startOffset: 5,
+          endOffset: 8,
+          fieldIndex: 0,
+        ),
+      ],
+      headers: const <String>['nombre'],
+      templateBaseName: 'plantilla',
+      resolveRow: (rowIndex) async => rows[rowIndex]!,
+      manualFilenames: const <int, String>{
+        0: 'contrato-uno',
+        2: 'contrato-tres',
+      },
+    );
+
+    final result = await command.execute();
+
+    expect(result.exportedCount, 3);
+    final names = result.writtenFiles
+        .map((path) => path.split(RegExp(r'[\\/]')).last)
+        .toList();
+    expect(names, contains('contrato-uno.docx'));
+    expect(names, contains('Luis.docx')); // posición 1 sin manual -> patrón
+    expect(names, contains('contrato-tres.docx'));
+  });
+
   test('un placeholder con paragraphSpan > 1 colapsa los párrafos de origen '
       'en el DOCX exportado (modo prosa multi-párrafo, no lista)', () async {
     final template = _buildDocxBytes(

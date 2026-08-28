@@ -20,6 +20,7 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
     required this.resolveRow,
     required this.headers,
     required this.templateBaseName,
+    this.manualFilenames,
   });
 
   final Uint8List templateBytes;
@@ -30,6 +31,10 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
   final Future<List<String?>> Function(int rowIndex) resolveRow;
   final List<String> headers;
   final String templateBaseName;
+
+  /// Manual name per export slot, keyed by position in [rowIndexes]. A
+  /// missing/blank entry falls back to [filenamePattern].
+  final Map<int, String>? manualFilenames;
 
   final Set<String> _usedNames = <String>{};
 
@@ -70,7 +75,9 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
           break;
         }
         final baseName = FilenamePattern.dedupe(
-          filenamePattern.resolve(
+          FilenamePattern.resolveForRow(
+            manualName: manualFilenames?[index],
+            pattern: filenamePattern,
             row: row,
             headers: headers,
             templateName: templateBaseName,

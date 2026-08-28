@@ -45,7 +45,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - **List fields** and cross-paragraph ranges (`endPath`) for variable-length numbered lists and multi-paragraph prose
 - WYSIWYG document viewer (color, font size, paragraph spacing from the source DOCX)
 - Live preview against any datasource row
-- Batch export to **DOCX** with optional ZIP packaging and template-based filenames
+- Batch export to **DOCX** with optional ZIP packaging, automatic filename patterns, or **per-row manual names**
 - Drag-and-drop import and multi-window project handling on Windows
 - **Refresh datasource** from the original CSV/XLSX path without reopening the project
 - Confirm dialog when opening another `.fork` while a project is active (open here / new window / cancel)
@@ -130,6 +130,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Default pattern uses the source DOCX filename (without extension)
 - Automatic `_` separators between adjacent blocks
 - Drag-and-drop reorder of blocks with live filename preview
+- **Nombrado manual**: switch in the export dialog to edit each output name per row (pre-filled from the automatic pattern; blank falls back to the pattern)
 
 ### Drag & drop
 

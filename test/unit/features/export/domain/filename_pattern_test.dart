@@ -109,4 +109,36 @@ void main() {
       );
     });
   });
+
+  group('FilenamePattern.resolveForRow', () {
+    const pattern = FilenamePattern.defaultPattern;
+
+    test('usa el nombre manual cuando está presente (sanitizado)', () {
+      expect(
+        FilenamePattern.resolveForRow(
+          manualName: '  Contrato/Especial  ',
+          pattern: pattern,
+          row: <String?>['Ana'],
+          headers: <String>['nombre'],
+          templateName: 'plantilla',
+        ),
+        'Contrato_Especial',
+      );
+    });
+
+    test('cae al patrón automático si el manual es null o en blanco', () {
+      for (final manual in <String?>[null, '', '   ']) {
+        expect(
+          FilenamePattern.resolveForRow(
+            manualName: manual,
+            pattern: pattern,
+            row: <String?>['Ana'],
+            headers: <String>['nombre'],
+            templateName: 'plantilla',
+          ),
+          'plantilla',
+        );
+      }
+    });
+  });
 }

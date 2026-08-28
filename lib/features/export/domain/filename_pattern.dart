@@ -79,6 +79,26 @@ final class FilenamePattern {
     return sanitize(buffer.toString());
   }
 
+  /// Resolves the output name for one row: the user's [manualName] when it is
+  /// non-blank, otherwise the automatic [pattern]. Kept here (not in the UI)
+  /// so batch export and preview stay in sync.
+  static String resolveForRow({
+    required String? manualName,
+    required FilenamePattern pattern,
+    required List<String?> row,
+    required List<String> headers,
+    required String templateName,
+  }) {
+    if (manualName != null && manualName.trim().isNotEmpty) {
+      return sanitize(manualName);
+    }
+    return pattern.resolve(
+      row: row,
+      headers: headers,
+      templateName: templateName,
+    );
+  }
+
   /// Insert `_` only when neither side already carries `_` or `-`.
   static bool _needsBlockSeparator(String previous, String next) {
     if (_edgeSeparator.hasMatch(previous) || _leadingSeparator.hasMatch(next)) {

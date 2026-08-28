@@ -171,6 +171,70 @@ void main() {
     expect(result!.job.filenamePattern.blocks, hasLength(1));
     expect(result!.job.destinationFolder, 'C:/exports');
   });
+
+  group('nombrado manual', () {
+    testWidgets('el modo por defecto es automático (sin manualFilenames)', (
+      WidgetTester tester,
+    ) async {
+      ExportDialogResult? result;
+      await _pumpDialog(tester, onResult: (value) => result = value);
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Exportar'));
+      await tester.pumpAndSettle();
+
+      expect(result!.job.filenameMode, FilenameMode.automatic);
+      expect(result!.job.manualFilenames, isNull);
+    });
+
+    testWidgets('cambiar a manual oculta el editor y muestra campos', (
+      WidgetTester tester,
+    ) async {
+      await _pumpDialog(tester, currentRowIndex: 1);
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nombre de archivo'), findsOneWidget);
+
+      await tester.tap(find.text('Nombrado manual'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nombre de archivo'), findsNothing);
+      expect(find.text('Fila 2'), findsOneWidget);
+    });
+
+    testWidgets('los nombres manuales editados viajan en el job por posición', (
+      WidgetTester tester,
+    ) async {
+      ExportDialogResult? result;
+      await _pumpDialog(
+        tester,
+        rowCount: 3,
+        onResult: (value) => result = value,
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Todas las filas (3)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nombrado manual'));
+      await tester.pumpAndSettle();
+
+      // Sin rango custom ni editor de patrón, los únicos TextField son los
+      // 3 campos de nombre manual (posición 1 == segunda fila).
+      await tester.enterText(
+        find.byType(TextField).at(1),
+        'contrato-especial',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Exportar'));
+      await tester.pumpAndSettle();
+
+      expect(result!.job.filenameMode, FilenameMode.manual);
+      expect(result!.job.manualFilenames?[1], 'contrato-especial');
+      expect(result!.job.rowIndexes, <int>[0, 1, 2]);
+    });
+  });
 }
 
 Future<void> _pumpDialog(
@@ -201,6 +265,13 @@ Future<void> _pumpDialog(
                   currentRowIndex: currentRowIndex,
                   missingFieldHeaders: missingFieldHeaders,
                   templateName: 'plantilla',
+                  loadRowValues: (rowIndexes) async => <int, List<String?>>{
+                    for (final index in rowIndexes)
+                      index: List<String?>.filled(
+                        headers.length,
+                        'fila$index',
+                      ),
+                  },
                 );
                 onResult?.call(result);
               },

@@ -97,6 +97,7 @@ Future<void> launchExport(
   }
 
   final templateBaseName = p.basenameWithoutExtension(template.fileName);
+  final recordRepository = ref.read(previewRecordRepositoryProvider);
 
   final dialogResult = await ExportDialog.show(
     context,
@@ -110,6 +111,10 @@ Future<void> launchExport(
     ),
     missingFieldHeaders: review?.missingFieldHeaders ?? const <String>[],
     templateName: templateBaseName,
+    loadRowValues: (rowIndexes) => recordRepository.readRecords(
+      datasource: datasource,
+      rowIndexes: rowIndexes,
+    ),
   );
   if (dialogResult == null || !context.mounted) {
     return;
@@ -118,7 +123,6 @@ Future<void> launchExport(
   final job = dialogResult.job;
   final assignments = ref.read(activeMappingProvider).state.assignments;
   final placeholders = assignments.map(_toPlaceholder).toList();
-  final recordRepository = ref.read(previewRecordRepositoryProvider);
   final rowsByIndex = await recordRepository.readRecords(
     datasource: datasource,
     rowIndexes: job.rowIndexes,
@@ -272,6 +276,9 @@ final class ExportSession {
       resolveRow: resolveRow,
       headers: headers,
       templateBaseName: job.templateBaseName,
+      manualFilenames: job.filenameMode == FilenameMode.manual
+          ? job.manualFilenames
+          : null,
     );
     _active = command;
     final partial = await command.execute(

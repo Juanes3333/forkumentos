@@ -13,6 +13,11 @@ final class ExportDialogResult {
   final ExportJob job;
 }
 
+/// Loads datasource values for the given row indexes (used to pre-fill the
+/// manual filename fields with what the automatic pattern would produce).
+typedef ExportRowValuesLoader =
+    Future<Map<int, List<String?>>> Function(List<int> rowIndexes);
+
 /// Export configuration dialog (destination, row range, filename, ZIP).
 ///
 /// DOCX-only: the format picker, page-range section, and oversized-table
@@ -26,6 +31,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required this.currentRowIndex,
     required this.missingFieldHeaders,
     required this.templateName,
+    required this.loadRowValues,
     super.key,
   });
 
@@ -36,6 +42,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
   final int currentRowIndex;
   final List<String> missingFieldHeaders;
   final String templateName;
+  final ExportRowValuesLoader loadRowValues;
 
   static Future<ExportDialogResult?> show(
     BuildContext context, {
@@ -46,6 +53,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required int currentRowIndex,
     required List<String> missingFieldHeaders,
     required String templateName,
+    required ExportRowValuesLoader loadRowValues,
   }) {
     return showDialog<ExportDialogResult>(
       context: context,
@@ -57,6 +65,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
         currentRowIndex: currentRowIndex,
         missingFieldHeaders: missingFieldHeaders,
         templateName: templateName,
+        loadRowValues: loadRowValues,
       ),
     );
   }
@@ -69,6 +78,12 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   ExportRangeMode _rangeMode = ExportRangeMode.single;
   final _rangeController = TextEditingController();
   FilenamePattern _pattern = FilenamePattern.defaultPattern;
+  FilenameMode _filenameMode = FilenameMode.automatic;
+
+  /// Keyed by datasource row index so edits survive a range change.
+  final _manualControllers = <int, TextEditingController>{};
+  var _loadingManual = false;
+
   late bool _createZip;
   String? _rangeError;
   var _acknowledgedMissing = false;
@@ -87,10 +102,76 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   @override
   void dispose() {
     _rangeController.dispose();
+    for (final controller in _manualControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   bool get _hasMissingWarning => widget.missingFieldHeaders.isNotEmpty;
+
+  /// Row indexes for the current range selection, or `null` when the custom
+  /// range is empty/invalid.
+  List<int>? _resolveRowIndexes() {
+    try {
+      final indexes = switch (_rangeMode) {
+        ExportRangeMode.single => <int>[widget.currentRowIndex],
+        ExportRangeMode.batch => List<int>.generate(widget.rowCount, (i) => i),
+        ExportRangeMode.custom => ExportRowRange.parse(
+          _rangeController.text,
+          rowCount: widget.rowCount,
+        ),
+      };
+      return indexes.isEmpty ? null : indexes;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  void _onFilenameModeChanged(FilenameMode mode) {
+    setState(() => _filenameMode = mode);
+    if (mode == FilenameMode.manual) {
+      _syncManualControllers();
+    }
+  }
+
+  void _onRangeChanged() {
+    if (_filenameMode == FilenameMode.manual) {
+      _syncManualControllers();
+    }
+  }
+
+  Future<void> _syncManualControllers() async {
+    final rowIndexes = _resolveRowIndexes();
+    if (rowIndexes == null) {
+      return;
+    }
+    final missing = rowIndexes
+        .where((index) => !_manualControllers.containsKey(index))
+        .toList(growable: false);
+    if (missing.isEmpty) {
+      setState(() {});
+      return;
+    }
+
+    setState(() => _loadingManual = true);
+    final loaded = await widget.loadRowValues(missing);
+    if (!mounted) {
+      return;
+    }
+    for (final index in missing) {
+      final values =
+          loaded[index] ??
+          List<String?>.filled(widget.headers.length, null);
+      final autoName = _pattern.resolve(
+        row: values,
+        headers: widget.headers,
+        templateName: widget.templateName,
+      );
+      _manualControllers[index] = TextEditingController(text: autoName);
+    }
+    setState(() => _loadingManual = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +231,7 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
                     _rangeMode = value;
                     _rangeError = null;
                   });
+                  _onRangeChanged();
                 },
                 child: Column(
                   children: <Widget>[
@@ -185,17 +267,45 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
                     if (_rangeError != null) {
                       setState(() => _rangeError = null);
                     }
+                    _onRangeChanged();
                   },
                 ),
               ],
               const SizedBox(height: 16),
-              FilenamePatternEditor(
-                headers: widget.headers,
-                sampleRow: widget.sampleRow,
-                initialPattern: _pattern,
-                onChanged: (pattern) => _pattern = pattern,
-                templateName: widget.templateName,
+              SegmentedButton<FilenameMode>(
+                segments: const <ButtonSegment<FilenameMode>>[
+                  ButtonSegment<FilenameMode>(
+                    value: FilenameMode.automatic,
+                    label: Text('Nombrado automático'),
+                    icon: Icon(Icons.auto_awesome_outlined),
+                  ),
+                  ButtonSegment<FilenameMode>(
+                    value: FilenameMode.manual,
+                    label: Text('Nombrado manual'),
+                    icon: Icon(Icons.edit_outlined),
+                  ),
+                ],
+                selected: <FilenameMode>{_filenameMode},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) {
+                  _onFilenameModeChanged(selection.first);
+                },
               ),
+              const SizedBox(height: 12),
+              if (_filenameMode == FilenameMode.automatic)
+                FilenamePatternEditor(
+                  headers: widget.headers,
+                  sampleRow: widget.sampleRow,
+                  initialPattern: _pattern,
+                  onChanged: (pattern) => _pattern = pattern,
+                  templateName: widget.templateName,
+                )
+              else
+                _ManualFilenameList(
+                  rowIndexes: _resolveRowIndexes(),
+                  controllers: _manualControllers,
+                  isLoading: _loadingManual,
+                ),
               const SizedBox(height: 8),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
@@ -251,6 +361,18 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
       return;
     }
 
+    Map<int, String>? manualFilenames;
+    if (_filenameMode == FilenameMode.manual) {
+      manualFilenames = <int, String>{};
+      for (var position = 0; position < rowIndexes.length; position++) {
+        final text =
+            _manualControllers[rowIndexes[position]]?.text.trim() ?? '';
+        if (text.isNotEmpty) {
+          manualFilenames[position] = text;
+        }
+      }
+    }
+
     Navigator.of(context).pop(
       ExportDialogResult(
         job: ExportJob(
@@ -260,11 +382,82 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
           rowIndexes: rowIndexes,
           createZip: _createZip,
           templateBaseName: widget.templateName,
+          filenameMode: _filenameMode,
+          manualFilenames: manualFilenames,
           customRangeText: _rangeMode == ExportRangeMode.custom
               ? _rangeController.text
               : null,
         ),
       ),
+    );
+  }
+}
+
+final class _ManualFilenameList extends StatelessWidget {
+  const _ManualFilenameList({
+    required this.rowIndexes,
+    required this.controllers,
+    required this.isLoading,
+  });
+
+  final List<int>? rowIndexes;
+  final Map<int, TextEditingController> controllers;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final indexes = rowIndexes;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(
+          'Nombre de cada archivo',
+          style: theme.textTheme.labelLarge,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Cada campo empieza con el nombre automático; edítalo a tu gusto. '
+          '.docx se añade solo.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (isLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (indexes == null)
+          Text(
+            'Corrige el rango de filas para editar los nombres.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          )
+        else
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 260),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: indexes.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, position) {
+                final rowIndex = indexes[position];
+                return TextField(
+                  controller: controllers[rowIndex],
+                  decoration: InputDecoration(
+                    isDense: true,
+                    labelText: 'Fila ${rowIndex + 1}',
+                    suffixText: '.docx',
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }
