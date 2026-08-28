@@ -48,6 +48,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Batch export to **DOCX** with optional ZIP packaging and template-based filenames
 - Drag-and-drop import and multi-window project handling on Windows
 - **Refresh datasource** from the original CSV/XLSX path without reopening the project
+- Confirm dialog when opening another `.fork` while a project is active (open here / new window / cancel)
 
 ---
 
@@ -97,7 +98,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Field status (pending / assigned / incomplete)
 - Validation for overlaps, stale text, and datasource header drift (`fieldIndex` vs remembered header)
 - Undo / redo (`Ctrl+Z` / `Ctrl+Y`)
-- Optional auto-mapping helpers from the workbench
+- Optional auto-mapping helpers from the workbench (matches curly/smart quotes in DOCX against straight quotes from Excel; includes surrounding quotes in the replacement span when both sides are quoted)
 
 ### Review mode
 
