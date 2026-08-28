@@ -223,7 +223,7 @@ On first run, Forkumentos registers the `.fork` extension for the **current** ex
 5. **Map fields**: select text in the document and assign datasource columns; use Review Mode to inspect coverage.
 6. **Preview**: switch to Preview Mode, change rows, and use Refresh Preview to regenerate the filled document.
 7. **Save** the project as a `.fork` file (Save / Save As).
-8. **Export**: choose destination, row range, filename pattern, and optional ZIP; review the summary when finished.
+8. **Export**: choose destination, row range, automatic or manual filenames, and optional ZIP; review the summary when finished.
 
 Closing the window with unsaved changes prompts according to Settings.
 
