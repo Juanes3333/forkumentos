@@ -187,12 +187,65 @@ void main() {
       // Texto visible reconstruido: exacto, sin fragmentos de "Juan"/"Pérez".
       expect(_wTexts(documentXml).join(), 'Miguel Martinez');
 
-      // Inspección del XML crudo (no solo el texto unido): el primer w:t
-      // se queda con todo el texto fusionado y los otros tres quedan
-      // vacíos - ninguno retiene un carácter del texto viejo.
-      expect(_wTexts(documentXml), <String>['Miguel Martinez', '', '', '']);
+      // El texto se reparte de vuelta a los runs originales según dónde
+      // empezaba cada tramo: "Miguel" hereda el run 1 (donde empezaba "Ju"),
+      // el espacio intacto se queda en el run 2, "Martinez" hereda el run 3.
+      // Ningún w:t retiene un carácter del texto viejo.
+      expect(_wTexts(documentXml), <String>['Miguel', ' ', 'Martinez', '']);
       expect(documentXml, isNot(contains('Juan')));
       expect(documentXml, isNot(contains('Pérez')));
+    });
+
+    test('párrafo normal/bold/normal: reemplazar solo el run bold deja los '
+        'normales intactos y conserva su negrilla (Bug 4)', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:r><w:t>Estimado </w:t></w:r>
+  <w:r><w:rPr><w:b/></w:rPr><w:t>Juan Perez</w:t></w:r>
+  <w:r><w:t> presente</w:t></w:r>
+</w:p>
+''',
+        replacements: const <DocxTextReplacement>[
+          DocxTextReplacement(
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            startOffset: 9,
+            endOffset: 19,
+            text: 'Ana',
+          ),
+        ],
+      );
+
+      expect(_wRunTexts(documentXml), <(String, bool)>[
+        ('Estimado ', false),
+        ('Ana', true),
+        (' presente', false),
+      ]);
+    });
+
+    test('párrafo bold/normal: reemplazar el run normal no toca el run bold '
+        '(no se pierde ni se añade negrilla, Bug 4)', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p>
+  <w:r><w:rPr><w:b/></w:rPr><w:t>NOMBRE: </w:t></w:r>
+  <w:r><w:t>Juan</w:t></w:r>
+</w:p>
+''',
+        replacements: const <DocxTextReplacement>[
+          DocxTextReplacement(
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+            startOffset: 8,
+            endOffset: 12,
+            text: 'Ana Perez',
+          ),
+        ],
+      );
+
+      expect(_wRunTexts(documentXml), <(String, bool)>[
+        ('NOMBRE: ', true),
+        ('Ana Perez', false),
+      ]);
     });
 
     test('w:lastRenderedPageBreak divide el chunk: los dos fragmentos del '
@@ -316,7 +369,9 @@ void main() {
         ],
       );
 
-      expect(_wTexts(documentXml), <String>['Primero Segundo', '']);
+      // Cada reemplazo se queda en su run de origen; el espacio intacto
+      // sigue en el primero.
+      expect(_wTexts(documentXml), <String>['Primero ', 'Segundo']);
       expect(_countElements(documentXml, 'lastRenderedPageBreak'), 0);
     });
 
@@ -414,7 +469,8 @@ void main() {
         ],
       );
 
-      expect(_wTexts(documentXml), <String>['MiguelMartinez', '']);
+      // Cada campo reemplaza el texto de su propio run y se queda ahí.
+      expect(_wTexts(documentXml), <String>['Miguel', 'Martinez']);
     });
 
     test('un reemplazo que cruza un gap de tab se recorta al grupo donde '
@@ -839,6 +895,29 @@ List<String> _wTexts(String documentXml) {
       .where((element) => element.name.local == 't')
       .map((element) => element.innerText)
       .toList();
+}
+
+/// `(texto del w:t, ¿el w:r que lo contiene está en negrilla?)` en orden de
+/// documento. Un `<w:b/>` sin `w:val`, o con `w:val` distinto de `0`/`false`,
+/// cuenta como negrilla.
+List<(String, bool)> _wRunTexts(String documentXml) {
+  final result = <(String, bool)>[];
+  for (final t in XmlDocument.parse(documentXml).descendants
+      .whereType<XmlElement>()
+      .where((element) => element.name.local == 't')) {
+    final run = t.ancestors.whereType<XmlElement>().firstWhere(
+      (element) => element.name.local == 'r',
+    );
+    var bold = false;
+    for (final rPr in run.childElements.where((e) => e.name.local == 'rPr')) {
+      for (final b in rPr.childElements.where((e) => e.name.local == 'b')) {
+        final val = b.getAttribute('val') ?? b.getAttribute('w:val');
+        bold = val != '0' && val != 'false';
+      }
+    }
+    result.add((t.innerText, bold));
+  }
+  return result;
 }
 
 int _countElements(String documentXml, String localName) {

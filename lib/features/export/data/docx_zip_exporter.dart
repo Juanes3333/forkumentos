@@ -536,13 +536,10 @@ void _spliceEditableRange(
   final localEnd = (end - target.start)
       .clamp(0, target.end - target.start)
       .clamp(localStart, target.end - target.start);
-  final plain = target.nodes.map((node) => node.text).join();
-  final merged =
-      plain.substring(0, localStart) + text + plain.substring(localEnd);
-  target.nodes.first.element.innerText = merged;
-  for (final node in target.nodes.skip(1)) {
-    node.element.innerText = '';
-  }
+  _rewriteEditableGroup(
+    target.nodes,
+    <_GroupTextOp>[(start: localStart, end: localEnd, text: text)],
+  );
 }
 
 /// Clona el `<w:p>` plantilla y pone [text] en el primer `<w:t>` de su
@@ -744,32 +741,141 @@ void _applyToEditableGroup(
   List<_TextNodeRef> nodes,
   List<DocxTextReplacement> replacements,
 ) {
-  final plain = nodes.map((node) => node.text).join();
-  final sorted = [...replacements]
-    ..sort((a, b) => a.startOffset.compareTo(b.startOffset));
+  _rewriteEditableGroup(nodes, <_GroupTextOp>[
+    for (final replacement in replacements)
+      (
+        start: replacement.startOffset,
+        end: replacement.endOffset,
+        text: replacement.text,
+      ),
+  ]);
+}
 
-  final output = StringBuffer();
+/// One text edit inside a single editable group, in the group's own
+/// plain-text offsets. `start == end` is a pure insertion.
+typedef _GroupTextOp = ({int start, int end, String text});
+
+/// One stretch of output text plus the original offset whose run supplies its
+/// formatting. For replacement text that offset is where the replaced span
+/// began, so a mapped field that was bold end-to-end stays bold and a mixed
+/// span inherits the run it started in.
+final class _GroupSegment {
+  const _GroupSegment({
+    required this.sourceOffset,
+    required this.text,
+    required this.isReplacement,
+  });
+
+  final int sourceOffset;
+  final String text;
+  final bool isReplacement;
+}
+
+/// Rewrites the text of one contiguous editable group ([nodes] — the `<w:t>`
+/// nodes of a single run of runs, no gap nodes) applying [ops], then
+/// distributes the result back across the original nodes so every `<w:r>`
+/// keeps its own `<w:rPr>` formatting.
+///
+/// This replaced a version that dumped all merged text into the first `<w:t>`
+/// and blanked the rest (Bug 4): a paragraph mixing bold and non-bold runs
+/// came out entirely in the first run's style — bold lost or bold added.
+void _rewriteEditableGroup(List<_TextNodeRef> nodes, List<_GroupTextOp> ops) {
+  if (nodes.isEmpty) {
+    return;
+  }
+
+  final nodeStarts = <int>[];
+  var offset = 0;
+  for (final node in nodes) {
+    nodeStarts.add(offset);
+    offset += node.text.length;
+  }
+  final totalLength = offset;
+  final plain = nodes.map((node) => node.text).join();
+
+  final sorted = [...ops]..sort((a, b) => a.start.compareTo(b.start));
+
+  final segments = <_GroupSegment>[];
   var cursor = 0;
-  for (final replacement in sorted) {
-    final start = replacement.startOffset.clamp(0, plain.length);
-    final end = replacement.endOffset.clamp(0, plain.length);
-    if (start < cursor || start >= end) {
+  for (final op in sorted) {
+    final start = op.start.clamp(0, totalLength);
+    final end = op.end.clamp(start, totalLength);
+    if (start < cursor) {
+      // Overlaps a previous op — skip, matching the old cursor guard.
       continue;
     }
-    output
-      ..write(plain.substring(cursor, start))
-      ..write(replacement.text);
+    if (start > cursor) {
+      segments.add(
+        _GroupSegment(
+          sourceOffset: cursor,
+          text: plain.substring(cursor, start),
+          isReplacement: false,
+        ),
+      );
+    }
+    segments.add(
+      _GroupSegment(
+        sourceOffset: start,
+        text: op.text,
+        isReplacement: true,
+      ),
+    );
     cursor = end;
   }
-  output.write(plain.substring(cursor));
-  final merged = output.toString();
+  if (cursor < totalLength) {
+    segments.add(
+      _GroupSegment(
+        sourceOffset: cursor,
+        text: plain.substring(cursor),
+        isReplacement: false,
+      ),
+    );
+  }
 
-  // ponytail: put all replaced plain text into the first w:t and clear the
-  // rest. Ceiling: run-level style fidelity across a replacement span; upgrade
-  // by splitting text back across original nodes when styles must survive.
-  nodes.first.element.innerText = merged;
-  for (final node in nodes.skip(1)) {
-    node.element.innerText = '';
+  int nodeIndexFor(int sourceOffset) {
+    for (var i = nodes.length - 1; i > 0; i--) {
+      if (sourceOffset >= nodeStarts[i]) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  final nodeTexts = List<String>.filled(nodes.length, '');
+  for (final segment in segments) {
+    if (segment.text.isEmpty) {
+      continue;
+    }
+    if (segment.isReplacement || nodes.length == 1) {
+      nodeTexts[nodeIndexFor(segment.sourceOffset)] += segment.text;
+      continue;
+    }
+    // Unchanged text: hand each node back exactly its own slice, so a run
+    // sitting between two replaced fields keeps its text and style.
+    var originalPos = segment.sourceOffset;
+    var textPos = 0;
+    while (textPos < segment.text.length) {
+      final index = nodeIndexFor(originalPos);
+      final nodeEnd =
+          index + 1 < nodes.length ? nodeStarts[index + 1] : totalLength;
+      var take = nodeEnd - originalPos;
+      if (take <= 0) {
+        // Empty run at this offset (shouldn't happen mid-segment): dump the
+        // remainder here rather than spin forever.
+        nodeTexts[index] += segment.text.substring(textPos);
+        break;
+      }
+      if (take > segment.text.length - textPos) {
+        take = segment.text.length - textPos;
+      }
+      nodeTexts[index] += segment.text.substring(textPos, textPos + take);
+      textPos += take;
+      originalPos += take;
+    }
+  }
+
+  for (var i = 0; i < nodes.length; i++) {
+    nodes[i].element.innerText = nodeTexts[i];
   }
 }
 

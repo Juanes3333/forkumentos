@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0
+
+### Added
+- Nombrado **manual por fila** en la exportación DOCX (prellenado desde el patrón automático).
+- Formato de celdas XLSX con moneda/miles/% (convención es-CO) y diálogo modal al fallar la importación.
+- Diálogo Abrir aquí / nueva ventana / Cancelar al abrir otro `.fork` con proyecto activo.
+
+### Fixed
+- Export DOCX conserva negrita/estilo por run al reemplazar texto (ya no fusiona todo en el primer `<w:t>`).
+- Abrir `.fork` ya no se queda sin efecto: post-load en listener de App + argv real para nueva ventana.
+- Filas fantasma vacías en XLSX; comillas tipográficas en automapeo; `numFmtId` < 164 sanitizado al decodificar.
+
 ## 1.5.0
 
 ### Added

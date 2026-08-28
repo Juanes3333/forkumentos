@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.5.0-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.6.0-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -32,9 +32,9 @@
 
 ---
 
-**Version 1.5.0**
+**Version 1.6.0**
 
-Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy).
+Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy). DOCX export keeps per-run formatting (e.g. bold labels next to replaced values).
 
 ---
 
@@ -119,6 +119,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 
 - Export **DOCX** only (same structure as the template, with mapped replacements)
 - List-field and cross-paragraph replacements reshape Word XML (insert/remove list items or consecutive paragraphs) instead of only substituting in-place text
+- In-place replacements redistribute text across the original `<w:r>` runs so bold/italic and other run properties survive
 - Row ranges: current row, all rows, or a custom range
 - Progress dialog with cancel support
 - Optional ZIP of generated files
@@ -326,4 +327,4 @@ It targets professional desktop document workflows: keep templates and data loca
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
 - Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
-- Version: **1.5.0**
+- Version: **1.6.0**
