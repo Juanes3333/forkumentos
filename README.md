@@ -86,7 +86,9 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Header detection, row preview, and empty-column detection
 - XLSX uses the first sheet that has non-empty headers
 - Trailing “phantom” empty rows (Excel formatting without data) are stripped on import and preview
-- Date/number cells are normalized to readable values (not raw Excel package strings)
+- Date/number cells are normalized to readable values; currency / thousands / percent formats use es-CO conventions (e.g. `$18.414.383`)
+- Workbooks that redefine built-in `numFmtId` values (common with regional currency formats) are sanitized so the `excel` package can decode them
+- Failed imports show a modal error dialog (not only an easy-to-miss inline strip)
 - Replace the active datasource from the ribbon or by drag-and-drop
 - **Refrescar datos**: re-read from the original file path stored in the project (`datasourceExternalPath`), with row-delta feedback when content changed
 

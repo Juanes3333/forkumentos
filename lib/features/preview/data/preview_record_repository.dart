@@ -226,7 +226,13 @@ List<List<String?>> _decodeXlsxTableInIsolate(_XlsxTableRequest request) {
       if (index >= row.length) {
         return null;
       }
-      final value = XlsxSheetParser.formatCellValue(row[index]?.value) ?? '';
+      final cell = row[index];
+      final value =
+          XlsxSheetParser.formatCellValue(
+            cell?.value,
+            numberFormat: cell?.cellStyle?.numberFormat,
+          ) ??
+          '';
       return value.isEmpty ? null : value;
     }, growable: false);
   }, growable: false);

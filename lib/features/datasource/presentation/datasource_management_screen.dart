@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
+import 'package:forkumentos/features/datasource/presentation/datasource_import_error_dialog.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
 import 'package:intl/intl.dart';
@@ -53,7 +54,7 @@ final class DatasourceManagementScreen extends ConsumerWidget {
             child: datasource == null
                 ? _DatasourceEmptyState(
                     isLoading: isLoading,
-                    onImport: () => _pickAndImportDatasource(ref),
+                    onImport: () => _pickAndImportDatasource(context, ref),
                   )
                 : DecoratedBox(
                     decoration: BoxDecoration(
@@ -65,7 +66,8 @@ final class DatasourceManagementScreen extends ConsumerWidget {
                       child: _DatasourceDetailsState(
                         datasource: datasource,
                         isLoading: isLoading,
-                        onReplace: () => _pickAndImportDatasource(ref),
+                        onReplace: () =>
+                            _pickAndImportDatasource(context, ref),
                         onRemove: notifier.removeDatasource,
                       ),
                     ),
@@ -77,7 +79,10 @@ final class DatasourceManagementScreen extends ConsumerWidget {
   }
 }
 
-Future<void> _pickAndImportDatasource(WidgetRef ref) async {
+Future<void> _pickAndImportDatasource(
+  BuildContext context,
+  WidgetRef ref,
+) async {
   final selected = await FilePicker.platform.pickFiles(
     dialogTitle: 'Seleccionar fuente de datos',
     type: FileType.custom,
@@ -91,7 +96,16 @@ Future<void> _pickAndImportDatasource(WidgetRef ref) async {
   await ref
       .read(activeDatasourceProvider.notifier)
       .importDatasource(filePath: filePath);
-  final path = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
+
+  final state = ref.read(activeDatasourceProvider);
+  if (state.hasError) {
+    if (context.mounted) {
+      await showDatasourceImportErrorDialog(context, state.error);
+    }
+    return;
+  }
+
+  final path = state.valueOrNull?.sourcePath;
   if (path != null) {
     ref
         .read(activeProjectProvider.notifier)

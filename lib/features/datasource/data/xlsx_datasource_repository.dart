@@ -158,7 +158,10 @@ List<int> _detectEmptyColumns({
 }
 
 String? _normalizeDataCell(Data? data) {
-  final normalized = XlsxSheetParser.formatCellValue(data?.value);
+  final normalized = XlsxSheetParser.formatCellValue(
+    data?.value,
+    numberFormat: data?.cellStyle?.numberFormat,
+  );
   if (normalized == null || normalized.isEmpty) {
     return null;
   }

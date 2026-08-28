@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
+import 'package:forkumentos/features/datasource/presentation/datasource_import_error_dialog.dart';
 import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
@@ -51,7 +52,7 @@ final class DatasourceResourceCard extends ConsumerWidget {
                 'seleccionar.',
             actionLabel: 'Importar datos',
             actionIcon: Icons.table_chart_outlined,
-            onImport: isLoading ? null : () => _pickAndImport(ref),
+            onImport: isLoading ? null : () => _pickAndImport(context, ref),
           ),
         ],
       );
@@ -85,7 +86,7 @@ final class DatasourceResourceCard extends ConsumerWidget {
               datasource: datasource,
               isLoading: isLoading,
               refreshAvailable: ref.watch(datasourceRefreshAvailableProvider),
-              onReplace: () => _pickAndImport(ref),
+              onReplace: () => _pickAndImport(context, ref),
               onRefresh: () => _refresh(context, ref),
             ),
           ],
@@ -95,7 +96,7 @@ final class DatasourceResourceCard extends ConsumerWidget {
   }
 }
 
-Future<void> _pickAndImport(WidgetRef ref) async {
+Future<void> _pickAndImport(BuildContext context, WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
     dialogTitle: 'Seleccionar fuente de datos',
     type: FileType.custom,
@@ -112,6 +113,15 @@ Future<void> _pickAndImport(WidgetRef ref) async {
   await ref
       .read(activeDatasourceProvider.notifier)
       .importDatasource(filePath: filePath);
+
+  final state = ref.read(activeDatasourceProvider);
+  if (state.hasError) {
+    if (context.mounted) {
+      await showDatasourceImportErrorDialog(context, state.error);
+    }
+    return;
+  }
+
   _syncEmbeddedDatasourcePath(ref);
   ref.read(activeProjectProvider.notifier).setDatasourceExternalPath(filePath);
 }
