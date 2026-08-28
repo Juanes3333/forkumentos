@@ -12,7 +12,6 @@ import 'package:forkumentos/features/project/presentation/close_active_project.d
 import 'package:forkumentos/features/project/presentation/confirm_open_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
-import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
@@ -182,7 +181,7 @@ final class _ProjectWelcomeScreenState
       'Test',
     );
     if (!underTest) {
-      final args = Platform.executableArguments;
+      final args = ref.read(launchArgumentsProvider);
       if (resolveLaunchProjectPath(args) != null || wantsNewProject(args)) {
         return;
       }
@@ -258,7 +257,9 @@ final class _ProjectWelcomeScreenState
     await ref
         .read(activeProjectProvider.notifier)
         .loadProject(filePath: filePath);
-    await afterSuccessfulProjectLoad(ref);
+    // Post-load side effects (recientes + entrar al workbench) run from the
+    // app-level listener in `App`; this screen is torn down as soon as the
+    // project loads, so a ref captured here would already be disposed.
   }
 
   Future<void> _handleOpenRecentProject(
@@ -285,7 +286,7 @@ final class _ProjectWelcomeScreenState
     await ref
         .read(activeProjectProvider.notifier)
         .loadProject(filePath: entry.filePath);
-    await afterSuccessfulProjectLoad(ref);
+    // See _handleOpenProject: post-load side effects run from `App`.
   }
 }
 

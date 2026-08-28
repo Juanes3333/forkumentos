@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
-import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/routing/app_phase_provider.dart';
 import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
@@ -87,7 +86,6 @@ final class _AppDropTargetState extends ConsumerState<AppDropTarget> {
       await ref
           .read(activeProjectProvider.notifier)
           .loadProject(filePath: forkPath);
-      await afterSuccessfulProjectLoad(ref);
       if (ref.read(activeProjectProvider).hasError) {
         _snack('No se pudo abrir el proyecto.', isError: true);
         return;

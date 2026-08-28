@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/app/app_splash.dart';
@@ -44,7 +42,7 @@ final class _AppState extends ConsumerState<App> {
       return;
     }
 
-    final args = Platform.executableArguments;
+    final args = ref.read(launchArgumentsProvider);
     final projectPath = resolveLaunchProjectPath(args);
     final createNew = wantsNewProject(args);
     if (projectPath == null && !createNew) {
@@ -58,7 +56,6 @@ final class _AppState extends ConsumerState<App> {
       await ref
           .read(activeProjectProvider.notifier)
           .loadProject(filePath: projectPath);
-      await afterSuccessfulProjectLoad(ref);
       return;
     }
 
@@ -71,6 +68,11 @@ final class _AppState extends ConsumerState<App> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep-alive: reacts to a project being loaded (recientes + entrar al
+    // workbench) from a ref that outlives the landing screen, which is torn
+    // down the moment the project becomes active.
+    ref.watch(projectActivationListenerProvider);
+
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
 

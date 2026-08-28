@@ -15,7 +15,6 @@ import 'package:forkumentos/features/project/presentation/create_project_dialog.
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
-import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/routing/workbench/export_launcher.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_mapping_actions.dart';
@@ -202,6 +201,11 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
     return;
   }
 
+  // Capturado antes de cualquier await: "Abrir aquí" cierra el proyecto
+  // actual, lo que destruye el workbench (y este widget), dejando `ref`
+  // inutilizable para la carga posterior. El notifier vive a nivel de app.
+  final projectNotifier = ref.read(activeProjectProvider.notifier);
+
   if (ref.read(activeProjectProvider).valueOrNull != null) {
     if (!context.mounted) {
       return;
@@ -224,10 +228,8 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
     }
   }
 
-  await ref
-      .read(activeProjectProvider.notifier)
-      .loadProject(filePath: filePath);
-  await afterSuccessfulProjectLoad(ref);
+  await projectNotifier.loadProject(filePath: filePath);
+  // Recientes + entrar al workbench los maneja el listener en `App`.
 }
 
 final class _HomeRibbonActions extends ConsumerWidget {
@@ -413,20 +415,20 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
           children: <Widget>[
             _RibbonActionButton(
               icon: Icons.description_outlined,
-              label: 'Reemplazar docx (word)',
+              label: 'Reemplazar word (docx)',
               onPressed: templateState.isLoading
                   ? null
                   : () => _replaceTemplate(ref),
             ),
             _RibbonActionButton(
               icon: Icons.file_download_outlined,
-              label: 'Exportar docx (word) actual',
+              label: 'Exportar word (docx) actual',
               onPressed: template == null || templateState.isLoading
                   ? null
                   : () => exportResourceByCopy(
                       context: context,
                       sourcePath: template.sourcePath,
-                      dialogTitle: 'Exportar plantilla',
+                      dialogTitle: 'Exportar word',
                       suggestedFileName: template.fileName,
                       allowedExtensions: const <String>['docx'],
                     ),

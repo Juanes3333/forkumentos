@@ -49,6 +49,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Drag-and-drop import and multi-window project handling on Windows
 - **Refresh datasource** from the original CSV/XLSX path without reopening the project
 - Confirm dialog when opening another `.fork` while a project is active (open here / new window / cancel)
+- Opening a `.fork` (landing, ribbon, drop, or second instance) reliably records recientes and enters the workbench when both resources are embedded — post-load side effects run at app level, not from the disposed landing screen
 
 ---
 
@@ -60,6 +61,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Recent projects list (with prune of missing files and “show in Explorer”)
 - Confirm before closing when there are unsaved changes
 - Multi-window: with a project already open, **New / Open / Recent** can start another process — or you can choose **Abrir aquí** / **Abrir en nueva ventana** / **Cancelar** when opening another `.fork`
+- Second-instance launch passes the real CLI argv into Riverpod (`launchArgumentsProvider`) so “abrir en nueva ventana” opens the `.fork` even under `flutter run`
 - Double-click a `.fork` file in Explorer to launch Forkumentos and open that project (per-user file association registered on Windows startup)
 
 ### Embedded `.fork` projects
