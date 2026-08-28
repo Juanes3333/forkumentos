@@ -58,7 +58,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Create, open, save, and save-as projects
 - Recent projects list (with prune of missing files and “show in Explorer”)
 - Confirm before closing when there are unsaved changes
-- Multi-window: with a project already open, **New / Open / Recent** start another process so the current project is not replaced
+- Multi-window: with a project already open, **New / Open / Recent** can start another process — or you can choose **Abrir aquí** / **Abrir en nueva ventana** / **Cancelar** when opening another `.fork`
 - Double-click a `.fork` file in Explorer to launch Forkumentos and open that project (per-user file association registered on Windows startup)
 
 ### Embedded `.fork` projects
@@ -82,6 +82,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Import **CSV** or **XLSX**
 - Header detection, row preview, and empty-column detection
 - XLSX uses the first sheet that has non-empty headers
+- Trailing “phantom” empty rows (Excel formatting without data) are stripped on import and preview
 - Date/number cells are normalized to readable values (not raw Excel package strings)
 - Replace the active datasource from the ribbon or by drag-and-drop
 - **Refrescar datos**: re-read from the original file path stored in the project (`datasourceExternalPath`), with row-delta feedback when content changed

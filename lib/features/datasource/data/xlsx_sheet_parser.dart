@@ -93,6 +93,17 @@ final class XlsxSheetParser {
     };
   }
 
+  /// Devuelve `true` si todas las celdas de [row] están vacías (null, cadena
+  /// vacía, o solo espacios en blanco). Usado para recortar filas fantasma
+  /// que Excel conserva por formato (bordes, relleno) sin datos reales.
+  static bool isEmptyRow(List<Data?> row) {
+    return row.every((cell) {
+      if (cell == null) return true;
+      final value = formatCellValue(cell.value);
+      return value == null || value.trim().isEmpty;
+    });
+  }
+
   static String _formatDate(int year, int month, int day) {
     return '${year.toString().padLeft(4, '0')}-'
         '${month.toString().padLeft(2, '0')}-'

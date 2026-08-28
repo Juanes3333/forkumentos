@@ -8,6 +8,8 @@ import 'package:forkumentos/core/launch/spawn_app_instance.dart';
 import 'package:forkumentos/core/open_in_explorer.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/project/domain/recent_project.dart';
+import 'package:forkumentos/features/project/presentation/close_active_project.dart';
+import 'package:forkumentos/features/project/presentation/confirm_open_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/recent_projects_provider.dart';
 import 'package:forkumentos/routing/after_project_load.dart';
@@ -232,8 +234,25 @@ final class _ProjectWelcomeScreenState
     }
 
     if (ref.read(activeProjectProvider).valueOrNull != null) {
-      await spawnAppInstance(projectPath: filePath);
-      return;
+      if (!context.mounted) {
+        return;
+      }
+      final choice = await confirmOpenProject(context);
+      switch (choice) {
+        case OpenProjectChoice.cancel:
+          return;
+        case OpenProjectChoice.newWindow:
+          await spawnAppInstance(projectPath: filePath);
+          return;
+        case OpenProjectChoice.openHere:
+          if (!context.mounted) {
+            return;
+          }
+          final closed = await closeActiveProject(context, ref);
+          if (!closed) {
+            return;
+          }
+      }
     }
 
     await ref

@@ -216,8 +216,12 @@ List<List<String?>> _decodeXlsxTableInIsolate(_XlsxTableRequest request) {
     return const <List<String?>>[];
   }
 
-  return List<List<String?>>.generate(sheetRows.length - 1, (dataIndex) {
-    final row = sheetRows[dataIndex + 1];
+  final dataRows = sheetRows
+      .skip(1)
+      .where((row) => !XlsxSheetParser.isEmptyRow(row))
+      .toList(growable: false);
+  return List<List<String?>>.generate(dataRows.length, (dataIndex) {
+    final row = dataRows[dataIndex];
     return List<String?>.generate(request.expectedLength, (index) {
       if (index >= row.length) {
         return null;

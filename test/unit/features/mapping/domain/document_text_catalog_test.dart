@@ -104,6 +104,60 @@ void main() {
       },
     );
 
+    test('detecta match rodeado de comillas y amplía los offsets', () {
+      final document = _documentWithTexts(<String>['Di "Tomate un trago" ya']);
+
+      final occurrences = findExactTextOccurrences(
+        document: document,
+        needle: 'Tomate un trago',
+      );
+
+      expect(occurrences, hasLength(1));
+      final occurrence = occurrences.single;
+      // 'Di ' = 3, la comilla de apertura queda incluida.
+      expect(occurrence.startOffset, 3);
+      expect(occurrence.endOffset, 3 + '"Tomate un trago"'.length);
+      expect(occurrence.matchedText, 'Tomate un trago');
+    });
+
+    test('coincide con comillas tipográficas curvas del documento', () {
+      final document = _documentWithTexts(<String>['Di “Tomate un trago” ya']);
+
+      final occurrences = findExactTextOccurrences(
+        document: document,
+        needle: 'Tomate un trago',
+      );
+
+      expect(occurrences, hasLength(1));
+      final occurrence = occurrences.single;
+      expect(occurrence.startOffset, 3);
+      expect(occurrence.endOffset, 3 + '"Tomate un trago"'.length);
+      expect(occurrence.matchedText, 'Tomate un trago');
+    });
+
+    test('la búsqueda sigue distinguiendo mayúsculas y minúsculas', () {
+      final document = _documentWithTexts(<String>['hola mundo cruel']);
+
+      expect(
+        findExactTextOccurrences(document: document, needle: 'HOLA MUNDO'),
+        isEmpty,
+      );
+    });
+
+    test('match exacto sin comillas: comportamiento previo', () {
+      final document = _documentWithTexts(<String>['Hola Ana', 'Ana Pérez']);
+
+      final occurrences = findExactTextOccurrences(
+        document: document,
+        needle: 'Ana',
+      );
+
+      expect(occurrences, hasLength(2));
+      expect(occurrences.first.startOffset, 5);
+      expect(occurrences.first.endOffset, 8);
+      expect(occurrences.first.matchedText, 'Ana');
+    });
+
     test('needle sin \\n dentro de un solo párrafo deja endPath en null', () {
       final document = _documentWithTexts(<String>['Hola Ana', 'Ana Pérez']);
 

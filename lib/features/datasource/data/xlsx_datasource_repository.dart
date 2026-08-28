@@ -78,7 +78,10 @@ Map<String, Object?> _parseXlsxContent(Map<String, Object?> payload) {
     );
   }
 
-  final dataRows = rows.skip(1).toList(growable: false);
+  final dataRows = rows
+      .skip(1)
+      .where((row) => !XlsxSheetParser.isEmptyRow(row))
+      .toList(growable: false);
   final previewRow = dataRows.isEmpty
       ? List<String?>.filled(headers.length, null)
       : _toPreviewRow(row: dataRows.first, expectedLength: headers.length);

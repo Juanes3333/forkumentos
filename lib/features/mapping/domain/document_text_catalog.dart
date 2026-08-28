@@ -168,16 +168,37 @@ List<TextOccurrence> findExactTextOccurrences({
     return (path: entries[last].path, localOffset: entries[last].text.length);
   }
 
+  // La normalización reemplaza carácter por carácter (comilla curva → recta),
+  // así que los índices sobre el texto normalizado siguen siendo válidos sobre
+  // `globalText` original.
+  final normalizedGlobal = _normalizeForMatching(globalText);
+  final normalizedSearch = _normalizeForMatching(normalizedNeedle);
+
   final occurrences = <TextOccurrence>[];
   var searchStart = 0;
   while (true) {
-    final matchIndex = globalText.indexOf(normalizedNeedle, searchStart);
+    final matchIndex = normalizedGlobal.indexOf(normalizedSearch, searchStart);
     if (matchIndex < 0) {
       break;
     }
-    final matchEnd = matchIndex + normalizedNeedle.length;
-    final start = locate(matchIndex);
-    final end = locate(matchEnd);
+    final matchEnd = matchIndex + normalizedSearch.length;
+
+    var adjustedMatchIndex = matchIndex;
+    var adjustedMatchEnd = matchEnd;
+
+    // Si el match está rodeado por comillas en el documento, ampliar para
+    // incluirlas: así el reemplazo al exportar borra también las comillas.
+    if (adjustedMatchIndex > 0 && adjustedMatchEnd < globalText.length) {
+      final charBefore = globalText[adjustedMatchIndex - 1];
+      final charAfter = globalText[adjustedMatchEnd];
+      if (_isQuote(charBefore) && _isQuote(charAfter)) {
+        adjustedMatchIndex -= 1;
+        adjustedMatchEnd += 1;
+      }
+    }
+
+    final start = locate(adjustedMatchIndex);
+    final end = locate(adjustedMatchEnd);
 
     occurrences.add(
       TextOccurrence(
@@ -192,6 +213,36 @@ List<TextOccurrence> findExactTextOccurrences({
   }
 
   return occurrences;
+}
+
+/// Normaliza un texto para comparación de automapeo: reemplaza comillas
+/// tipográficas/especiales por comillas rectas para que un valor del Excel
+/// escrito con comillas rectas coincida aunque el DOCX use comillas curvas.
+///
+/// ponytail: deliberadamente NO baja a minúsculas. Hacerlo convierte valores
+/// cortos ('A', 'Ana') en subcadenas de texto no relacionado ('Juan',
+/// 'ana@correo.com') y el automapeo empieza a reclamar tramos ajenos.
+String _normalizeForMatching(String text) {
+  return text
+      .replaceAll('“', '"')
+      .replaceAll('”', '"')
+      .replaceAll('‘', "'")
+      .replaceAll('’', "'")
+      .replaceAll('«', '"')
+      .replaceAll('»', '"');
+}
+
+bool _isQuote(String char) {
+  return const {
+    '"',
+    "'",
+    '“',
+    '”',
+    '‘',
+    '’',
+    '«',
+    '»',
+  }.contains(char);
 }
 
 FieldAssignment? findOverlappingAssignment({

@@ -301,6 +301,26 @@ void main() {
     expect(datasource.previewRow, <String?>['1', null, null]);
   });
 
+  test('ignora filas fantasma vacías al contar filas de datos', () async {
+    final filePath = p.join(tempDirectory.path, 'filas_fantasma.xlsx');
+    await _writeWorkbook(
+      path: filePath,
+      rows: <List<CellValue?>>[
+        <CellValue?>[TextCellValue('nombre'), TextCellValue('ciudad')],
+        <CellValue?>[TextCellValue('Ana'), TextCellValue('Bogotá')],
+        <CellValue?>[TextCellValue('Luis'), TextCellValue('Cali')],
+        <CellValue?>[TextCellValue(''), TextCellValue('   ')],
+        <CellValue?>[null, null],
+        <CellValue?>[TextCellValue(''), null],
+        <CellValue?>[TextCellValue('  '), TextCellValue('')],
+      ],
+    );
+
+    final datasource = await repository.load(filePath);
+
+    expect(datasource.rowCount, 2);
+  });
+
   test('lanza FormatException con bytes XLSX corruptos', () async {
     final filePath = p.join(tempDirectory.path, 'corrupto.xlsx');
     await File(filePath).writeAsBytes(<int>[0, 1, 2, 3, 4, 5, 6]);

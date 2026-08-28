@@ -10,6 +10,7 @@ import 'package:forkumentos/features/mapping/presentation/active_mapping_provide
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
 import 'package:forkumentos/features/preview/presentation/preview_state_provider.dart';
 import 'package:forkumentos/features/project/presentation/close_active_project.dart';
+import 'package:forkumentos/features/project/presentation/confirm_open_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/create_project_dialog.dart';
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
@@ -202,8 +203,25 @@ Future<void> _openProject(BuildContext context, WidgetRef ref) async {
   }
 
   if (ref.read(activeProjectProvider).valueOrNull != null) {
-    await spawnAppInstance(projectPath: filePath);
-    return;
+    if (!context.mounted) {
+      return;
+    }
+    final choice = await confirmOpenProject(context);
+    switch (choice) {
+      case OpenProjectChoice.cancel:
+        return;
+      case OpenProjectChoice.newWindow:
+        await spawnAppInstance(projectPath: filePath);
+        return;
+      case OpenProjectChoice.openHere:
+        if (!context.mounted) {
+          return;
+        }
+        final closed = await closeActiveProject(context, ref);
+        if (!closed) {
+          return;
+        }
+    }
   }
 
   await ref
@@ -395,14 +413,14 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
           children: <Widget>[
             _RibbonActionButton(
               icon: Icons.description_outlined,
-              label: 'Reemplazar plantilla',
+              label: 'Reemplazar docx (word)',
               onPressed: templateState.isLoading
                   ? null
                   : () => _replaceTemplate(ref),
             ),
             _RibbonActionButton(
               icon: Icons.file_download_outlined,
-              label: 'Exportar plantilla actual',
+              label: 'Exportar docx (word) actual',
               onPressed: template == null || templateState.isLoading
                   ? null
                   : () => exportResourceByCopy(
@@ -425,14 +443,14 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
           children: <Widget>[
             _RibbonActionButton(
               icon: Icons.table_chart_outlined,
-              label: 'Reemplazar datos',
+              label: 'Reemplazar excel (xlsx/csv)',
               onPressed: datasourceState.isLoading
                   ? null
                   : () => _replaceDatasource(ref),
             ),
             _RibbonActionButton(
               icon: Icons.cloud_sync_outlined,
-              label: 'Refrescar datos',
+              label: 'Refrescar excel (xlsx/csv)',
               tooltip: ref.watch(datasourceRefreshAvailableProvider)
                   ? 'Vuelve a leer el archivo de datos desde su ruta original'
                   : 'No se encontró el archivo original en esta ruta — usa '
@@ -445,7 +463,7 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
             ),
             _RibbonActionButton(
               icon: Icons.file_download_outlined,
-              label: 'Exportar datos',
+              label: 'Exportar excel (xlsx/csv)',
               onPressed: datasource == null || datasourceState.isLoading
                   ? null
                   : () => exportResourceByCopy(
