@@ -50,6 +50,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - **Refresh datasource** from the original CSV/XLSX path without reopening the project
 - Confirm dialog when opening another `.fork` while a project is active (open here / new window / cancel)
 - Opening a `.fork` (landing, ribbon, drop, or second instance) reliably records recientes and enters the workbench when both resources are embedded — post-load side effects run at app level, not from the disposed landing screen
+- **Check for updates** against GitHub Releases from Settings
 
 ---
 
