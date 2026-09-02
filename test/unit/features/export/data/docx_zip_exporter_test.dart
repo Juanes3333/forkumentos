@@ -473,35 +473,63 @@ void main() {
       expect(_wTexts(documentXml), <String>['Miguel', 'Martinez']);
     });
 
-    test('un reemplazo que cruza un gap de tab se recorta al grupo donde '
-        'empieza sin corromper el texto ni lanzar', () {
-      final documentXml = _exportDocumentXml(
-        bodyContent: '''
+    test(
+      'un reemplazo que cruza un gap de tab escribe en el primer grupo, '
+      'vacía la porción cubierta del siguiente y elimina el tab intermedio',
+      () {
+        final documentXml = _exportDocumentXml(
+          bodyContent: '''
 <w:p>
   <w:r><w:t>AB</w:t></w:r>
   <w:r><w:tab/></w:r>
   <w:r><w:t>CD</w:t></w:r>
 </w:p>
 ''',
-        replacements: const <DocxTextReplacement>[
-          // Span patológico: empieza en "AB" (grupo 1) y su fin (4) cae
-          // dentro de "CD" (grupo 2), cruzando el tab de en medio. No
-          // debería ocurrir en la práctica (los campos se extraen de
-          // texto visible contiguo), pero no debe crashear ni corromper.
-          DocxTextReplacement(
-            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
-            startOffset: 1,
-            endOffset: 4,
-            text: 'XX',
-          ),
-        ],
-      );
+          replacements: const <DocxTextReplacement>[
+            DocxTextReplacement(
+              steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+              startOffset: 1,
+              endOffset: 4,
+              text: 'XX',
+            ),
+          ],
+        );
 
-      // Se recorta al grupo donde empieza ("AB") y se descarta la cola
-      // tras el gap: "CD" permanece intacto.
-      expect(_wTexts(documentXml), <String>['AXX', 'CD']);
-      expect(_countElements(documentXml, 'tab'), 1);
-    });
+        expect(_wTexts(documentXml), <String>['AXX', 'D']);
+        expect(_countElements(documentXml, 'tab'), 0);
+      },
+    );
+
+    test(
+      'un reemplazo que cruza 3 o más grupos editables separados por tabs '
+      'pone el texto en el primer grupo, vacía los demás y elimina los tabs',
+      () {
+        final documentXml = _exportDocumentXml(
+          bodyContent: '''
+<w:p>
+  <w:r><w:t>AAA</w:t></w:r>
+  <w:r><w:tab/></w:r>
+  <w:r><w:t>BBB</w:t></w:r>
+  <w:r><w:tab/></w:r>
+  <w:r><w:t>CCC</w:t></w:r>
+</w:p>
+''',
+          replacements: const <DocxTextReplacement>[
+            // Total length: 3 ("AAA") + 1 (\t) + 3 ("BBB") + 1 (\t) + 3 ("CCC") = 11
+            DocxTextReplacement(
+              steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+              startOffset: 0,
+              endOffset: 11,
+              text: 'REPLACEMENT',
+            ),
+          ],
+        );
+
+        expect(_wTexts(documentXml), <String>['REPLACEMENT', '', '']);
+        expect(_wTexts(documentXml).join(), 'REPLACEMENT');
+        expect(_countElements(documentXml, 'tab'), 0);
+      },
+    );
 
     test('un chunk compuesto solo por un tab (sin texto editable) no lanza y '
         'queda intacto', () {
@@ -902,9 +930,10 @@ List<String> _wTexts(String documentXml) {
 /// cuenta como negrilla.
 List<(String, bool)> _wRunTexts(String documentXml) {
   final result = <(String, bool)>[];
-  for (final t in XmlDocument.parse(documentXml).descendants
-      .whereType<XmlElement>()
-      .where((element) => element.name.local == 't')) {
+  for (final t
+      in XmlDocument.parse(documentXml).descendants
+          .whereType<XmlElement>()
+          .where((element) => element.name.local == 't')) {
     final run = t.ancestors.whereType<XmlElement>().firstWhere(
       (element) => element.name.local == 'r',
     );

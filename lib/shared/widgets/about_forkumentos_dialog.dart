@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
 
-/// App version shown in About; keep in sync with pubspec `version`.
-const String forkumentosVersion = '1.0.0';
+/// Versión de la app. Actualizar junto con pubspec.yaml e
+/// installer/Forkumentos.iss al lanzar nueva versión.
+const String forkumentosVersion = '1.7.0';
 
 const String _forkumentosAuthor = 'Juan Restrepo';
 const String _forkumentosWebsite = 'https://github.com/Juanes3333/forkumentos';

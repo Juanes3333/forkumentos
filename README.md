@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.6.0-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.7.0-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -32,9 +32,9 @@
 
 ---
 
-**Version 1.6.0**
+**Version 1.7.0**
 
-Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy). DOCX export keeps per-run formatting (e.g. bold labels next to replaced values).
+Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy). DOCX export keeps per-run formatting (e.g. bold labels next to replaced values). Settings can check GitHub Releases for a newer installer.
 
 ---
 
@@ -146,7 +146,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 
 ### Settings
 
-Persisted application settings (see [Settings](#settings) below). The autosave **interval** is stored for future use; the autosave engine is not active yet.
+Persisted application settings (see [Settings](#settings) below). The autosave **interval** is stored for future use; the autosave engine is not active yet. From Settings you can also **check for updates** against GitHub Releases.
 
 ### Workspace
 
@@ -290,7 +290,7 @@ forkumentos/
 
 ## Settings
 
-Settings are organized in four tabs:
+Settings are organized in four tabs (plus an update check action):
 
 | Tab | Options |
 |-----|---------|
@@ -298,6 +298,8 @@ Settings are organized in four tabs:
 | **Appearance** | Theme: dark, light, or system |
 | **Behavior** | Open most recent project on startup; recent list limit (1–50); confirm before closing; autosave interval (persisted only — engine not active yet) |
 | **Export** | Default “create ZIP” |
+
+**Updates:** compare the running version to the latest GitHub Release, show notes, and open the installer download when a newer build exists.
 
 Settings persist in application support storage across sessions.
 
@@ -327,4 +329,4 @@ It targets professional desktop document workflows: keep templates and data loca
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
 - Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
-- Version: **1.6.0**
+- Version: **1.7.0**

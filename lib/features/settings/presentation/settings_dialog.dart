@@ -1,10 +1,16 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/workspace/workspace_paths.dart';
+import 'package:forkumentos/features/settings/data/update_checker.dart';
 import 'package:forkumentos/features/settings/domain/app_settings.dart';
+import 'package:forkumentos/features/settings/presentation/update_check_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
+import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
 
 Future<void> showSettingsDialog(BuildContext context) {
@@ -32,7 +38,7 @@ final class _SettingsDialogState extends ConsumerState<_SettingsDialog>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -105,6 +111,7 @@ final class _SettingsDialogState extends ConsumerState<_SettingsDialog>
                       Tab(text: 'Apariencia'),
                       Tab(text: 'Comportamiento'),
                       Tab(text: 'Exportación'),
+                      Tab(text: 'Acerca de'),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -129,6 +136,7 @@ final class _SettingsDialogState extends ConsumerState<_SettingsDialog>
                           autosaveController: _autosaveController,
                         ),
                         _ExportTab(settings: settings),
+                        const _AboutTab(),
                       ],
                     ),
                   ),
@@ -404,5 +412,183 @@ final class _ExportTab extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+final class _AboutTab extends ConsumerWidget {
+  const _AboutTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final updateState = ref.watch(updateCheckProvider);
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return ListView(
+      children: <Widget>[
+        // Versión actual
+        Text('Forkumentos', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text('Versión $forkumentosVersion', style: muted),
+        const SizedBox(height: 20),
+
+        // Botón de verificar actualizaciones
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: updateState.isLoading
+                ? null
+                : () =>
+                      ref.read(updateCheckProvider.notifier).checkForUpdates(),
+            icon: updateState.isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            label: Text(
+              updateState.isLoading
+                  ? 'Verificando...'
+                  : 'Buscar actualizaciones',
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Resultado de la verificación
+        if (updateState.hasError)
+          _UpdateStatusCard(
+            icon: Icons.wifi_off,
+            color: theme.colorScheme.error,
+            title: 'No se pudo verificar',
+            subtitle: 'Verifica tu conexión a internet e intenta de nuevo.',
+          ),
+
+        if (updateState.valueOrNull != null) ...[
+          if (updateState.value!.isUpdateAvailable)
+            _UpdateAvailableCard(result: updateState.value!)
+          else
+            const _UpdateStatusCard(
+              icon: Icons.check_circle_outline,
+              color: Colors.green,
+              title: 'Estás al día',
+              subtitle:
+                  'Tienes la última versión disponible ($forkumentosVersion).',
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+final class _UpdateStatusCard extends StatelessWidget {
+  const _UpdateStatusCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: Icon(icon, color: color, size: 32),
+        title: Text(title),
+        subtitle: Text(subtitle),
+      ),
+    );
+  }
+}
+
+final class _UpdateAvailableCard extends StatelessWidget {
+  const _UpdateAvailableCard({required this.result});
+
+  final UpdateCheckResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(
+                  Icons.system_update_outlined,
+                  color: theme.colorScheme.primary,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '¡Nueva versión disponible!',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('Versión ${result.latestVersion}'),
+            if (result.publishedAt != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Publicada el ${_formatDate(result.publishedAt!)}',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+            if (result.releaseNotes != null &&
+                result.releaseNotes!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Notas de la versión:', style: theme.textTheme.labelMedium),
+              const SizedBox(height: 4),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 120),
+                child: SingleChildScrollView(
+                  child: Text(
+                    result.releaseNotes!,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => _openDownload(result),
+              icon: const Icon(Icons.download),
+              label: const Text('Descargar actualización'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openDownload(UpdateCheckResult result) {
+    // Abrir en el navegador: preferir el URL directo del asset .exe,
+    // fallback a la página del release en GitHub.
+    final url = result.downloadUrl ?? result.htmlUrl;
+    if (url != null) {
+      unawaited(Process.start('explorer', <String>[url]));
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year;
+    return '$day/$month/$year';
   }
 }

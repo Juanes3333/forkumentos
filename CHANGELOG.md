@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0
+
+### Added
+- Verificación de actualizaciones desde GitHub Releases (Ajustes → comprobar versión, notas y descarga del installer).
+
+### Fixed
+- Export DOCX: reemplazos que cruzan tabs/`w:br` vacían la cola en grupos posteriores y eliminan los gaps intermedios del XML (ya no dejan restos del texto mapeado).
+- Constante `forkumentosVersion` alineada con `pubspec` / installer (About y update check).
+
 ## 1.6.0
 
 ### Added

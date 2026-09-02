@@ -536,10 +536,9 @@ void _spliceEditableRange(
   final localEnd = (end - target.start)
       .clamp(0, target.end - target.start)
       .clamp(localStart, target.end - target.start);
-  _rewriteEditableGroup(
-    target.nodes,
-    <_GroupTextOp>[(start: localStart, end: localEnd, text: text)],
-  );
+  _rewriteEditableGroup(target.nodes, <_GroupTextOp>[
+    (start: localStart, end: localEnd, text: text),
+  ]);
 }
 
 /// Clona el `<w:p>` plantilla y pone [text] en el primer `<w:t>` de su
@@ -683,30 +682,86 @@ void _applyToTextNodes(
     return;
   }
 
+  // Un reemplazo puede cruzar múltiples gaps de tab/salto de línea
+  // cuando el texto mapeado del documento usa tabuladores entre
+  // palabras (común en celdas de tabla con alineación manual).
+  // En ese caso, el texto de reemplazo va al primer grupo y los
+  // grupos posteriores cubiertos se vacían; los gaps intermedios
+  // se eliminan del XML en un segundo pass.
   for (final group in groups) {
     final local = <DocxTextReplacement>[];
     for (final replacement in replacements) {
-      if (replacement.startOffset < group.start ||
-          replacement.startOffset >= group.end) {
+      // ¿El rango del reemplazo tiene alguna intersección con este grupo?
+      if (replacement.startOffset >= group.end ||
+          replacement.endOffset <= group.start) {
         continue;
       }
-      // Un reemplazo no debería cruzar un gap de tab/salto de línea (los
-      // campos se extraen de texto visible contiguo), pero si ocurre se
-      // recorta al grupo donde empieza y se descarta la cola tras el gap,
-      // en vez de construir un empalme entre grupos.
-      final end = replacement.endOffset.clamp(group.start, group.end);
-      local.add(
-        DocxTextReplacement(
-          steps: replacement.steps,
-          startOffset: replacement.startOffset - group.start,
-          endOffset: end - group.start,
-          text: replacement.text,
-        ),
-      );
+
+      if (replacement.startOffset >= group.start) {
+        // Caso normal: el reemplazo EMPIEZA en este grupo.
+        // Clampar el end al fin del grupo (la cola se manejará en grupos
+        // posteriores como "borrado por continuación").
+        final end = replacement.endOffset.clamp(group.start, group.end);
+        local.add(
+          DocxTextReplacement(
+            steps: replacement.steps,
+            startOffset: replacement.startOffset - group.start,
+            endOffset: end - group.start,
+            text: replacement.text,
+          ),
+        );
+      } else {
+        // Caso nuevo: el reemplazo EMPEZÓ en un grupo anterior y su texto
+        // ya fue escrito allá. Este grupo está total o parcialmente cubierto
+        // por la cola del reemplazo → hay que borrar la porción cubierta.
+        final localEnd = replacement.endOffset.clamp(group.start, group.end);
+        local.add(
+          DocxTextReplacement(
+            steps: replacement.steps,
+            startOffset: 0,
+            endOffset: localEnd - group.start,
+            text: '',
+          ),
+        );
+      }
     }
     if (local.isNotEmpty) {
       _applyToEditableGroup(group.nodes, local);
     }
+  }
+
+  // Segundo pass: eliminar gap nodes cubiertos por reemplazos que cruzan
+  // grupos.
+  var gapOffset = 0;
+  for (final node in nodes) {
+    if (!node.isEditable) {
+      // Es un gap node (tab o br). ¿Está dentro del rango de algún reemplazo?
+      for (final replacement in replacements) {
+        if (gapOffset >= replacement.startOffset &&
+            gapOffset < replacement.endOffset) {
+          // El gap cae dentro del rango reemplazado → eliminar del XML.
+          // Buscar el <w:r> padre y eliminarlo si este gap es su único
+          // contenido funcional. Si el <w:r> tiene otros hijos, solo
+          // eliminar el gap element.
+          final parent = node.element.parentElement;
+          if (parent != null && parent.name.local == 'r') {
+            final functionalChildren = parent.childElements
+                .where((e) => e.name.local != 'rPr')
+                .toList();
+            if (functionalChildren.length == 1 &&
+                functionalChildren.first == node.element) {
+              parent.remove();
+            } else {
+              node.element.remove();
+            }
+          } else {
+            node.element.remove();
+          }
+          break;
+        }
+      }
+    }
+    gapOffset += node.text.length;
   }
 }
 
@@ -814,11 +869,7 @@ void _rewriteEditableGroup(List<_TextNodeRef> nodes, List<_GroupTextOp> ops) {
       );
     }
     segments.add(
-      _GroupSegment(
-        sourceOffset: start,
-        text: op.text,
-        isReplacement: true,
-      ),
+      _GroupSegment(sourceOffset: start, text: op.text, isReplacement: true),
     );
     cursor = end;
   }
@@ -856,8 +907,9 @@ void _rewriteEditableGroup(List<_TextNodeRef> nodes, List<_GroupTextOp> ops) {
     var textPos = 0;
     while (textPos < segment.text.length) {
       final index = nodeIndexFor(originalPos);
-      final nodeEnd =
-          index + 1 < nodes.length ? nodeStarts[index + 1] : totalLength;
+      final nodeEnd = index + 1 < nodes.length
+          ? nodeStarts[index + 1]
+          : totalLength;
       var take = nodeEnd - originalPos;
       if (take <= 0) {
         // Empty run at this offset (shouldn't happen mid-segment): dump the

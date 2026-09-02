@@ -13,7 +13,7 @@ final settingsProvider = AsyncNotifierProvider<SettingsNotifier, AppSettings>(
   SettingsNotifier.new,
 );
 
-final class SettingsNotifier extends AsyncNotifier<AppSettings> {
+base class SettingsNotifier extends AsyncNotifier<AppSettings> {
   @override
   Future<AppSettings> build() async {
     final settings = await ref.read(settingsStoreProvider).load();
