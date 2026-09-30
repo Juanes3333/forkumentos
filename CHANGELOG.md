@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.0
+
+### Added
+- Diálogo al reemplazar datasource (ribbon o drop) si los encabezados no coinciden con los mapeos: aceptar y actualizar nombres, usar sin actualizar, o cancelar.
+- Detección de `HeaderMismatch` y `updateFieldHeaders` en el provider de mapeo.
+
+### Changed
+- Texto de actualización disponible en Ajustes: `Disponible: x.y.z`.
+
 ## 1.7.0
 
 ### Added

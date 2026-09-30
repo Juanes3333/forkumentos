@@ -3,6 +3,7 @@ import 'package:forkumentos/features/mapping/data/mapping_json.dart';
 import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
 import 'package:forkumentos/features/mapping/domain/document_text_catalog.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
+import 'package:forkumentos/features/mapping/domain/header_mismatch.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_commands.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_state.dart';
 import 'package:forkumentos/features/mapping/domain/text_occurrence.dart';
@@ -306,6 +307,26 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     nextAssignments[index] = nextAssignments[index].copyWith(
       isListField: isListField,
     );
+
+    _applyMutation(state.state.copyWith(assignments: nextAssignments));
+    _syncProjectAssignments();
+  }
+
+  /// Actualiza el `fieldHeader` de las asignaciones afectadas por
+  /// [mismatches] para que coincida con la nueva fuente de datos.
+  void updateFieldHeaders(List<HeaderMismatch> mismatches) {
+    final current = state.state.assignments;
+    final nextAssignments = applyHeaderMismatches(current, mismatches);
+    var changed = false;
+    for (var i = 0; i < current.length; i++) {
+      if (current[i].fieldHeader != nextAssignments[i].fieldHeader) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) {
+      return;
+    }
 
     _applyMutation(state.state.copyWith(assignments: nextAssignments));
     _syncProjectAssignments();

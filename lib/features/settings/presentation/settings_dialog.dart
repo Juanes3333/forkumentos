@@ -541,7 +541,7 @@ final class _UpdateAvailableCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text('Versión ${result.latestVersion}'),
+            Text('Disponible: ${result.latestVersion}'),
             if (result.publishedAt != null) ...[
               const SizedBox(height: 4),
               Text(

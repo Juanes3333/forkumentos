@@ -16,6 +16,7 @@ installer/*.exe
 # Agent / IDE local config (not part of the product)
 .cursor/
 .claude/
+.agents/
 
 # Runtime workspace data (user-generated)
 Cache/

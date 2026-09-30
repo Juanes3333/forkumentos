@@ -126,7 +126,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('¡Nueva versión disponible!'), findsOneWidget);
-        expect(find.text('Versión 1.7.0'), findsOneWidget);
+        expect(find.text('Disponible: 1.7.0'), findsOneWidget);
         expect(find.text('Mejoras en el exportador DOCX.'), findsOneWidget);
         expect(find.text('Descargar actualización'), findsOneWidget);
       },

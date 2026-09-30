@@ -15,6 +15,7 @@ import 'package:forkumentos/features/project/presentation/create_project_dialog.
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
+import 'package:forkumentos/routing/datasource_replacement.dart';
 import 'package:forkumentos/routing/workbench/export_launcher.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_mapping_actions.dart';
@@ -448,7 +449,7 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
               label: 'Reemplazar excel (xlsx/csv)',
               onPressed: datasourceState.isLoading
                   ? null
-                  : () => _replaceDatasource(ref),
+                  : () => _replaceDatasource(context, ref),
             ),
             _RibbonActionButton(
               icon: Icons.cloud_sync_outlined,
@@ -517,20 +518,25 @@ Future<void> _replaceTemplate(WidgetRef ref) async {
   }
 }
 
-Future<void> _replaceDatasource(WidgetRef ref) async {
+Future<void> _replaceDatasource(BuildContext context, WidgetRef ref) async {
   final selected = await FilePicker.platform.pickFiles(
     dialogTitle: 'Seleccionar fuente de datos',
     type: FileType.custom,
     allowedExtensions: const <String>['csv', 'xlsx'],
   );
   final filePath = selected?.files.single.path;
-  if (filePath == null) {
+  if (filePath == null || !context.mounted) {
     return;
   }
 
-  await ref
-      .read(activeDatasourceProvider.notifier)
-      .importDatasource(filePath: filePath);
+  final imported = await importDatasourceConfirmingHeaders(
+    context: context,
+    ref: ref,
+    filePath: filePath,
+  );
+  if (!imported) {
+    return;
+  }
   final path = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
   if (path != null) {
     ref

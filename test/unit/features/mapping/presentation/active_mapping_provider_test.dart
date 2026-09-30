@@ -7,6 +7,7 @@ import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/mapping/data/mapping_json.dart';
 import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
+import 'package:forkumentos/features/mapping/domain/header_mismatch.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
@@ -55,6 +56,56 @@ void main() {
     expect(session.state.assignments.single.fieldHeader, 'nombre');
     expect(session.state.currentFieldIndex, 1);
     expect(session.canUndo, isTrue);
+  });
+
+  test('updateFieldHeaders renombra la columna y es deshacible', () {
+    final container = _createContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(activeMappingProvider.notifier)
+      ..confirmAssignment(
+        selection: const DocumentTextSelection(
+          path: DocumentTextPath(
+            steps: <DocumentPathStep>[
+              DocumentPathStep.rootBlock(blockIndex: 0),
+            ],
+          ),
+          startOffset: 0,
+          endOffset: 3,
+          selectedText: 'Ana',
+        ),
+        fieldHeader: 'nombre',
+        fieldIndex: 0,
+        headerCount: 1,
+      );
+    final assignments = container.read(activeMappingProvider).state.assignments;
+
+    notifier.updateFieldHeaders(
+      detectHeaderMismatches(
+        newHeaders: const <String>['nombreCompleto'],
+        assignments: assignments,
+      ),
+    );
+    expect(
+      container
+          .read(activeMappingProvider)
+          .state
+          .assignments
+          .single
+          .fieldHeader,
+      'nombreCompleto',
+    );
+
+    notifier.undo();
+    expect(
+      container
+          .read(activeMappingProvider)
+          .state
+          .assignments
+          .single
+          .fieldHeader,
+      'nombre',
+    );
   });
 
   test('undo y redo restauran asignaciones', () {

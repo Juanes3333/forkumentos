@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.7.0-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.8.0-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -32,9 +32,9 @@
 
 ---
 
-**Version 1.7.0**
+**Version 1.8.0**
 
-Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy). DOCX export keeps per-run formatting (e.g. bold labels next to replaced values). Settings can check GitHub Releases for a newer installer.
+Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy). Replacing a spreadsheet whose column headers changed prompts you to accept the new names or cancel. DOCX export keeps per-run formatting (e.g. bold labels next to replaced values). Settings can check GitHub Releases for a newer installer.
 
 ---
 
@@ -51,6 +51,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Confirm dialog when opening another `.fork` while a project is active (open here / new window / cancel)
 - Opening a `.fork` (landing, ribbon, drop, or second instance) reliably records recientes and enters the workbench when both resources are embedded — post-load side effects run at app level, not from the disposed landing screen
 - **Check for updates** against GitHub Releases from Settings
+- Confirm header renames when replacing a datasource that already has mapped columns
 
 ---
 
@@ -90,7 +91,7 @@ Forkumentos keeps templates and data local: portable `.fork` projects embed the 
 - Date/number cells are normalized to readable values; currency / thousands / percent formats use es-CO conventions (e.g. `$18.414.383`)
 - Workbooks that redefine built-in `numFmtId` values (common with regional currency formats) are sanitized so the `excel` package can decode them
 - Failed imports show a modal error dialog (not only an easy-to-miss inline strip)
-- Replace the active datasource from the ribbon or by drag-and-drop
+- Replace the active datasource from the ribbon or by drag-and-drop; if column headers changed vs existing mappings, confirm whether to accept the new names, keep mappings invalid, or cancel
 - **Refrescar datos**: re-read from the original file path stored in the project (`datasourceExternalPath`), with row-delta feedback when content changed
 
 ### Mapping
@@ -330,4 +331,4 @@ It targets professional desktop document workflows: keep templates and data loca
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
 - Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
-- Version: **1.7.0**
+- Version: **1.8.0**
