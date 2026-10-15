@@ -7,9 +7,11 @@ import 'package:forkumentos/features/datasource/data/excel_file_watcher.dart';
 import 'package:forkumentos/features/datasource/data/excel_opener.dart';
 import 'package:forkumentos/features/datasource/data/managed_xlsx_editor.dart';
 import 'package:forkumentos/features/datasource/data/xlsx_column_writer.dart';
+import 'package:forkumentos/features/datasource/data/xlsx_workbook_writer.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
+import 'package:path/path.dart' as p;
 
 /// Abre el Excel con la aplicación predeterminada; sustituible en pruebas.
 final excelOpenerProvider = Provider<ExcelOpener>((ref) => const ExcelOpener());
@@ -25,6 +27,11 @@ final excelFileWatcherFactoryProvider =
 /// Último aviso de sincronización con el Excel (para mostrarlo en una
 /// SnackBar). La pantalla lo muestra y lo vuelve a poner en `null`.
 final datasourceSyncMessageProvider = StateProvider<String?>((ref) => null);
+
+/// Escritor de libros nuevos; sustituible en pruebas.
+final xlsxWorkbookWriterProvider = Provider<XlsxWorkbookWriter>(
+  (ref) => const XlsxWorkbookWriter(),
+);
 
 /// Editor que agrega columnas al Excel gestionado; sustituible en pruebas.
 final managedXlsxEditorProvider = Provider<ManagedXlsxEditor>(
@@ -246,6 +253,78 @@ final class DatasourceSyncController {
       columnIndex: written.columnIndex,
       appendedAtEnd: written.appendedAtEnd,
     );
+  }
+
+  /// Genera el Excel del proyecto a partir de los campos creados sobre el
+  /// documento (proyecto solo con Word): un libro nuevo con esos encabezados
+  /// en la carpeta gestionada, que pasa a ser la fuente de datos. Devuelve la
+  /// ruta del archivo o el motivo por el que no se pudo.
+  Future<({String? path, String? error})> generateExcel() async {
+    final project = _project();
+    final paths = _ref.read(workspacePathsProvider);
+    final fields = _ref.read(activeProjectProvider).valueOrNull?.draftFields;
+    if (project == null || paths == null) {
+      return (path: null, error: 'No hay un proyecto abierto.');
+    }
+    if (fields == null || fields.isEmpty) {
+      return (
+        path: null,
+        error:
+            'Crea al menos un campo sobre el documento antes de generar el '
+            'Excel.',
+      );
+    }
+
+    final folder = paths.managedDatasourceFolder(
+      projectName: project.name,
+      projectId: project.id,
+    );
+    final fileName = '${_safeFileName(project.name)}.xlsx';
+    final scratch = await Directory.systemTemp.createTemp('forkumentos_xlsx_');
+    try {
+      final draft = File(p.join(scratch.path, fileName))
+        ..writeAsBytesSync(
+          _ref.read(xlsxWorkbookWriterProvider).create(List<String>.of(fields)),
+        );
+      final String generated;
+      try {
+        generated = await _ref
+            .read(managedDatasourceStoreProvider)
+            .adopt(sourcePath: draft.path, folder: folder);
+      } on FileSystemException catch (error, stackTrace) {
+        _ref
+            .read(loggingServiceProvider)
+            .error(
+              'No se pudo guardar el Excel generado',
+              module: 'Datasource',
+              error: error,
+              stackTrace: stackTrace,
+            );
+        return (
+          path: null,
+          error:
+              'No se pudo guardar el Excel. Si el archivo está abierto en '
+              'Excel, ciérralo e inténtalo de nuevo.',
+        );
+      }
+
+      // Al asignar el archivo desaparecen los campos borrador y el Excel
+      // activo se lee de la copia gestionada.
+      _ref.read(activeProjectProvider.notifier)
+        ..setDatasourceExternalPath(generated)
+        ..setEmbeddedArtifactPaths(datasourcePath: generated);
+      _recordSynced(File(generated).statSync());
+      return (path: generated, error: null);
+    } finally {
+      if (scratch.existsSync()) {
+        scratch.deleteSync(recursive: true);
+      }
+    }
+  }
+
+  String _safeFileName(String name) {
+    final safe = name.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1f]'), '_').trim();
+    return safe.isEmpty ? 'datos' : safe;
   }
 
   /// Restaura la copia embebida del proyecto como Excel gestionado en esta

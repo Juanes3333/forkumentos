@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/launch/spawn_app_instance.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
+import 'package:forkumentos/features/datasource/domain/draft_datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/datasource/presentation/datasource_sync_controller.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_color_palette.dart';
@@ -460,7 +461,16 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
                   ? null
                   : () => _replaceDatasource(context, ref),
             ),
-            if (ref.watch(datasourceRefreshAvailableProvider))
+            if (datasource != null && datasource.isDraft)
+              _RibbonActionButton(
+                icon: Icons.table_view_outlined,
+                label: 'Generar excel',
+                tooltip:
+                    'Crea el Excel con los campos que definiste sobre el '
+                    'documento para que lo rellenes',
+                onPressed: () => _generateExcel(context, ref),
+              )
+            else if (ref.watch(datasourceRefreshAvailableProvider))
               _RibbonActionButton(
                 icon: Icons.open_in_new,
                 label: 'Abrir excel',
@@ -494,7 +504,10 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
             _RibbonActionButton(
               icon: Icons.file_download_outlined,
               label: 'Exportar excel (xlsx/csv)',
-              onPressed: datasource == null || datasourceState.isLoading
+              onPressed:
+                  datasource == null ||
+                      datasource.isDraft ||
+                      datasourceState.isLoading
                   ? null
                   : () => exportResourceByCopy(
                       context: context,
@@ -512,7 +525,7 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
             _RibbonActionButton(
               icon: Icons.info_outline,
               label: 'Información de la fuente',
-              onPressed: datasource == null
+              onPressed: datasource == null || datasource.isDraft
                   ? null
                   : () => _showDatasourceInfo(context, datasource),
             ),
@@ -577,6 +590,25 @@ Future<void> _refreshDatasource(BuildContext context, WidgetRef ref) async {
   if (message != null && context.mounted) {
     _showSnack(context, message);
   }
+}
+
+Future<void> _generateExcel(BuildContext context, WidgetRef ref) async {
+  final controller = ref.read(datasourceSyncControllerProvider);
+  final outcome = await controller.generateExcel();
+  if (!context.mounted) {
+    return;
+  }
+  final path = outcome.path;
+  if (path == null) {
+    _showSnack(context, outcome.error ?? 'No se pudo generar el Excel.');
+    return;
+  }
+  _showSnack(
+    context,
+    'Excel generado en $path. Rellénalo y guárdalo: Forkumentos cargará los '
+    'datos solo.',
+  );
+  await controller.openManagedExcel();
 }
 
 Future<void> _openManagedExcel(BuildContext context, WidgetRef ref) async {

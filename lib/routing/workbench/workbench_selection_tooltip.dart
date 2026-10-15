@@ -75,7 +75,8 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
                 const SizedBox(height: 8),
                 if (headers.isEmpty)
                   Text(
-                    'Importa una fuente de datos para asignar campos.',
+                    'Crea un campo nuevo con este texto o importa un Excel '
+                    'para asignar campos.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colors.foregroundMuted,
                     ),
@@ -126,10 +127,8 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
                       child: const Text('Asignar'),
                     ),
                     OutlinedButton(
-                      onPressed: headers.isEmpty
-                          ? null
-                          : () =>
-                                createFieldFromWorkbenchSelection(context, ref),
+                      onPressed: () =>
+                          createFieldFromWorkbenchSelection(context, ref),
                       child: const Text('Crear campo nuevo'),
                     ),
                     OutlinedButton(

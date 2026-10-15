@@ -106,6 +106,24 @@ final class ProjectWizardScreen extends ConsumerWidget {
                 icon: const Icon(Icons.play_arrow_outlined),
                 label: const Text('Empezar a trabajar'),
               ),
+              if (hasTemplate && !hasDatasource) ...<Widget>[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref
+                        .read(workbenchEnteredProvider.notifier)
+                        .enterWorkbench();
+                  },
+                  icon: const Icon(Icons.edit_note_outlined),
+                  label: const Text('Empezar solo con el Word'),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Crea los campos sobre el documento y Forkumentos generará '
+                  'el Excel para que lo rellenes.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ],
           ),
         ),

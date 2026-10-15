@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/datasource/domain/draft_datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/datasource/presentation/datasource_sync_controller.dart';
 import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
@@ -12,6 +13,7 @@ import 'package:forkumentos/features/mapping/presentation/widgets/new_field_dial
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_selection_provider.dart';
 import 'package:forkumentos/shared/models/document.dart';
+import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/document_content_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -282,13 +284,17 @@ Future<void> createFieldFromWorkbenchSelection(
 ) async {
   final selection = ref.read(workbenchSelectionProvider).selection;
   final datasource = ref.read(activeDatasourceProvider).valueOrNull;
-  if (selection == null || datasource == null) {
+  if (selection == null) {
     return;
   }
+  // Sin Excel todavía (proyecto solo con Word) los campos se van guardando
+  // en el proyecto hasta generar el Excel.
+  final isDraft = datasource == null || datasource.isDraft;
+  final headers = datasource?.headers ?? const <String>[];
 
   final name = await showNewFieldDialog(
     context,
-    existingHeaders: datasource.headers,
+    existingHeaders: headers,
     selectedText: selection.selectedText,
   );
   if (name == null || !context.mounted) {
@@ -300,27 +306,35 @@ Future<void> createFieldFromWorkbenchSelection(
     assignments: ref.read(activeMappingProvider).state.assignments,
     path: selection.path,
     offset: selection.startOffset,
-    headerCount: datasource.headers.length,
+    headerCount: headers.length,
   );
 
-  AddColumnOutcome outcome;
-  do {
-    outcome = await controller.addColumn(header: name, insertAt: insertAt);
-    if (!context.mounted) {
+  var appendedAtEnd = false;
+  if (isDraft) {
+    // Proyecto solo con Word: el campo queda en la lista del proyecto y el
+    // Excel se genera después a partir de ella.
+    ref.read(activeProjectProvider.notifier).insertDraftField(name, insertAt);
+  } else {
+    AddColumnOutcome outcome;
+    do {
+      outcome = await controller.addColumn(header: name, insertAt: insertAt);
+      if (!context.mounted) {
+        return;
+      }
+    } while (outcome.status == AddColumnStatus.locked &&
+        await _askRetryExcelLocked(context) &&
+        context.mounted);
+
+    if (outcome.status != AddColumnStatus.success) {
+      if (outcome.status != AddColumnStatus.locked) {
+        _showMappingSnackBar(
+          context,
+          outcome.message ?? 'No se pudo crear el campo.',
+        );
+      }
       return;
     }
-  } while (outcome.status == AddColumnStatus.locked &&
-      await _askRetryExcelLocked(context) &&
-      context.mounted);
-
-  if (outcome.status != AddColumnStatus.success) {
-    if (outcome.status != AddColumnStatus.locked) {
-      _showMappingSnackBar(
-        context,
-        outcome.message ?? 'No se pudo crear el campo.',
-      );
-    }
-    return;
+    appendedAtEnd = outcome.appendedAtEnd ?? false;
   }
 
   // Al refrescar, el Excel activo se vuelve a leer de forma asíncrona: se
@@ -332,12 +346,12 @@ Future<void> createFieldFromWorkbenchSelection(
   if (index == null) {
     _showMappingSnackBar(
       context,
-      'El campo se agregó al Excel, pero no se pudo leer todavía. Refresca '
-      'los datos y asígnalo.',
+      'El campo se agregó, pero no se pudo leer todavía. Refresca los datos '
+      'y asígnalo.',
     );
     return;
   }
-  if (outcome.appendedAtEnd ?? false) {
+  if (appendedAtEnd) {
     _showMappingSnackBar(
       context,
       'El Excel tiene fórmulas o tablas: el campo «$name» se agregó al final '

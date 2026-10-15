@@ -54,11 +54,13 @@ void onProjectActivated(
 
   final templatePath = next.embeddedTemplatePath;
   final datasourcePath = next.embeddedDatasourcePath;
+  // Un proyecto solo con Word también entra directo si ya tiene campos
+  // creados sobre el documento (su "fuente" es la lista de campos borrador).
   final hasBothResources =
       templatePath != null &&
       templatePath.isNotEmpty &&
-      datasourcePath != null &&
-      datasourcePath.isNotEmpty;
+      ((datasourcePath != null && datasourcePath.isNotEmpty) ||
+          next.draftFields.isNotEmpty);
   if (hasBothResources) {
     ref.read(workbenchEnteredProvider.notifier).enterWorkbench();
   }

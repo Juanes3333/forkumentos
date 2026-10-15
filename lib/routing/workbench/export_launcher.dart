@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/commands/cancellable_command.dart';
+import 'package:forkumentos/features/datasource/domain/draft_datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/export/data/docx_export_command.dart';
 import 'package:forkumentos/features/export/data/export_zip_writer.dart';
@@ -45,6 +46,14 @@ Future<void> launchExport(
 
   final template = ref.read(activeTemplateProvider).valueOrNull;
   final datasource = ref.read(activeDatasourceProvider).valueOrNull;
+  if (datasource != null && datasource.isDraft) {
+    await _showBlocked(
+      context,
+      'Aún no hay un Excel con datos. Genera el Excel desde los campos que '
+      'creaste (o importa uno), rellénalo y vuelve a exportar.',
+    );
+    return;
+  }
   if (template == null || datasource == null) {
     await _showBlocked(
       context,

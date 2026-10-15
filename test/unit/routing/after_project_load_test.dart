@@ -98,6 +98,49 @@ void main() {
     expect(container.read(appPhaseProvider), AppPhase.workbench);
   });
 
+  test('un .fork solo con Word y campos borrador entra al workbench', () async {
+    final container = buildContainer(
+      loadResult: Project(
+        id: 'solo-word',
+        name: 'Solo Word',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        filePath: '/tmp/solo-word.fork',
+        embeddedTemplatePath: '/tmp/cache/plantilla.docx',
+        draftFields: const <String>['nombre', 'cédula'],
+      ),
+    );
+    await container.read(recentProjectsProvider.future);
+
+    await container
+        .read(activeProjectProvider.notifier)
+        .loadProject(filePath: '/tmp/solo-word.fork');
+    await container.pump();
+
+    expect(container.read(appPhaseProvider), AppPhase.workbench);
+  });
+
+  test('un .fork solo con Word y sin campos se queda en el wizard', () async {
+    final container = buildContainer(
+      loadResult: Project(
+        id: 'solo-word-vacio',
+        name: 'Solo Word',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        filePath: '/tmp/solo-word-vacio.fork',
+        embeddedTemplatePath: '/tmp/cache/plantilla.docx',
+      ),
+    );
+    await container.read(recentProjectsProvider.future);
+
+    await container
+        .read(activeProjectProvider.notifier)
+        .loadProject(filePath: '/tmp/solo-word-vacio.fork');
+    await container.pump();
+
+    expect(container.read(appPhaseProvider), AppPhase.wizard);
+  });
+
   test('un .fork sin recursos embebidos se queda en el wizard', () async {
     final container = buildContainer();
     await container.read(recentProjectsProvider.future);
