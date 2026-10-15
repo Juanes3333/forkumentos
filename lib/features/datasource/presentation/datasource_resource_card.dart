@@ -123,7 +123,13 @@ Future<void> _pickAndImport(BuildContext context, WidgetRef ref) async {
   }
 
   _syncEmbeddedDatasourcePath(ref);
-  ref.read(activeProjectProvider.notifier).setDatasourceExternalPath(filePath);
+  // La ruta de refresco es el Excel que la app gestiona (la copia), no el
+  // archivo original que se eligió.
+  ref
+      .read(activeProjectProvider.notifier)
+      .setDatasourceExternalPath(
+        ref.read(activeDatasourceProvider).valueOrNull?.sourcePath ?? filePath,
+      );
 }
 
 void _syncEmbeddedDatasourcePath(WidgetRef ref) {

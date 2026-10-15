@@ -6,9 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/logging/logging_service.dart';
 import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
+import 'package:forkumentos/features/datasource/data/managed_datasource_store.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/domain/datasource_repository.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
+
+final managedDatasourceStoreProvider = Provider<ManagedDatasourceStore>(
+  (ref) => const ManagedDatasourceStore(),
+);
 
 final activeDatasourceProvider =
     AsyncNotifierProvider<ActiveDatasourceNotifier, Datasource?>(
@@ -109,7 +115,11 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
             nextPath != null &&
             nextPath.isNotEmpty &&
             state.valueOrNull?.sourcePath != nextPath) {
-          unawaited(importDatasource(filePath: nextPath));
+          // Es la copia embebida del proyecto: se carga tal cual, sin copiarla
+          // a la carpeta gestionada.
+          unawaited(
+            importDatasource(filePath: nextPath, adoptIntoWorkspace: false),
+          );
         }
       },
     );
@@ -126,7 +136,16 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
     return null;
   }
 
-  Future<void> importDatasource({required String filePath}) async {
+  /// Importa [filePath] como fuente de datos activa. Con
+  /// [adoptIntoWorkspace] (lo normal cuando el usuario elige un archivo) y un
+  /// proyecto activo, primero copia el archivo a la carpeta que la app
+  /// gestiona para ese proyecto y trabaja siempre sobre esa copia: el
+  /// original del usuario no se toca y el observer vigila el archivo
+  /// gestionado.
+  Future<void> importDatasource({
+    required String filePath,
+    bool adoptIntoWorkspace = true,
+  }) async {
     final operationToken = ++_operationToken;
     final previousState = state;
     final previousDatasource = previousState.valueOrNull;
@@ -137,7 +156,10 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
         'Importando fuente de datos desde $filePath',
         module: 'Datasource',
       );
-      final datasource = await _repository.load(filePath);
+      final loadPath = adoptIntoWorkspace
+          ? await _adoptIntoManagedFolder(filePath) ?? filePath
+          : filePath;
+      final datasource = await _repository.load(loadPath);
       if (operationToken != _operationToken) {
         return;
       }
@@ -300,12 +322,46 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
     state = AsyncData(restoredDatasource);
   }
 
+  /// Copia [filePath] a la carpeta gestionada del proyecto activo y devuelve
+  /// la ruta gestionada, o `null` si no hay dónde (sin proyecto, sin espacio
+  /// de trabajo o el archivo no existe) y se debe usar el archivo tal cual.
+  Future<String?> _adoptIntoManagedFolder(String filePath) async {
+    final project = ref.read(activeProjectProvider).valueOrNull;
+    final paths = ref.read(workspacePathsProvider);
+    if (project == null || paths == null || !File(filePath).existsSync()) {
+      return null;
+    }
+    final folder = paths.managedDatasourceFolder(
+      projectName: project.name,
+      projectId: project.id,
+    );
+    try {
+      return await ref
+          .read(managedDatasourceStoreProvider)
+          .adopt(sourcePath: filePath, folder: folder);
+    } on FileSystemException catch (error, stackTrace) {
+      _logger.error(
+        'No se pudo copiar el Excel a la carpeta del proyecto',
+        module: 'Datasource',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      throw const DatasourceLifecycleException(
+        'No se pudo copiar el Excel a la carpeta del proyecto. Si está '
+        'abierto en Excel, ciérralo e inténtalo de nuevo.',
+      );
+    }
+  }
+
   DatasourceRepository get _repository =>
       ref.read(datasourceRepositoryProvider);
 
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   DatasourceLifecycleException _classifyImportFailure(Object error) {
+    if (error is DatasourceLifecycleException) {
+      return error;
+    }
     if (error is FormatException || error is TypeError) {
       final rawMessage = error is FormatException ? error.message : null;
       if (rawMessage is String && rawMessage.trim().isNotEmpty) {

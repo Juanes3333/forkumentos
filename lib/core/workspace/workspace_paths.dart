@@ -19,6 +19,25 @@ final class WorkspacePaths {
 
   String exportFolder(String projectName) => p.join(exports, projectName);
 
+  /// Carpeta donde la app guarda el Excel de un proyecto (el que el cliente
+  /// edita). Lleva el id corto del proyecto para que dos proyectos con el
+  /// mismo nombre no compartan archivo.
+  String managedDatasourceFolder({
+    required String projectName,
+    required String projectId,
+  }) {
+    final safeName = projectName
+        .replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1f]'), '_')
+        .trim();
+    final shortId = projectId.length > 8
+        ? projectId.substring(0, 8)
+        : projectId;
+    return p.join(
+      workspace,
+      '${safeName.isEmpty ? 'Proyecto' : safeName}-$shortId',
+    );
+  }
+
   String defaultProjectFile(String projectName) =>
       p.join(projects, '$projectName.fork');
 

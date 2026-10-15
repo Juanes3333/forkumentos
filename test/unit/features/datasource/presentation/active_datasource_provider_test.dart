@@ -4,13 +4,16 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
+import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
+import 'package:forkumentos/features/datasource/data/managed_datasource_store.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
+import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../../support/fakes.dart';
@@ -231,6 +234,129 @@ void main() {
       expect(container.read(activeDatasourceProvider).valueOrNull, isNull);
     },
   );
+
+  group('Excel gestionado por la app', () {
+    late Directory workspaceRoot;
+
+    setUp(() async {
+      workspaceRoot = await Directory.systemTemp.createTemp(
+        'forkumentos_managed_import_test_',
+      );
+      addTearDown(() => workspaceRoot.delete(recursive: true));
+    });
+
+    ProviderContainer containerWithWorkspace(
+      FakeDatasourceRepository repository,
+    ) {
+      final container = ProviderContainer(
+        overrides: <Override>[
+          loggingServiceProvider.overrideWithValue(FakeLoggingService()),
+          projectRepositoryProvider.overrideWithValue(_FakeProjectRepository()),
+          datasourceRepositoryProvider.overrideWithValue(repository),
+          workspacePathsProvider.overrideWithValue(
+            WorkspacePaths(root: workspaceRoot.path),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    test('importar copia el archivo a la carpeta del proyecto y trabaja sobre '
+        'esa copia', () async {
+      final original = File(p.join(workspaceRoot.path, 'Escritorio', 'a.csv'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('nombre\nAna\n');
+      final loaded = <String>[];
+      final container = containerWithWorkspace(
+        FakeDatasourceRepository(
+          loadHandler: (path) async {
+            loaded.add(path);
+            return _buildDatasource(path);
+          },
+        ),
+      );
+      await container
+          .read(activeProjectProvider.notifier)
+          .createProject(name: 'Contrato');
+      final project = container.read(activeProjectProvider).requireValue!;
+
+      await container
+          .read(activeDatasourceProvider.notifier)
+          .importDatasource(filePath: original.path);
+
+      final managedFolder = WorkspacePaths(root: workspaceRoot.path)
+          .managedDatasourceFolder(
+            projectName: project.name,
+            projectId: project.id,
+          );
+      final managedPath = p.join(managedFolder, 'a.csv');
+      expect(loaded, <String>[managedPath]);
+      expect(File(managedPath).readAsStringSync(), 'nombre\nAna\n');
+      expect(original.existsSync(), isTrue);
+      expect(
+        container.read(activeDatasourceProvider).valueOrNull?.sourcePath,
+        managedPath,
+      );
+    });
+
+    test('sin proyecto activo se importa el archivo tal cual', () async {
+      final original = File(p.join(workspaceRoot.path, 'a.csv'))
+        ..writeAsStringSync('nombre\nAna\n');
+      final loaded = <String>[];
+      final container = containerWithWorkspace(
+        FakeDatasourceRepository(
+          loadHandler: (path) async {
+            loaded.add(path);
+            return _buildDatasource(path);
+          },
+        ),
+      );
+
+      await container
+          .read(activeDatasourceProvider.notifier)
+          .importDatasource(filePath: original.path);
+
+      expect(loaded, <String>[original.path]);
+    });
+
+    test('si el destino está bloqueado muestra un error claro y conserva la '
+        'fuente previa', () async {
+      final folderless = _LockedStore();
+      final original = File(p.join(workspaceRoot.path, 'a.csv'))
+        ..writeAsStringSync('nombre\nAna\n');
+      final container = ProviderContainer(
+        overrides: <Override>[
+          loggingServiceProvider.overrideWithValue(FakeLoggingService()),
+          projectRepositoryProvider.overrideWithValue(_FakeProjectRepository()),
+          datasourceRepositoryProvider.overrideWithValue(
+            FakeDatasourceRepository(
+              loadHandler: (path) async => _buildDatasource(path),
+            ),
+          ),
+          workspacePathsProvider.overrideWithValue(
+            WorkspacePaths(root: workspaceRoot.path),
+          ),
+          managedDatasourceStoreProvider.overrideWithValue(folderless),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container
+          .read(activeProjectProvider.notifier)
+          .createProject(name: 'Contrato');
+
+      await container
+          .read(activeDatasourceProvider.notifier)
+          .importDatasource(filePath: original.path);
+
+      final state = container.read(activeDatasourceProvider);
+      expect(state.hasError, isTrue);
+      expect(
+        (state.error! as DatasourceLifecycleException).message,
+        contains('abierto en Excel'),
+      );
+    });
+  });
 
   group('refreshDatasource', () {
     test(
@@ -511,6 +637,18 @@ Datasource _buildDatasource(String path, {int rowCount = 1}) {
     rowCount: rowCount,
     emptyColumnIndexes: const <int>[],
   );
+}
+
+/// Almacén cuyo destino siempre está bloqueado (Excel tiene el archivo
+/// abierto).
+class _LockedStore extends ManagedDatasourceStore {
+  @override
+  Future<String> adopt({
+    required String sourcePath,
+    required String folder,
+  }) async {
+    throw FileSystemException('Archivo en uso', folder);
+  }
 }
 
 final class _FakeProjectRepository implements ProjectRepository {

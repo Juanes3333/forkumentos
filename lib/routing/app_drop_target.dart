@@ -133,9 +133,9 @@ final class _AppDropTargetState extends ConsumerState<AppDropTarget> {
           .importDatasource(filePath: datasourcePath);
       final loaded = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
       if (loaded != null) {
-        ref
-            .read(activeProjectProvider.notifier)
-            .setEmbeddedArtifactPaths(datasourcePath: loaded);
+        ref.read(activeProjectProvider.notifier)
+          ..setEmbeddedArtifactPaths(datasourcePath: loaded)
+          ..setDatasourceExternalPath(loaded);
         imported.add(labelForDroppedKind(classifyDroppedPath(datasourcePath)));
       } else if (ref.read(activeDatasourceProvider).hasError) {
         _snack('No se pudo importar la fuente de datos.', isError: true);
