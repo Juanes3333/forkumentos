@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,8 @@ import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
 import 'package:forkumentos/features/datasource/data/excel_file_watcher.dart';
 import 'package:forkumentos/features/datasource/data/excel_opener.dart';
+import 'package:forkumentos/features/datasource/data/managed_xlsx_editor.dart';
+import 'package:forkumentos/features/datasource/data/xlsx_column_writer.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/datasource/presentation/datasource_sync_controller.dart';
@@ -43,9 +46,10 @@ void main() {
   /// Excel de ejemplo: una fila de encabezado y tantas filas como líneas.
   String csv(int rows) => 'nombre\n${List.filled(rows, 'x').join('\n')}\n';
 
-  ProviderContainer containerFor(Project project) {
+  ProviderContainer containerFor(Project project, {ManagedXlsxEditor? editor}) {
     final container = ProviderContainer(
       overrides: <Override>[
+        if (editor != null) managedXlsxEditorProvider.overrideWithValue(editor),
         loggingServiceProvider.overrideWithValue(FakeLoggingService()),
         workspacePathsProvider.overrideWithValue(paths),
         projectRepositoryProvider.overrideWithValue(
@@ -124,6 +128,7 @@ void main() {
   /// [syncedStat] es la de ese archivo.
   ({Project project, File managed, File snapshot}) savedProject({
     bool synced = true,
+    String fileName = 'datos.csv',
   }) {
     var project = Project(
       id: 'abcdef0123456789',
@@ -131,9 +136,9 @@ void main() {
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026),
     );
-    final managed = write(p.join(managedFolder(project), 'datos.csv'), csv(2));
+    final managed = write(p.join(managedFolder(project), fileName), csv(2));
     final snapshot = write(
-      p.join(root.path, 'Cache', project.id, 'datasource', 'datos.csv'),
+      p.join(root.path, 'Cache', project.id, 'datasource', fileName),
       csv(2),
     );
     final stat = managed.statSync();
@@ -294,6 +299,93 @@ void main() {
     },
   );
 
+  group('agregar columna', () {
+    test('escribe con el nombre sin espacios y la posición pedida y relee el '
+        'Excel', () async {
+      final setup = savedProject(fileName: 'datos.xlsx');
+      final editor = _FakeEditor();
+      final container = containerFor(setup.project, editor: editor);
+      await openProject(container);
+
+      final outcome = await container
+          .read(datasourceSyncControllerProvider)
+          .addColumn(header: '  apellido  ', insertAt: 1);
+
+      expect(outcome.status, AddColumnStatus.success);
+      expect(outcome.columnIndex, 1);
+      expect(editor.calls, <(String, String, int)>[
+        (setup.managed.path, 'apellido', 1),
+      ]);
+    });
+
+    test('un Excel abierto en Excel devuelve locked', () async {
+      final setup = savedProject(fileName: 'datos.xlsx');
+      final container = containerFor(
+        setup.project,
+        editor: _FakeEditor(error: ExcelLockedException(setup.managed.path)),
+      );
+      await openProject(container);
+
+      final outcome = await container
+          .read(datasourceSyncControllerProvider)
+          .addColumn(header: 'apellido', insertAt: 0);
+
+      expect(outcome.status, AddColumnStatus.locked);
+    });
+
+    test(
+      'un libro que no se puede modificar devuelve unsupported con el motivo',
+      () async {
+        final setup = savedProject(fileName: 'datos.xlsx');
+        final container = containerFor(
+          setup.project,
+          editor: _FakeEditor(error: const XlsxWriteException('No se puede.')),
+        );
+        await openProject(container);
+
+        final outcome = await container
+            .read(datasourceSyncControllerProvider)
+            .addColumn(header: 'apellido', insertAt: 0);
+
+        expect(outcome.status, AddColumnStatus.unsupported);
+        expect(outcome.message, 'No se puede.');
+      },
+    );
+
+    test('un CSV no admite campos nuevos', () async {
+      final setup = savedProject();
+      final editor = _FakeEditor();
+      final container = containerFor(setup.project, editor: editor);
+      await openProject(container);
+
+      final outcome = await container
+          .read(datasourceSyncControllerProvider)
+          .addColumn(header: 'apellido', insertAt: 0);
+
+      expect(outcome.status, AddColumnStatus.unsupported);
+      expect(editor.calls, isEmpty);
+    });
+
+    test('un nombre vacío o repetido no escribe nada', () async {
+      final setup = savedProject(fileName: 'datos.xlsx');
+      final editor = _FakeEditor();
+      final container = containerFor(setup.project, editor: editor);
+      await openProject(container);
+      final controller = container.read(datasourceSyncControllerProvider);
+
+      expect(
+        (await controller.addColumn(header: '   ', insertAt: 0)).status,
+        AddColumnStatus.failed,
+      );
+      // El Excel de prueba tiene la columna "nombre".
+      expect(
+        (await controller.addColumn(header: ' NOMBRE ', insertAt: 0)).status,
+        AddColumnStatus.failed,
+      );
+      expect(editor.calls, isEmpty);
+    });
+  });
+
   test(
     'restaurar copia deja la copia embebida como Excel gestionado',
     () async {
@@ -368,6 +460,30 @@ void main() {
       );
     },
   );
+}
+
+final class _FakeEditor extends ManagedXlsxEditor {
+  _FakeEditor({this.error});
+
+  final Exception? error;
+  final List<(String, String, int)> calls = <(String, String, int)>[];
+
+  @override
+  Future<XlsxColumnInsertResult> addColumn({
+    required String path,
+    required String header,
+    required int insertAt,
+  }) async {
+    if (error != null) {
+      throw error!;
+    }
+    calls.add((path, header, insertAt));
+    return XlsxColumnInsertResult(
+      bytes: Uint8List(0),
+      columnIndex: insertAt,
+      appendedAtEnd: false,
+    );
+  }
 }
 
 final class _RecordingOpener extends ExcelOpener {

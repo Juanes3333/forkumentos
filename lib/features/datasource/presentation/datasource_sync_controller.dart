@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/features/datasource/data/excel_file_watcher.dart';
 import 'package:forkumentos/features/datasource/data/excel_opener.dart';
+import 'package:forkumentos/features/datasource/data/managed_xlsx_editor.dart';
+import 'package:forkumentos/features/datasource/data/xlsx_column_writer.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
@@ -23,6 +25,49 @@ final excelFileWatcherFactoryProvider =
 /// Último aviso de sincronización con el Excel (para mostrarlo en una
 /// SnackBar). La pantalla lo muestra y lo vuelve a poner en `null`.
 final datasourceSyncMessageProvider = StateProvider<String?>((ref) => null);
+
+/// Editor que agrega columnas al Excel gestionado; sustituible en pruebas.
+final managedXlsxEditorProvider = Provider<ManagedXlsxEditor>(
+  (ref) => const ManagedXlsxEditor(),
+);
+
+enum AddColumnStatus { success, locked, unsupported, failed }
+
+/// Resultado de [DatasourceSyncController.addColumn].
+final class AddColumnOutcome {
+  const AddColumnOutcome.success({
+    required int this.columnIndex,
+    required bool this.appendedAtEnd,
+  }) : status = AddColumnStatus.success,
+       message = null;
+
+  const AddColumnOutcome.locked()
+    : status = AddColumnStatus.locked,
+      columnIndex = null,
+      appendedAtEnd = null,
+      message = null;
+
+  const AddColumnOutcome.unsupported(String this.message)
+    : status = AddColumnStatus.unsupported,
+      columnIndex = null,
+      appendedAtEnd = null;
+
+  const AddColumnOutcome.failed(String this.message)
+    : status = AddColumnStatus.failed,
+      columnIndex = null,
+      appendedAtEnd = null;
+
+  final AddColumnStatus status;
+
+  /// Posición de la columna nueva (solo con [AddColumnStatus.success]).
+  final int? columnIndex;
+
+  /// Si la columna quedó al final y no en la posición pedida.
+  final bool? appendedAtEnd;
+
+  /// Texto para el usuario cuando no fue un éxito.
+  final String? message;
+}
 
 final datasourceSyncControllerProvider = Provider<DatasourceSyncController>(
   DatasourceSyncController.new,
@@ -141,6 +186,66 @@ final class DatasourceSyncController {
     if (message != null) {
       _ref.read(datasourceSyncMessageProvider.notifier).state = message;
     }
+  }
+
+  /// Agrega la columna [header] al Excel gestionado en la posición
+  /// [insertAt] (entre las columnas con encabezado) y vuelve a leerlo.
+  ///
+  /// Nunca modifica el archivo si algo sale mal: devuelve [AddColumnOutcome]
+  /// con la razón (archivo abierto en Excel, libro no soportado, etc.).
+  Future<AddColumnOutcome> addColumn({
+    required String header,
+    required int insertAt,
+  }) async {
+    final name = header.trim();
+    final path = _project()?.externalPath;
+    if (name.isEmpty) {
+      return const AddColumnOutcome.failed('Escribe un nombre para el campo.');
+    }
+    if (path == null ||
+        !File(path).existsSync() ||
+        !path.toLowerCase().endsWith('.xlsx')) {
+      return const AddColumnOutcome.unsupported(
+        'Solo se pueden crear campos en un Excel .xlsx del proyecto.',
+      );
+    }
+    final headers =
+        _ref.read(activeDatasourceProvider).valueOrNull?.headers ??
+        const <String>[];
+    if (headers.any((h) => h.trim().toLowerCase() == name.toLowerCase())) {
+      return const AddColumnOutcome.failed(
+        'Ya existe una columna con ese nombre en el Excel.',
+      );
+    }
+
+    final XlsxColumnInsertResult written;
+    try {
+      written = await _ref
+          .read(managedXlsxEditorProvider)
+          .addColumn(path: path, header: name, insertAt: insertAt);
+    } on ExcelLockedException {
+      return const AddColumnOutcome.locked();
+    } on XlsxWriteException catch (error) {
+      return AddColumnOutcome.unsupported(error.message);
+    } on FileSystemException catch (error, stackTrace) {
+      _ref
+          .read(loggingServiceProvider)
+          .error(
+            'No se pudo agregar la columna al Excel',
+            module: 'Datasource',
+            error: error,
+            stackTrace: stackTrace,
+          );
+      return const AddColumnOutcome.failed(
+        'No se pudo escribir en el Excel del proyecto.',
+      );
+    }
+
+    await refresh();
+    return AddColumnOutcome.success(
+      columnIndex: written.columnIndex,
+      appendedAtEnd: written.appendedAtEnd,
+    );
   }
 
   /// Restaura la copia embebida del proyecto como Excel gestionado en esta
