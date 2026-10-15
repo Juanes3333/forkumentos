@@ -213,9 +213,38 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
       currentProject.copyWith(
         embeddedTemplatePath: nextTemplate,
         embeddedDatasourcePath: nextDatasource,
+        // Con un Excel real ya no hay campos "borrador": sus nombres pasan a
+        // ser encabezados (o campos sin columna, que se resuelven aparte).
+        draftFields: datasourcePath != null && datasourcePath.isNotEmpty
+            ? const <String>[]
+            : currentProject.draftFields,
         isDirty: true,
       ),
     );
+  }
+
+  /// Campos creados sobre el documento mientras el proyecto no tiene Excel,
+  /// en el orden del documento.
+  void setDraftFields(List<String> fields) {
+    final currentProject = state.valueOrNull;
+    if (currentProject == null || fields == currentProject.draftFields) {
+      return;
+    }
+    state = AsyncData(
+      currentProject.copyWith(draftFields: fields, isDirty: true),
+    );
+  }
+
+  /// Inserta el campo borrador [name] en la posición [index] (limitada a la
+  /// lista). No hace nada si ya existe un campo con ese nombre.
+  void insertDraftField(String name, int index) {
+    final currentProject = state.valueOrNull;
+    if (currentProject == null || currentProject.draftFields.contains(name)) {
+      return;
+    }
+    final fields = <String>[...currentProject.draftFields]
+      ..insert(index.clamp(0, currentProject.draftFields.length), name);
+    setDraftFields(fields);
   }
 
   /// Records the external path the user picked for the datasource, kept

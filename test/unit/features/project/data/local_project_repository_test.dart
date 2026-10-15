@@ -259,6 +259,41 @@ void main() {
     });
   });
 
+  test('los campos borrador persisten en el round-trip y los proyectos viejos '
+      'cargan sin ellos', () async {
+    final project = Project(
+      id: 'project-draft',
+      name: 'Solo Word',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      draftFields: const <String>['nombre', 'cédula'],
+    );
+    final withDraft = p.join(tempDirectory.path, 'borrador.fork');
+    await repository.save(
+      project: project,
+      filePath: withDraft,
+      cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+    );
+    final without = p.join(tempDirectory.path, 'sin_borrador.fork');
+    await repository.save(
+      project: project.copyWith(id: 'project-nodraft', draftFields: const []),
+      filePath: without,
+      cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+    );
+
+    final loaded = await repository.load(
+      withDraft,
+      cacheDirectory: p.join(tempDirectory.path, 'LoadA'),
+    );
+    final loadedOld = await repository.load(
+      without,
+      cacheDirectory: p.join(tempDirectory.path, 'LoadB'),
+    );
+
+    expect(loaded.draftFields, <String>['nombre', 'cédula']);
+    expect(loadedOld.draftFields, isEmpty);
+  });
+
   test('la huella del Excel gestionado persiste y los proyectos viejos la '
       'cargan en null', () async {
     final datasourceSource = File(p.join(tempDirectory.path, 'datos.csv'))

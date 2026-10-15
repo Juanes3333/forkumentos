@@ -54,7 +54,11 @@ mixin _$Project {
   @JsonKey(includeFromJson: false, includeToJson: false)
   List<ProjectTemplate> get templates => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
-  String? get activeTemplateId => throw _privateConstructorUsedError;
+  String? get activeTemplateId => throw _privateConstructorUsedError; // Nombres de los campos creados sobre el documento mientras el proyecto
+  // no tiene Excel, en el orden del documento. Al generar o importar un
+  // Excel se vacía. Se leen y escriben a mano en project.json.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<String> get draftFields => throw _privateConstructorUsedError;
 
   /// Serializes this Project to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -92,6 +96,8 @@ abstract class $ProjectCopyWith<$Res> {
     List<ProjectTemplate> templates,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? activeTemplateId,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    List<String> draftFields,
   });
 }
 
@@ -124,6 +130,7 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? datasourceSyncedSizeBytes = freezed,
     Object? templates = null,
     Object? activeTemplateId = freezed,
+    Object? draftFields = null,
   }) {
     return _then(
       _value.copyWith(
@@ -183,6 +190,10 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
                 ? _value.activeTemplateId
                 : activeTemplateId // ignore: cast_nullable_to_non_nullable
                       as String?,
+            draftFields: null == draftFields
+                ? _value.draftFields
+                : draftFields // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
           )
           as $Val,
     );
@@ -219,6 +230,8 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
     List<ProjectTemplate> templates,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? activeTemplateId,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    List<String> draftFields,
   });
 }
 
@@ -250,6 +263,7 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? datasourceSyncedSizeBytes = freezed,
     Object? templates = null,
     Object? activeTemplateId = freezed,
+    Object? draftFields = null,
   }) {
     return _then(
       _$ProjectImpl(
@@ -309,6 +323,10 @@ class __$$ProjectImplCopyWithImpl<$Res>
             ? _value.activeTemplateId
             : activeTemplateId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        draftFields: null == draftFields
+            ? _value._draftFields
+            : draftFields // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
       ),
     );
   }
@@ -340,8 +358,11 @@ class _$ProjectImpl implements _Project {
     final List<ProjectTemplate> templates = const <ProjectTemplate>[],
     @JsonKey(includeFromJson: false, includeToJson: false)
     this.activeTemplateId,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<String> draftFields = const [],
   }) : _mappingAssignments = mappingAssignments,
-       _templates = templates;
+       _templates = templates,
+       _draftFields = draftFields;
 
   factory _$ProjectImpl.fromJson(Map<String, dynamic> json) =>
       _$$ProjectImplFromJson(json);
@@ -414,10 +435,24 @@ class _$ProjectImpl implements _Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final String? activeTemplateId;
+  // Nombres de los campos creados sobre el documento mientras el proyecto
+  // no tiene Excel, en el orden del documento. Al generar o importar un
+  // Excel se vacía. Se leen y escriben a mano en project.json.
+  final List<String> _draftFields;
+  // Nombres de los campos creados sobre el documento mientras el proyecto
+  // no tiene Excel, en el orden del documento. Al generar o importar un
+  // Excel se vacía. Se leen y escriben a mano en project.json.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<String> get draftFields {
+    if (_draftFields is EqualUnmodifiableListView) return _draftFields;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_draftFields);
+  }
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath, datasourceExternalPath: $datasourceExternalPath, datasourceSyncedMtimeMs: $datasourceSyncedMtimeMs, datasourceSyncedSizeBytes: $datasourceSyncedSizeBytes, templates: $templates, activeTemplateId: $activeTemplateId)';
+    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath, datasourceExternalPath: $datasourceExternalPath, datasourceSyncedMtimeMs: $datasourceSyncedMtimeMs, datasourceSyncedSizeBytes: $datasourceSyncedSizeBytes, templates: $templates, activeTemplateId: $activeTemplateId, draftFields: $draftFields)';
   }
 
   @override
@@ -459,7 +494,11 @@ class _$ProjectImpl implements _Project {
               _templates,
             ) &&
             (identical(other.activeTemplateId, activeTemplateId) ||
-                other.activeTemplateId == activeTemplateId));
+                other.activeTemplateId == activeTemplateId) &&
+            const DeepCollectionEquality().equals(
+              other._draftFields,
+              _draftFields,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -480,6 +519,7 @@ class _$ProjectImpl implements _Project {
     datasourceSyncedSizeBytes,
     const DeepCollectionEquality().hash(_templates),
     activeTemplateId,
+    const DeepCollectionEquality().hash(_draftFields),
   );
 
   /// Create a copy of Project
@@ -520,6 +560,8 @@ abstract class _Project implements Project {
     final List<ProjectTemplate> templates,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final String? activeTemplateId,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<String> draftFields,
   }) = _$ProjectImpl;
 
   factory _Project.fromJson(Map<String, dynamic> json) = _$ProjectImpl.fromJson;
@@ -570,7 +612,12 @@ abstract class _Project implements Project {
   List<ProjectTemplate> get templates;
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
-  String? get activeTemplateId;
+  String? get activeTemplateId; // Nombres de los campos creados sobre el documento mientras el proyecto
+  // no tiene Excel, en el orden del documento. Al generar o importar un
+  // Excel se vacía. Se leen y escriben a mano en project.json.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<String> get draftFields;
 
   /// Create a copy of Project
   /// with the given fields replaced by the non-null parameter values.

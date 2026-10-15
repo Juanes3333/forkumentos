@@ -8,6 +8,7 @@ import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
 import 'package:forkumentos/features/datasource/data/managed_datasource_store.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
+import 'package:forkumentos/features/datasource/domain/draft_datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
@@ -234,6 +235,68 @@ void main() {
       expect(container.read(activeDatasourceProvider).valueOrNull, isNull);
     },
   );
+
+  group('fuente borrador (proyecto solo con Word)', () {
+    test('los campos creados sobre el documento se exponen como encabezados '
+        'de una fuente sin archivo, en orden', () async {
+      final container = _createContainer(FakeDatasourceRepository());
+      addTearDown(container.dispose);
+      container.read(activeDatasourceProvider);
+      final project = container.read(activeProjectProvider.notifier);
+      await project.createProject(name: 'Solo Word');
+
+      project
+        ..insertDraftField('nombre', 0)
+        ..insertDraftField('cédula', 1)
+        ..insertDraftField('apellido', 1);
+
+      final datasource = container.read(activeDatasourceProvider).valueOrNull;
+      expect(datasource, isNotNull);
+      expect(datasource!.isDraft, isTrue);
+      expect(datasource.headers, <String>['nombre', 'apellido', 'cédula']);
+      expect(datasource.rowCount, 0);
+    });
+
+    test('un campo repetido no se inserta dos veces', () async {
+      final container = _createContainer(FakeDatasourceRepository());
+      addTearDown(container.dispose);
+      container.read(activeDatasourceProvider);
+      final project = container.read(activeProjectProvider.notifier);
+      await project.createProject(name: 'Solo Word');
+
+      project
+        ..insertDraftField('nombre', 0)
+        ..insertDraftField('nombre', 0);
+
+      expect(
+        container.read(activeProjectProvider).requireValue!.draftFields,
+        <String>['nombre'],
+      );
+    });
+
+    test('al asignar un Excel real se vacían los campos borrador', () async {
+      final container = _createContainer(
+        FakeDatasourceRepository(
+          loadHandler: (path) async => _buildDatasource(path),
+        ),
+      );
+      addTearDown(container.dispose);
+      container.read(activeDatasourceProvider);
+      final project = container.read(activeProjectProvider.notifier);
+      await project.createProject(name: 'Solo Word');
+      project
+        ..insertDraftField('nombre', 0)
+        ..setEmbeddedArtifactPaths(datasourcePath: '/tmp/datos.csv');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        container.read(activeProjectProvider).requireValue!.draftFields,
+        isEmpty,
+      );
+      final datasource = container.read(activeDatasourceProvider).valueOrNull;
+      expect(datasource?.isDraft, isFalse);
+    });
+  });
 
   group('Excel gestionado por la app', () {
     late Directory workspaceRoot;

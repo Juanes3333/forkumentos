@@ -9,6 +9,7 @@ import 'package:forkumentos/features/datasource/data/datasource_repository_provi
 import 'package:forkumentos/features/datasource/data/managed_datasource_store.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/domain/datasource_repository.dart';
+import 'package:forkumentos/features/datasource/domain/draft_datasource.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
 
@@ -85,17 +86,23 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
     // is managed by hand in the callback), without ever flagging this
     // element outdated. See active_datasource_provider_test.dart's
     // reentrancy regression test.
-    ref.listen<(String?, String?)>(
+    ref.listen<(String?, String?, List<String>)>(
       activeProjectProvider.select(
-        (state) =>
-            (state.valueOrNull?.id, state.valueOrNull?.embeddedDatasourcePath),
+        (state) => (
+          state.valueOrNull?.id,
+          state.valueOrNull?.embeddedDatasourcePath,
+          state.valueOrNull?.draftFields ?? const <String>[],
+        ),
       ),
       (previous, next) {
         final previousId = previous?.$1;
         final nextId = next.$1;
         final nextPath = next.$2;
+        final draftFields = next.$3;
 
-        if (previousId == nextId && previous?.$2 == nextPath) {
+        if (previousId == nextId &&
+            previous?.$2 == nextPath &&
+            identical(previous?.$3, draftFields)) {
           return;
         }
 
@@ -109,6 +116,15 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
             'Fuente de datos activa limpiada por cambio de proyecto.',
             module: 'Datasource',
           );
+        }
+
+        // Sin Excel pero con campos creados sobre el documento: la fuente
+        // activa es la borrador, con esos campos como encabezados.
+        if (nextId != null &&
+            (nextPath == null || nextPath.isEmpty) &&
+            draftFields.isNotEmpty) {
+          state = AsyncData(draftDatasource(draftFields));
+          return;
         }
 
         if (nextId != null &&
@@ -131,6 +147,12 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
     );
     if (initialPath != null && initialPath.isNotEmpty) {
       return ref.read(datasourceRepositoryProvider).load(initialPath);
+    }
+    final initialDraft = ref.read(
+      activeProjectProvider.select((state) => state.valueOrNull?.draftFields),
+    );
+    if (initialDraft != null && initialDraft.isNotEmpty) {
+      return draftDatasource(initialDraft);
     }
 
     return null;

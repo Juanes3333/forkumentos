@@ -47,6 +47,12 @@ class Project with _$Project {
     List<ProjectTemplate> templates,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? activeTemplateId,
+    // Nombres de los campos creados sobre el documento mientras el proyecto
+    // no tiene Excel, en el orden del documento. Al generar o importar un
+    // Excel se vacía. Se leen y escriben a mano en project.json.
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    @Default([])
+    List<String> draftFields,
   }) = _Project;
 
   factory Project.fromJson(Map<String, dynamic> json) =>

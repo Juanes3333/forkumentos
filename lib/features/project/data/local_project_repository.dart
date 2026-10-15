@@ -72,6 +72,12 @@ final class LocalProjectRepository implements ProjectRepository {
           ),
       ],
       activeTemplateId: extracted.activeTemplateId,
+      draftFields: <String>[
+        for (final field
+            in (extracted.projectJson['draftFields'] as List?) ??
+                const <Object?>[])
+          if (field is String) field,
+      ],
       embeddedTemplatePath: extracted.embeddedTemplatePath,
       embeddedDatasourcePath: extracted.embeddedDatasourcePath,
       // Absent in projects saved before this field existed; null is the
@@ -133,6 +139,7 @@ final class LocalProjectRepository implements ProjectRepository {
         'datasourceSyncedMtimeMs': project.datasourceSyncedMtimeMs,
       if (project.datasourceSyncedSizeBytes != null)
         'datasourceSyncedSizeBytes': project.datasourceSyncedSizeBytes,
+      if (project.draftFields.isNotEmpty) 'draftFields': project.draftFields,
     };
     archive
       ..addFile(_utf8File(_projectFileName, jsonEncode(projectPayload)))
