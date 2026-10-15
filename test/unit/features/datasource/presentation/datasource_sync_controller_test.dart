@@ -294,6 +294,45 @@ void main() {
     },
   );
 
+  test(
+    'restaurar copia deja la copia embebida como Excel gestionado',
+    () async {
+      final setup = savedProject();
+      final container = containerFor(setup.project);
+      await openProject(container);
+      // En este equipo el Excel gestionado no existe (otro PC).
+      setup.managed.deleteSync();
+      expect(setup.managed.existsSync(), isFalse);
+
+      final restored = await container
+          .read(datasourceSyncControllerProvider)
+          .restoreManagedCopy();
+
+      expect(restored, setup.managed.path);
+      expect(setup.managed.existsSync(), isTrue);
+      final project = container.read(activeProjectProvider).requireValue!;
+      expect(project.datasourceExternalPath, setup.managed.path);
+      expect(project.embeddedDatasourcePath, setup.managed.path);
+    },
+  );
+
+  test('restaurar copia sin copia embebida devuelve null', () async {
+    final setup = savedProject();
+    final container = containerFor(
+      setup.project.copyWith(embeddedDatasourcePath: null),
+    );
+    await container
+        .read(activeProjectProvider.notifier)
+        .loadProject(filePath: 'proyecto.fork');
+
+    expect(
+      await container
+          .read(datasourceSyncControllerProvider)
+          .restoreManagedCopy(),
+      isNull,
+    );
+  });
+
   test('abrir el Excel sin archivo devuelve false', () async {
     final setup = savedProject();
     final container = containerFor(setup.project);

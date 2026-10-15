@@ -5,6 +5,7 @@ import 'package:forkumentos/core/launch/spawn_app_instance.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/datasource/domain/datasource.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
+import 'package:forkumentos/features/datasource/presentation/datasource_sync_controller.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_color_palette.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
@@ -459,13 +460,31 @@ final class _TemplatesRibbonActions extends ConsumerWidget {
                   ? null
                   : () => _replaceDatasource(context, ref),
             ),
+            if (ref.watch(datasourceRefreshAvailableProvider))
+              _RibbonActionButton(
+                icon: Icons.open_in_new,
+                label: 'Abrir excel',
+                tooltip:
+                    'Abre el Excel del proyecto. Al guardarlo, Forkumentos '
+                    'se actualiza solo',
+                onPressed: () => _openManagedExcel(context, ref),
+              )
+            else if (datasource != null)
+              _RibbonActionButton(
+                icon: Icons.restore_page_outlined,
+                label: 'Restaurar copia del excel',
+                tooltip:
+                    'El Excel del proyecto no está en este equipo: restaura '
+                    'la copia guardada en el proyecto',
+                onPressed: () => _restoreExcelCopy(context, ref),
+              ),
             _RibbonActionButton(
               icon: Icons.cloud_sync_outlined,
               label: 'Refrescar excel (xlsx/csv)',
               tooltip: ref.watch(datasourceRefreshAvailableProvider)
-                  ? 'Vuelve a leer el archivo de datos desde su ruta original'
-                  : 'No se encontró el archivo original en esta ruta — usa '
-                        'Reemplazar datos',
+                  ? 'Vuelve a leer el Excel del proyecto'
+                  : 'El Excel del proyecto no está en este equipo — usa '
+                        'Restaurar copia o Reemplazar datos',
               onPressed:
                   !ref.watch(datasourceRefreshAvailableProvider) ||
                       datasourceState.isLoading
@@ -550,34 +569,42 @@ Future<void> _replaceDatasource(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _refreshDatasource(BuildContext context, WidgetRef ref) async {
-  final result = await ref
-      .read(activeDatasourceProvider.notifier)
-      .refreshDatasource();
-
-  final String message;
-  switch (result.status) {
-    case DatasourceRefreshStatus.unchanged:
-      message = 'El archivo no tiene cambios.';
-    case DatasourceRefreshStatus.updated:
-      final path = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
-      if (path != null) {
-        ref
-            .read(activeProjectProvider.notifier)
-            .setEmbeddedArtifactPaths(datasourcePath: path);
-      }
-      final delta = result.rowDelta ?? 0;
-      message = switch (delta) {
-        > 0 => 'Datos actualizados: +$delta filas nuevas',
-        < 0 => 'Datos actualizados: $delta filas',
-        _ => 'Datos actualizados',
-      };
-    case DatasourceRefreshStatus.notFound:
-      message = 'El archivo ya no está disponible en su ruta original.';
-    case DatasourceRefreshStatus.error:
-      message =
-          result.message ?? 'Ocurrió un error al refrescar la fuente de datos.';
+  final result = await ref.read(datasourceSyncControllerProvider).refresh();
+  final message = describeRefresh(
+    result,
+    whenUnchanged: 'El archivo no tiene cambios.',
+  );
+  if (message != null && context.mounted) {
+    _showSnack(context, message);
   }
+}
 
+Future<void> _openManagedExcel(BuildContext context, WidgetRef ref) async {
+  final opened = await ref
+      .read(datasourceSyncControllerProvider)
+      .openManagedExcel();
+  if (!opened && context.mounted) {
+    _showSnack(context, 'No se pudo abrir el Excel del proyecto.');
+  }
+}
+
+Future<void> _restoreExcelCopy(BuildContext context, WidgetRef ref) async {
+  final restored = await ref
+      .read(datasourceSyncControllerProvider)
+      .restoreManagedCopy();
+  if (!context.mounted) {
+    return;
+  }
+  _showSnack(
+    context,
+    restored == null
+        ? 'No se pudo restaurar la copia del Excel.'
+        : 'Copia restaurada en $restored. Edítala ahí y Forkumentos se '
+              'actualizará solo.',
+  );
+}
+
+void _showSnack(BuildContext context, String message) {
   if (!context.mounted) {
     return;
   }
