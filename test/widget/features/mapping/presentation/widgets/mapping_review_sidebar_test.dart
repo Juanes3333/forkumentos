@@ -5,7 +5,11 @@ import 'package:forkumentos/features/mapping/presentation/widgets/mapping_review
 import 'package:forkumentos/shared/models/document_text_path.dart';
 
 void main() {
-  Future<void> pumpSidebar(WidgetTester tester, String fieldHeader) {
+  Future<void> pumpSidebar(
+    WidgetTester tester,
+    String fieldHeader, {
+    int fieldIndex = 0,
+  }) {
     return tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -15,7 +19,7 @@ void main() {
             assignments: <FieldAssignment>[
               FieldAssignment(
                 id: 'a',
-                fieldIndex: 0,
+                fieldIndex: fieldIndex,
                 fieldHeader: fieldHeader,
                 selectedText: 'x',
                 path: const DocumentTextPath(
@@ -50,6 +54,14 @@ void main() {
       find.text('Encabezado no coincide (esperaba "Tipo y numero - CC")'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('muestra arriba los campos sin columna', (tester) async {
+    await pumpSidebar(tester, 'cédula', fieldIndex: -1);
+
+    expect(find.text('1 campo sin columna'), findsOneWidget);
+    expect(find.text('cédula'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Resolver'), findsOneWidget);
   });
 
   testWidgets('no avisa cuando el encabezado coincide', (tester) async {

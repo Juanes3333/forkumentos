@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_controller.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_controller_provider.dart';
+import 'package:forkumentos/features/mapping/presentation/field_reconciliation_provider.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_mode.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
+import 'package:forkumentos/features/mapping/presentation/widgets/field_reconciliation_dialog.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_tab.dart';
@@ -25,6 +27,7 @@ final class WorkbenchStatusBar extends ConsumerWidget {
     final workflowMode = ref.watch(mappingWorkflowProvider).mode;
     final controller = ref.watch(documentViewerControllerProvider);
     final inspectorVisible = ref.watch(workbenchInspectorVisibleProvider);
+    final orphanCount = ref.watch(fieldReconciliationProvider).length;
 
     final statusText = _resolveStatusText(
       project: project,
@@ -52,6 +55,29 @@ final class WorkbenchStatusBar extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (orphanCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextButton.icon(
+                    onPressed: () => showFieldReconciliationDialog(context),
+                    icon: Icon(
+                      Icons.warning_amber_rounded,
+                      size: 14,
+                      color: colors.warning,
+                    ),
+                    label: Text(
+                      orphanCount == 1
+                          ? '1 campo sin columna'
+                          : '$orphanCount campos sin columna',
+                      style: TextStyle(color: colors.warning, fontSize: 11),
+                    ),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      minimumSize: const Size(0, 22),
+                    ),
+                  ),
+                ),
               ListenableBuilder(
                 listenable: controller,
                 builder: (context, _) {

@@ -16,6 +16,7 @@ import 'package:forkumentos/features/export/presentation/export_dialog.dart';
 import 'package:forkumentos/features/export/presentation/export_progress_dialog.dart';
 import 'package:forkumentos/features/export/presentation/export_summary_dialog.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
+import 'package:forkumentos/features/mapping/domain/header_remap.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
 import 'package:forkumentos/features/preview/data/preview_record_repository.dart';
@@ -110,6 +111,7 @@ Future<void> launchExport(
       datasource.rowCount > 0 ? datasource.rowCount - 1 : 0,
     ),
     missingFieldHeaders: review?.missingFieldHeaders ?? const <String>[],
+    orphanFieldHeaders: review?.orphanFieldHeaders ?? const <String>[],
     templateName: templateBaseName,
     loadRowValues: (rowIndexes) => recordRepository.readRecords(
       datasource: datasource,
@@ -122,6 +124,20 @@ Future<void> launchExport(
 
   final job = dialogResult.job;
   final assignments = ref.read(activeMappingProvider).state.assignments;
+  // Guarda independiente de la revisión: nunca se lee una fila con un índice
+  // que ya no corresponde al nombre del campo (datos de otra columna).
+  if (!assignmentsMatchHeaders(
+    assignments: assignments,
+    headers: datasource.headers,
+  )) {
+    await _showBlocked(
+      context,
+      'Los campos del documento no coinciden con las columnas actuales del '
+      'Excel. Usa "Refrescar datos" o vuelve a abrir el proyecto e inténtalo '
+      'de nuevo.',
+    );
+    return;
+  }
   final placeholders = assignments.map(_toPlaceholder).toList();
   final rowsByIndex = await recordRepository.readRecords(
     datasource: datasource,

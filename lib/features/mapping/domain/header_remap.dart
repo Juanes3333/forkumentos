@@ -161,6 +161,24 @@ HeaderRemapResult remapAssignmentsToHeaders({
   );
 }
 
+/// `true` si cada asignación está sin columna ([orphanFieldIndex]) o su
+/// `fieldIndex` apunta a la columna de [headers] que lleva su nombre.
+///
+/// Es la guarda de la exportación: leer una fila con un índice que ya no
+/// corresponde al campo daría datos de otra columna sin avisar.
+bool assignmentsMatchHeaders({
+  required List<FieldAssignment> assignments,
+  required List<String> headers,
+}) {
+  return assignments.every(
+    (assignment) =>
+        assignment.fieldIndex == orphanFieldIndex ||
+        (assignment.fieldIndex >= 0 &&
+            assignment.fieldIndex < headers.length &&
+            headers[assignment.fieldIndex] == assignment.fieldHeader),
+  );
+}
+
 /// Propone, para cada encabezado de [orphanHeaders], la columna de [headers]
 /// a la que probablemente se renombró. Solo devuelve propuestas inequívocas;
 /// nunca se aplican solas (un renombre mal adivinado exportaría datos

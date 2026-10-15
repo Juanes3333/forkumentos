@@ -197,6 +197,42 @@ void main() {
     });
   });
 
+  group('assignmentsMatchHeaders', () {
+    test('acepta índices que nombran su columna y campos sin columna', () {
+      expect(
+        assignmentsMatchHeaders(
+          assignments: <FieldAssignment>[
+            _assignment('a', 0, 'nombre'),
+            _assignment('b', 2, 'correo'),
+            _assignment('c', -1, 'cédula'),
+          ],
+          headers: const <String>['nombre', 'x', 'correo'],
+        ),
+        isTrue,
+      );
+    });
+
+    test('rechaza un índice que ahora nombra otra columna', () {
+      expect(
+        assignmentsMatchHeaders(
+          assignments: <FieldAssignment>[_assignment('a', 1, 'cédula')],
+          headers: const <String>['nombre', 'tipo', 'cédula'],
+        ),
+        isFalse,
+      );
+    });
+
+    test('rechaza un índice fuera de rango', () {
+      expect(
+        assignmentsMatchHeaders(
+          assignments: <FieldAssignment>[_assignment('a', 5, 'x')],
+          headers: const <String>['x'],
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('suggestRenamedColumns', () {
     test('un huérfano y una columna libre se proponen entre sí', () {
       final suggestions = suggestRenamedColumns(

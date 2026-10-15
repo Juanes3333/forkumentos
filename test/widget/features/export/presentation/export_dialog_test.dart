@@ -61,6 +61,55 @@ void main() {
     });
   });
 
+  group('advertencia de campos sin columna', () {
+    testWidgets('lista los campos y bloquea Exportar hasta confirmar', (
+      WidgetTester tester,
+    ) async {
+      ExportDialogResult? result;
+      await _pumpDialog(
+        tester,
+        orphanFieldHeaders: const <String>['cédula', 'teléfono'],
+        onResult: (value) => result = value,
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining(
+          'Hay campos sin columna en el Excel: '
+          'cédula, teléfono',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Exportar'));
+      await tester.pumpAndSettle();
+      expect(result, isNull);
+
+      await tester.tap(
+        find.widgetWithText(
+          CheckboxListTile,
+          'Exportar con esos campos vacíos',
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Exportar'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+    });
+
+    testWidgets('no aparece cuando todos los campos tienen columna', (
+      WidgetTester tester,
+    ) async {
+      await _pumpDialog(tester);
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('sin columna'), findsNothing);
+    });
+  });
+
   group('rango de filas', () {
     testWidgets('"Fila actual" es el modo por defecto', (
       WidgetTester tester,
@@ -223,10 +272,7 @@ void main() {
 
       // Sin rango custom ni editor de patrón, los únicos TextField son los
       // 3 campos de nombre manual (posición 1 == segunda fila).
-      await tester.enterText(
-        find.byType(TextField).at(1),
-        'contrato-especial',
-      );
+      await tester.enterText(find.byType(TextField).at(1), 'contrato-especial');
       await tester.tap(find.widgetWithText(FilledButton, 'Exportar'));
       await tester.pumpAndSettle();
 
@@ -241,6 +287,7 @@ Future<void> _pumpDialog(
   WidgetTester tester, {
   List<String> headers = const <String>['Nombre'],
   List<String> missingFieldHeaders = const <String>[],
+  List<String> orphanFieldHeaders = const <String>[],
   int rowCount = 5,
   int currentRowIndex = 0,
   bool createZipDefault = false,
@@ -264,13 +311,11 @@ Future<void> _pumpDialog(
                   rowCount: rowCount,
                   currentRowIndex: currentRowIndex,
                   missingFieldHeaders: missingFieldHeaders,
+                  orphanFieldHeaders: orphanFieldHeaders,
                   templateName: 'plantilla',
                   loadRowValues: (rowIndexes) async => <int, List<String?>>{
                     for (final index in rowIndexes)
-                      index: List<String?>.filled(
-                        headers.length,
-                        'fila$index',
-                      ),
+                      index: List<String?>.filled(headers.length, 'fila$index'),
                   },
                 );
                 onResult?.call(result);

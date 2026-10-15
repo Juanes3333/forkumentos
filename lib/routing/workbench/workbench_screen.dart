@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
+import 'package:forkumentos/routing/workbench/field_reconciliation_host.dart';
 import 'package:forkumentos/routing/workbench/workbench_inspector.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_ribbon.dart';
@@ -57,7 +58,9 @@ final class WorkbenchScreen extends ConsumerWidget {
           ): () =>
               ref.read(activeMappingProvider.notifier).redo(),
         },
-        child: Focus(autofocus: true, child: content),
+        child: FieldReconciliationHost(
+          child: Focus(autofocus: true, child: content),
+        ),
       ),
     );
   }

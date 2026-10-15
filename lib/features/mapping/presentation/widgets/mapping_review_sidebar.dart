@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
+import 'package:forkumentos/features/mapping/domain/header_remap.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_color_palette.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_field_status.dart';
+import 'package:forkumentos/features/mapping/presentation/widgets/field_reconciliation_dialog.dart';
 import 'package:forkumentos/shared/models/document.dart';
 import 'package:forkumentos/shared/models/document_text_path_resolver.dart';
 
@@ -58,6 +60,28 @@ final class _MappingReviewSidebarState extends State<MappingReviewSidebar> {
 
   @override
   Widget build(BuildContext context) {
+    // Un campo sin columna no pertenece a ninguna fila de columnas: se avisa
+    // arriba para que no quede invisible.
+    final orphanHeaders = <String>{
+      for (final assignment in widget.assignments)
+        if (assignment.fieldIndex == orphanFieldIndex) assignment.fieldHeader,
+    };
+    return Material(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (orphanHeaders.isNotEmpty)
+            _OrphanFieldsBanner(
+              orphanHeaders: orphanHeaders.toList(),
+              onResolve: () => showFieldReconciliationDialog(context),
+            ),
+          Expanded(child: _buildFieldList(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFieldList(BuildContext context) {
     return Material(
       child: ListView.separated(
         padding: const EdgeInsets.all(8),
@@ -292,5 +316,67 @@ final class _MappingReviewSidebarState extends State<MappingReviewSidebar> {
     } on DocumentTextPathResolutionException {
       return false;
     }
+  }
+}
+
+/// Aviso fijo arriba del panel: campos mapeados cuya columna ya no existe.
+final class _OrphanFieldsBanner extends StatelessWidget {
+  const _OrphanFieldsBanner({
+    required this.orphanHeaders,
+    required this.onResolve,
+  });
+
+  final List<String> orphanHeaders;
+  final VoidCallback onResolve;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
+    final count = orphanHeaders.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: 18,
+                    color: colors.warning,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      count == 1
+                          ? '1 campo sin columna'
+                          : '$count campos sin columna',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                orphanHeaders.join(', '),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.foregroundMuted,
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: onResolve,
+                child: const Text('Resolver'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

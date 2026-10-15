@@ -32,6 +32,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required this.missingFieldHeaders,
     required this.templateName,
     required this.loadRowValues,
+    this.orphanFieldHeaders = const <String>[],
     super.key,
   });
 
@@ -41,6 +42,10 @@ final class ExportDialog extends ConsumerStatefulWidget {
   final int rowCount;
   final int currentRowIndex;
   final List<String> missingFieldHeaders;
+
+  /// Campos mapeados cuya columna ya no existe en el Excel: en los
+  /// documentos exportados saldrían vacíos, así que hay que confirmarlo.
+  final List<String> orphanFieldHeaders;
   final String templateName;
   final ExportRowValuesLoader loadRowValues;
 
@@ -54,6 +59,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required List<String> missingFieldHeaders,
     required String templateName,
     required ExportRowValuesLoader loadRowValues,
+    List<String> orphanFieldHeaders = const <String>[],
   }) {
     return showDialog<ExportDialogResult>(
       context: context,
@@ -64,6 +70,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
         rowCount: rowCount,
         currentRowIndex: currentRowIndex,
         missingFieldHeaders: missingFieldHeaders,
+        orphanFieldHeaders: orphanFieldHeaders,
         templateName: templateName,
         loadRowValues: loadRowValues,
       ),
@@ -87,6 +94,7 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   late bool _createZip;
   String? _rangeError;
   var _acknowledgedMissing = false;
+  var _acknowledgedOrphans = false;
   var _defaultsApplied = false;
 
   @override
@@ -109,6 +117,8 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   }
 
   bool get _hasMissingWarning => widget.missingFieldHeaders.isNotEmpty;
+
+  bool get _hasOrphanWarning => widget.orphanFieldHeaders.isNotEmpty;
 
   /// Row indexes for the current range selection, or `null` when the custom
   /// range is empty/invalid.
@@ -161,8 +171,7 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
     }
     for (final index in missing) {
       final values =
-          loaded[index] ??
-          List<String?>.filled(widget.headers.length, null);
+          loaded[index] ?? List<String?>.filled(widget.headers.length, null);
       final autoName = _pattern.resolve(
         row: values,
         headers: widget.headers,
@@ -184,6 +193,39 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              if (_hasOrphanWarning) ...<Widget>[
+                Material(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Hay campos sin columna en el Excel: '
+                          '${widget.orphanFieldHeaders.join(', ')}. '
+                          'En los documentos exportados esos campos saldrán '
+                          'vacíos. Puedes resolverlos desde el aviso de la '
+                          'barra de estado.',
+                        ),
+                        const SizedBox(height: 8),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Exportar con esos campos vacíos'),
+                          value: _acknowledgedOrphans,
+                          onChanged: (value) {
+                            setState(() {
+                              _acknowledgedOrphans = value ?? false;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (_hasMissingWarning) ...<Widget>[
                 Material(
                   color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -337,6 +379,9 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
     if (_hasMissingWarning && !_acknowledgedMissing) {
       return false;
     }
+    if (_hasOrphanWarning && !_acknowledgedOrphans) {
+      return false;
+    }
     return true;
   }
 
@@ -412,10 +457,7 @@ final class _ManualFilenameList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Text(
-          'Nombre de cada archivo',
-          style: theme.textTheme.labelLarge,
-        ),
+        Text('Nombre de cada archivo', style: theme.textTheme.labelLarge),
         const SizedBox(height: 4),
         Text(
           'Cada campo empieza con el nombre automático; edítalo a tu gusto. '

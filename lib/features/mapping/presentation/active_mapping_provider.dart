@@ -134,7 +134,10 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
   }
 
   void setHoveredFieldIndex(int? fieldIndex) {
-    if (fieldIndex == state.state.hoveredFieldIndex) {
+    // `-1` es el índice compartido por todos los campos sin columna: resaltaría
+    // todos a la vez.
+    if (fieldIndex == state.state.hoveredFieldIndex ||
+        (fieldIndex != null && fieldIndex < 0)) {
       return;
     }
     _updateState(state.state.copyWith(hoveredFieldIndex: fieldIndex));
