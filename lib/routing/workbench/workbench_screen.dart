@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/routing/workbench/field_reconciliation_host.dart';
+import 'package:forkumentos/routing/workbench/template_tab_bar.dart';
 import 'package:forkumentos/routing/workbench/workbench_inspector.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_ribbon.dart';
@@ -22,6 +23,7 @@ final class WorkbenchScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         const WorkbenchRibbon(),
+        const TemplateTabBar(),
         Divider(height: 1, thickness: 1, color: colors.border),
         Expanded(
           child: Row(
@@ -57,6 +59,14 @@ final class WorkbenchScreen extends ConsumerWidget {
             shift: true,
           ): () =>
               ref.read(activeMappingProvider.notifier).redo(),
+          const SingleActivator(LogicalKeyboardKey.tab, control: true): () =>
+              cycleTemplate(ref, 1),
+          const SingleActivator(
+            LogicalKeyboardKey.tab,
+            control: true,
+            shift: true,
+          ): () =>
+              cycleTemplate(ref, -1),
         },
         child: FieldReconciliationHost(
           child: Focus(autofocus: true, child: content),
