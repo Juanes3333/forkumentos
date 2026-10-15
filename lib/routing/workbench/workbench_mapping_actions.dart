@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
+import 'package:forkumentos/features/datasource/presentation/datasource_sync_controller.dart';
 import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
+import 'package:forkumentos/features/mapping/domain/field_insertion.dart';
 import 'package:forkumentos/features/mapping/domain/text_occurrence.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/mapping/presentation/widgets/multiple_occurrences_dialog.dart';
+import 'package:forkumentos/features/mapping/presentation/widgets/new_field_dialog.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_selection_provider.dart';
 import 'package:forkumentos/shared/models/document.dart';
@@ -267,6 +270,120 @@ Future<void> assignWorkbenchSelection(
     extraOccurrences: extras,
   );
   ref.read(workbenchSelectionProvider.notifier).clearSelection();
+}
+
+/// Crea un campo nuevo a partir del texto seleccionado: pide el nombre,
+/// agrega la columna al Excel del proyecto (en el orden del documento) y asigna
+/// la selección a ese campo. Si el Excel está abierto en Excel, ofrece
+/// reintentar tras cerrarlo; nada se crea hasta que se pueda escribir.
+Future<void> createFieldFromWorkbenchSelection(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final selection = ref.read(workbenchSelectionProvider).selection;
+  final datasource = ref.read(activeDatasourceProvider).valueOrNull;
+  if (selection == null || datasource == null) {
+    return;
+  }
+
+  final name = await showNewFieldDialog(
+    context,
+    existingHeaders: datasource.headers,
+    selectedText: selection.selectedText,
+  );
+  if (name == null || !context.mounted) {
+    return;
+  }
+
+  final controller = ref.read(datasourceSyncControllerProvider);
+  final insertAt = insertionIndexForNewField(
+    assignments: ref.read(activeMappingProvider).state.assignments,
+    path: selection.path,
+    offset: selection.startOffset,
+    headerCount: datasource.headers.length,
+  );
+
+  AddColumnOutcome outcome;
+  do {
+    outcome = await controller.addColumn(header: name, insertAt: insertAt);
+    if (!context.mounted) {
+      return;
+    }
+  } while (outcome.status == AddColumnStatus.locked &&
+      await _askRetryExcelLocked(context) &&
+      context.mounted);
+
+  if (outcome.status != AddColumnStatus.success) {
+    if (outcome.status != AddColumnStatus.locked) {
+      _showMappingSnackBar(
+        context,
+        outcome.message ?? 'No se pudo crear el campo.',
+      );
+    }
+    return;
+  }
+
+  // Al refrescar, el Excel activo se vuelve a leer de forma asíncrona: se
+  // espera a que ya traiga la columna nueva.
+  final index = await _waitForHeader(ref, name);
+  if (!context.mounted) {
+    return;
+  }
+  if (index == null) {
+    _showMappingSnackBar(
+      context,
+      'El campo se agregó al Excel, pero no se pudo leer todavía. Refresca '
+      'los datos y asígnalo.',
+    );
+    return;
+  }
+  if (outcome.appendedAtEnd ?? false) {
+    _showMappingSnackBar(
+      context,
+      'El Excel tiene fórmulas o tablas: el campo «$name» se agregó al final '
+      'para no romperlas.',
+    );
+  }
+  ref.read(activeMappingProvider.notifier).setCurrentFieldIndex(index);
+  await assignWorkbenchSelection(context, ref);
+}
+
+Future<int?> _waitForHeader(WidgetRef ref, String header) async {
+  for (var attempt = 0; attempt < 100; attempt++) {
+    final headers =
+        ref.read(activeDatasourceProvider).valueOrNull?.headers ??
+        const <String>[];
+    final index = headers.indexOf(header);
+    if (index != -1) {
+      return index;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+  return null;
+}
+
+Future<bool> _askRetryExcelLocked(BuildContext context) async {
+  final retry = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('El Excel está abierto'),
+      content: const Text(
+        'Para agregar el campo hay que escribir en el Excel del proyecto. '
+        'Guarda y cierra el archivo en Excel y pulsa Reintentar.',
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Reintentar'),
+        ),
+      ],
+    ),
+  );
+  return retry ?? false;
 }
 
 Future<List<TextOccurrence>?> _resolveExtraOccurrences(

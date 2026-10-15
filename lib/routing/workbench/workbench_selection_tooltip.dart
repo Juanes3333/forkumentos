@@ -126,6 +126,13 @@ final class WorkbenchSelectionTooltip extends ConsumerWidget {
                       child: const Text('Asignar'),
                     ),
                     OutlinedButton(
+                      onPressed: headers.isEmpty
+                          ? null
+                          : () =>
+                                createFieldFromWorkbenchSelection(context, ref),
+                      child: const Text('Crear campo nuevo'),
+                    ),
+                    OutlinedButton(
                       onPressed: headers.isEmpty || overlapping == null
                           ? null
                           : () => assignWorkbenchSelection(context, ref),
