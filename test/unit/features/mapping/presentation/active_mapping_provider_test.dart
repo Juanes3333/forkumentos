@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
 import 'package:forkumentos/core/workspace/workspace_paths.dart';
+import 'package:forkumentos/features/datasource/data/datasource_repository_provider.dart';
+import 'package:forkumentos/features/datasource/domain/datasource.dart';
+import 'package:forkumentos/features/datasource/domain/datasource_repository.dart';
+import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/mapping/data/mapping_json.dart';
 import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
-import 'package:forkumentos/features/mapping/domain/header_mismatch.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
@@ -56,56 +59,6 @@ void main() {
     expect(session.state.assignments.single.fieldHeader, 'nombre');
     expect(session.state.currentFieldIndex, 1);
     expect(session.canUndo, isTrue);
-  });
-
-  test('updateFieldHeaders renombra la columna y es deshacible', () {
-    final container = _createContainer();
-    addTearDown(container.dispose);
-
-    final notifier = container.read(activeMappingProvider.notifier)
-      ..confirmAssignment(
-        selection: const DocumentTextSelection(
-          path: DocumentTextPath(
-            steps: <DocumentPathStep>[
-              DocumentPathStep.rootBlock(blockIndex: 0),
-            ],
-          ),
-          startOffset: 0,
-          endOffset: 3,
-          selectedText: 'Ana',
-        ),
-        fieldHeader: 'nombre',
-        fieldIndex: 0,
-        headerCount: 1,
-      );
-    final assignments = container.read(activeMappingProvider).state.assignments;
-
-    notifier.updateFieldHeaders(
-      detectHeaderMismatches(
-        newHeaders: const <String>['nombreCompleto'],
-        assignments: assignments,
-      ),
-    );
-    expect(
-      container
-          .read(activeMappingProvider)
-          .state
-          .assignments
-          .single
-          .fieldHeader,
-      'nombreCompleto',
-    );
-
-    notifier.undo();
-    expect(
-      container
-          .read(activeMappingProvider)
-          .state
-          .assignments
-          .single
-          .fieldHeader,
-      'nombre',
-    );
   });
 
   test('undo y redo restauran asignaciones', () {
@@ -570,6 +523,225 @@ void main() {
     expect(project?.mappingAssignments, hasLength(1));
     expect(project?.isDirty, isTrue);
   });
+
+  group('reconciliación de campos por nombre', () {
+    // Mapea "Ana" -> cédula (columna 2) y "Perez" -> correo (columna 3) con
+    // las columnas nombre | teléfono | cédula | correo.
+    Future<
+      ({
+        ProviderContainer container,
+        ActiveMappingNotifier mapping,
+        Future<void> Function(List<String>) replaceColumns,
+      })
+    >
+    setUpMapped() async {
+      var headers = <String>['nombre', 'teléfono', 'cédula', 'correo'];
+      final container = _createContainer(
+        datasourceRepository: FakeDatasourceRepository(
+          loadHandler: (path) async => _datasource(path, headers),
+        ),
+      );
+      addTearDown(container.dispose);
+
+      final mapping = container.read(activeMappingProvider.notifier);
+      var imports = 0;
+      Future<void> replaceColumns(List<String> next) async {
+        headers = next;
+        imports++;
+        await container
+            .read(activeDatasourceProvider.notifier)
+            .importDatasource(filePath: 'datos_$imports.csv');
+      }
+
+      await replaceColumns(headers);
+      mapping
+        ..confirmAssignment(
+          selection: _selection('Ana', 0, 3),
+          fieldHeader: 'cédula',
+          fieldIndex: 2,
+          headerCount: 4,
+        )
+        ..confirmAssignment(
+          selection: _selection('Perez', 4, 9),
+          fieldHeader: 'correo',
+          fieldIndex: 3,
+          headerCount: 4,
+        );
+      return (
+        container: container,
+        mapping: mapping,
+        replaceColumns: replaceColumns,
+      );
+    }
+
+    List<int> indexes(ProviderContainer container) => container
+        .read(activeMappingProvider)
+        .state
+        .assignments
+        .map((assignment) => assignment.fieldIndex)
+        .toList();
+
+    test(
+      'insertar una columna en medio reubica los campos por nombre',
+      () async {
+        final setup = await setUpMapped();
+
+        await setup.replaceColumns(<String>[
+          'nombre',
+          'teléfono',
+          'tipo de documento',
+          'cédula',
+          'correo',
+        ]);
+
+        expect(indexes(setup.container), <int>[3, 4]);
+      },
+    );
+
+    test('deshacer después de insertar una columna no revive índices '
+        'viejos', () async {
+      final setup = await setUpMapped();
+      await setup.replaceColumns(<String>[
+        'nombre',
+        'teléfono',
+        'tipo de documento',
+        'cédula',
+        'correo',
+      ]);
+
+      // Quita la última asignación y la recupera: los dos estados del
+      // historial se guardaron cuando "cédula" estaba en la columna 2.
+      setup.mapping.undo();
+      expect(indexes(setup.container), <int>[3]);
+      setup.mapping.redo();
+      expect(indexes(setup.container), <int>[3, 4]);
+    });
+
+    test('quitar una columna deja el campo sin columna y conserva su '
+        'nombre', () async {
+      final setup = await setUpMapped();
+
+      await setup.replaceColumns(<String>['nombre', 'teléfono', 'correo']);
+
+      final assignments = setup.container
+          .read(activeMappingProvider)
+          .state
+          .assignments;
+      expect(assignments.map((a) => a.fieldIndex), <int>[-1, 2]);
+      expect(assignments.map((a) => a.fieldHeader), <String>[
+        'cédula',
+        'correo',
+      ]);
+    });
+
+    test('renameOrphanField reasigna el campo a la columna elegida y es '
+        'deshacible', () async {
+      final setup = await setUpMapped();
+      await setup.replaceColumns(<String>[
+        'nombre',
+        'teléfono',
+        'número de documento',
+        'correo',
+      ]);
+      // "cédula" ya no existe: queda huérfana.
+      expect(indexes(setup.container), <int>[-1, 3]);
+
+      setup.mapping.renameOrphanField(
+        orphanHeader: 'cédula',
+        toHeader: 'número de documento',
+        toIndex: 2,
+      );
+
+      final renamed = setup.container
+          .read(activeMappingProvider)
+          .state
+          .assignments
+          .first;
+      expect(renamed.fieldIndex, 2);
+      expect(renamed.fieldHeader, 'número de documento');
+
+      setup.mapping.undo();
+      expect(indexes(setup.container), <int>[-1, 3]);
+    });
+
+    test('removeOrphanField quita solo el campo sin columna indicado, no '
+        'todos los que comparten -1', () async {
+      final setup = await setUpMapped();
+      await setup.replaceColumns(<String>['nombre', 'teléfono']);
+      expect(indexes(setup.container), <int>[-1, -1]);
+
+      setup.mapping.removeOrphanField('cédula');
+
+      final remaining = setup.container
+          .read(activeMappingProvider)
+          .state
+          .assignments;
+      expect(remaining.map((a) => a.fieldHeader), <String>['correo']);
+
+      setup.mapping.undo();
+      expect(indexes(setup.container), <int>[-1, -1]);
+    });
+
+    test(
+      'un campo sin columna vuelve a enlazarse si su columna reaparece',
+      () async {
+        final setup = await setUpMapped();
+        await setup.replaceColumns(<String>['nombre', 'teléfono', 'correo']);
+        expect(indexes(setup.container), <int>[-1, 2]);
+
+        await setup.replaceColumns(<String>[
+          'nombre',
+          'cédula',
+          'teléfono',
+          'correo',
+        ]);
+
+        expect(indexes(setup.container), <int>[1, 3]);
+      },
+    );
+
+    test('navegar a una asignación sin columna no deja el campo actual '
+        'inválido', () async {
+      final setup = await setUpMapped();
+      await setup.replaceColumns(<String>['nombre']);
+      final before = setup.container
+          .read(activeMappingProvider)
+          .state
+          .currentFieldIndex;
+
+      setup.mapping.setCurrentFieldIndex(-1);
+
+      expect(
+        setup.container.read(activeMappingProvider).state.currentFieldIndex,
+        before,
+      );
+    });
+  });
+}
+
+DocumentTextSelection _selection(String text, int start, int end) {
+  return DocumentTextSelection(
+    path: const DocumentTextPath(
+      steps: <DocumentPathStep>[DocumentPathStep.rootBlock(blockIndex: 0)],
+    ),
+    startOffset: start,
+    endOffset: end,
+    selectedText: text,
+  );
+}
+
+Datasource _datasource(String path, List<String> headers) {
+  return Datasource(
+    sourcePath: path,
+    fileName: path,
+    fileSizeBytes: 1,
+    importedAt: DateTime.utc(2026),
+    format: DatasourceFormat.csv,
+    headers: headers,
+    previewRow: List<String?>.filled(headers.length, null),
+    rowCount: 1,
+    emptyColumnIndexes: const <int>[],
+  );
 }
 
 Document _documentWithTexts(List<String> texts) {
@@ -606,10 +778,15 @@ Document _documentWithTexts(List<String> texts) {
   );
 }
 
-ProviderContainer _createContainer({DocumentRepository? documentRepository}) {
+ProviderContainer _createContainer({
+  DocumentRepository? documentRepository,
+  DatasourceRepository? datasourceRepository,
+}) {
   return ProviderContainer(
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
+      if (datasourceRepository != null)
+        datasourceRepositoryProvider.overrideWithValue(datasourceRepository),
       projectRepositoryProvider.overrideWithValue(_FakeProjectRepository()),
       templateRepositoryProvider.overrideWithValue(_FakeTemplateRepository()),
       documentRepositoryProvider.overrideWithValue(

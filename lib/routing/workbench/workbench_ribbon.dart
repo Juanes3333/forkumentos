@@ -15,7 +15,6 @@ import 'package:forkumentos/features/project/presentation/create_project_dialog.
 import 'package:forkumentos/features/project/presentation/save_active_project.dart';
 import 'package:forkumentos/features/settings/presentation/settings_dialog.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
-import 'package:forkumentos/routing/datasource_replacement.dart';
 import 'package:forkumentos/routing/workbench/export_launcher.dart';
 import 'package:forkumentos/routing/workbench/workbench_layout_provider.dart';
 import 'package:forkumentos/routing/workbench/workbench_mapping_actions.dart';
@@ -538,14 +537,9 @@ Future<void> _replaceDatasource(BuildContext context, WidgetRef ref) async {
     return;
   }
 
-  final imported = await importDatasourceConfirmingHeaders(
-    context: context,
-    ref: ref,
-    filePath: filePath,
-  );
-  if (!imported) {
-    return;
-  }
+  await ref
+      .read(activeDatasourceProvider.notifier)
+      .importDatasource(filePath: filePath);
   final path = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
   if (path != null) {
     ref
@@ -556,13 +550,9 @@ Future<void> _replaceDatasource(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _refreshDatasource(BuildContext context, WidgetRef ref) async {
-  final result = await refreshDatasourceConfirmingHeaders(
-    context: context,
-    ref: ref,
-  );
-  if (result == null) {
-    return;
-  }
+  final result = await ref
+      .read(activeDatasourceProvider.notifier)
+      .refreshDatasource();
 
   final String message;
   switch (result.status) {

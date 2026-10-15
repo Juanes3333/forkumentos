@@ -5,7 +5,6 @@ import 'package:forkumentos/features/datasource/presentation/active_datasource_p
 import 'package:forkumentos/features/project/domain/project_repository.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
 import 'package:forkumentos/routing/app_phase_provider.dart';
-import 'package:forkumentos/routing/datasource_replacement.dart';
 import 'package:forkumentos/shared/import/dropped_file_kind.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/widgets/dropzone_surface.dart';
@@ -129,14 +128,9 @@ final class _AppDropTargetState extends ConsumerState<AppDropTarget> {
       if (!mounted) {
         return;
       }
-      final accepted = await importDatasourceConfirmingHeaders(
-        context: context,
-        ref: ref,
-        filePath: datasourcePath,
-      );
-      if (!accepted) {
-        return;
-      }
+      await ref
+          .read(activeDatasourceProvider.notifier)
+          .importDatasource(filePath: datasourcePath);
       final loaded = ref.read(activeDatasourceProvider).valueOrNull?.sourcePath;
       if (loaded != null) {
         ref

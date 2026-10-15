@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/mapping/data/mapping_json.dart';
 import 'package:forkumentos/features/mapping/domain/auto_mapping.dart';
 import 'package:forkumentos/features/mapping/domain/document_text_catalog.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
-import 'package:forkumentos/features/mapping/domain/header_mismatch.dart';
+import 'package:forkumentos/features/mapping/domain/header_remap.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_commands.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_state.dart';
 import 'package:forkumentos/features/mapping/domain/text_occurrence.dart';
@@ -50,35 +51,77 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
   @override
   MappingSession build() {
     final initialProject = ref.read(activeProjectProvider).valueOrNull;
-    ref.listen<({String? id, List<Map<String, dynamic>> assignments})>(
-      activeProjectProvider.select((projectState) {
-        final project = projectState.valueOrNull;
-        return (
-          id: project?.id,
-          assignments: project?.mappingAssignments ?? <Map<String, dynamic>>[],
-        );
-      }),
-      (previousProject, nextProject) {
-        if (previousProject?.id == nextProject.id) {
-          return;
-        }
-        _resetHistory(
-          MappingState(
-            assignments: mappingAssignmentsFromJson(nextProject.assignments),
-          ),
-        );
-      },
-    );
+    ref
+      ..listen<({String? id, List<Map<String, dynamic>> assignments})>(
+        activeProjectProvider.select((projectState) {
+          final project = projectState.valueOrNull;
+          return (
+            id: project?.id,
+            assignments:
+                project?.mappingAssignments ?? <Map<String, dynamic>>[],
+          );
+        }),
+        (previousProject, nextProject) {
+          if (previousProject?.id == nextProject.id) {
+            return;
+          }
+          _resetHistory(
+            MappingState(
+              assignments: mappingAssignmentsFromJson(nextProject.assignments),
+            ),
+          );
+        },
+      )
+      // La identidad de un campo es su nombre: cada vez que cambian los
+      // encabezados de la fuente activa (importar, refrescar, abrir un
+      // proyecto) los índices se vuelven a resolver por nombre. Es una
+      // corrección silenciosa de caché de índices: no entra al historial ni
+      // se sincroniza con el proyecto, porque al volver a cargar se recalcula
+      // igual desde los nombres.
+      ..listen<List<String>?>(
+        activeDatasourceProvider.select(
+          (datasourceState) => datasourceState.valueOrNull?.headers,
+        ),
+        (previousHeaders, nextHeaders) => _reconcileCurrentState(),
+      );
 
     return MappingSession(
-      state: MappingState(
-        assignments: mappingAssignmentsFromJson(
-          initialProject?.mappingAssignments ?? <Map<String, dynamic>>[],
+      state: _resolveAgainstActiveHeaders(
+        MappingState(
+          assignments: mappingAssignmentsFromJson(
+            initialProject?.mappingAssignments ?? <Map<String, dynamic>>[],
+          ),
         ),
       ),
       canUndo: false,
       canRedo: false,
     );
+  }
+
+  /// Devuelve [mappingState] con los índices de campo resueltos contra los
+  /// encabezados de la fuente de datos activa. Sin fuente (o sin
+  /// encabezados) no hay contra qué resolver y devuelve el mismo estado.
+  MappingState _resolveAgainstActiveHeaders(MappingState mappingState) {
+    final headers = ref.read(activeDatasourceProvider).valueOrNull?.headers;
+    if (headers == null ||
+        headers.isEmpty ||
+        mappingState.assignments.isEmpty) {
+      return mappingState;
+    }
+    final result = remapAssignmentsToHeaders(
+      assignments: mappingState.assignments,
+      headers: headers,
+    );
+    return result.changed
+        ? mappingState.copyWith(assignments: result.assignments)
+        : mappingState;
+  }
+
+  void _reconcileCurrentState() {
+    final resolved = _resolveAgainstActiveHeaders(state.state);
+    if (!identical(resolved, state.state)) {
+      _updateState(resolved);
+    }
   }
 
   void setCurrentFieldIndex(int fieldIndex) {
@@ -314,19 +357,48 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
     _syncProjectAssignments();
   }
 
-  /// Actualiza el `fieldHeader` de las asignaciones afectadas por
-  /// [mismatches] para que coincida con la nueva fuente de datos.
-  void updateFieldHeaders(List<HeaderMismatch> mismatches) {
-    final current = state.state.assignments;
-    final nextAssignments = applyHeaderMismatches(current, mismatches);
+  /// Reasigna todas las asignaciones del campo sin columna [orphanHeader] a
+  /// la columna [toIndex] de la fuente activa, de nombre [toHeader] ("Es este
+  /// campo"). Es una sola operación deshacible.
+  void renameOrphanField({
+    required String orphanHeader,
+    required String toHeader,
+    required int toIndex,
+  }) {
     var changed = false;
-    for (var i = 0; i < current.length; i++) {
-      if (current[i].fieldHeader != nextAssignments[i].fieldHeader) {
-        changed = true;
-        break;
-      }
-    }
+    final nextAssignments = <FieldAssignment>[
+      for (final assignment in state.state.assignments)
+        if (assignment.fieldIndex == orphanFieldIndex &&
+            assignment.fieldHeader == orphanHeader)
+          () {
+            changed = true;
+            return assignment.copyWith(
+              fieldIndex: toIndex,
+              fieldHeader: toHeader,
+            );
+          }()
+        else
+          assignment,
+    ];
     if (!changed) {
+      return;
+    }
+
+    _applyMutation(state.state.copyWith(assignments: nextAssignments));
+    _syncProjectAssignments();
+  }
+
+  /// Quita todas las asignaciones del campo sin columna [orphanHeader] ("Se
+  /// eliminó"). Es una sola operación deshacible. Identifica el campo por su
+  /// nombre y no por índice: todos los huérfanos comparten `fieldIndex` -1.
+  void removeOrphanField(String orphanHeader) {
+    final nextAssignments = <FieldAssignment>[
+      for (final assignment in state.state.assignments)
+        if (!(assignment.fieldIndex == orphanFieldIndex &&
+            assignment.fieldHeader == orphanHeader))
+          assignment,
+    ];
+    if (nextAssignments.length == state.state.assignments.length) {
       return;
     }
 
@@ -570,7 +642,9 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
 
     final previous = _undoStack.removeLast();
     _redoStack.add(state.state);
-    _updateState(previous);
+    // El estado guardado puede ser anterior a un cambio de columnas de la
+    // fuente: se vuelve a resolver por nombre para no revivir índices viejos.
+    _updateState(_resolveAgainstActiveHeaders(previous));
     _syncProjectAssignments();
   }
 
@@ -581,7 +655,7 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
 
     final next = _redoStack.removeLast();
     _undoStack.add(state.state);
-    _updateState(next);
+    _updateState(_resolveAgainstActiveHeaders(next));
     _syncProjectAssignments();
   }
 
@@ -621,7 +695,7 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
   void _resetHistory(MappingState next) {
     _undoStack.clear();
     _redoStack.clear();
-    _updateState(next);
+    _updateState(_resolveAgainstActiveHeaders(next));
   }
 
   void _syncProjectAssignments() {
