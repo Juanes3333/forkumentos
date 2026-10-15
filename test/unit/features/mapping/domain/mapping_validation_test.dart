@@ -98,6 +98,19 @@ void main() {
       expect(synced.single.fieldHeader, 'nombre');
     });
 
+    test('un campo sin columna (fieldIndex -1) se conserva con su nombre', () {
+      final synced = synchronizeMappingAssignments(
+        assignments: <FieldAssignment>[
+          _assignment(id: 'a1', fieldIndex: -1, fieldHeader: 'cédula'),
+        ],
+        datasourceHeaders: <String>['nombre'],
+      );
+
+      expect(synced, hasLength(1));
+      expect(synced.single.fieldIndex, -1);
+      expect(synced.single.fieldHeader, 'cédula');
+    });
+
     test('elimina asignaciones cuyo texto ya no coincide con el documento', () {
       final synced = synchronizeMappingAssignments(
         assignments: <FieldAssignment>[_assignment(id: 'a1', fieldIndex: 0)],

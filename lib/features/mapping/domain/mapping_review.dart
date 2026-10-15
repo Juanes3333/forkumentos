@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:forkumentos/features/mapping/domain/document_text_catalog.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
+import 'package:forkumentos/features/mapping/domain/header_remap.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_validation.dart';
 import 'package:forkumentos/shared/models/document.dart';
 
@@ -37,6 +38,7 @@ final class MappingReviewSnapshot {
     required this.invalidAssignments,
     required this.overlappingAssignmentPairs,
     required this.documentPlaceholders,
+    this.orphanFieldHeaders = const <String>[],
   });
 
   final MappingStatistics statistics;
@@ -44,6 +46,10 @@ final class MappingReviewSnapshot {
   final List<String> invalidAssignmentIds;
   final bool isExportReady;
   final List<String> missingFieldHeaders;
+
+  /// Campos mapeados cuya columna ya no existe en la fuente de datos: se
+  /// exportarían vacíos. No bloquean la exportación; se confirman al exportar.
+  final List<String> orphanFieldHeaders;
   final List<FieldAssignment> duplicateAssignments;
   final List<FieldAssignment> invalidAssignments;
   final List<({FieldAssignment first, FieldAssignment second})>
@@ -90,8 +96,15 @@ MappingReviewSnapshot buildMappingReviewSnapshot({
       .map((assignment) => assignment.fieldIndex)
       .toSet();
   final mappedFieldCount = assignedFieldIndexes
-      .where((index) => index < datasourceHeaders.length)
+      .where((index) => index >= 0 && index < datasourceHeaders.length)
       .length;
+  final orphanFieldHeaders = <String>[
+    for (final header in <String>{
+      for (final assignment in assignments)
+        if (assignment.fieldIndex == orphanFieldIndex) assignment.fieldHeader,
+    })
+      header,
+  ];
 
   final statistics = MappingStatistics(
     totalFields: datasourceHeaders.length,
@@ -120,6 +133,7 @@ MappingReviewSnapshot buildMappingReviewSnapshot({
       for (final index in validation.missingFieldIndexes)
         if (index < datasourceHeaders.length) datasourceHeaders[index],
     ],
+    orphanFieldHeaders: orphanFieldHeaders,
     duplicateAssignments: duplicateAssignments,
     invalidAssignments: invalidAssignments,
     overlappingAssignmentPairs: overlappingAssignmentPairs,
@@ -157,12 +171,14 @@ List<String> findInvalidAssignmentIds({
       continue;
     }
 
-    // Si la fuente de datos cambió de columnas (una inserción o reordenamiento
-    // de encabezados) sin volver a mapear, `fieldIndex` sigue apuntando a la
-    // posición vieja pero ahora nombra una columna distinta. El documento no
-    // cambió, así que `assignmentStillMatchesDocument` no lo detecta: hay que
-    // comparar contra el encabezado que la asignación recuerda.
-    if (datasourceHeaders[assignment.fieldIndex] != assignment.fieldHeader) {
+    // Un campo sin columna (`orphanFieldIndex`) no es inválido: se resuelve
+    // desde la reconciliación de campos y, si queda así, se exporta vacío
+    // tras confirmarlo. Para el resto, si la fuente cambió de columnas y
+    // `fieldIndex` quedó apuntando a una columna distinta, `fieldHeader`
+    // (lo que la asignación recuerda) delata el desfase: el documento no
+    // cambió, así que `assignmentStillMatchesDocument` no lo detectaría.
+    if (assignment.fieldIndex != orphanFieldIndex &&
+        datasourceHeaders[assignment.fieldIndex] != assignment.fieldHeader) {
       invalidIds.add(assignment.id);
       continue;
     }

@@ -358,7 +358,8 @@ final class _AssignmentNavigationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final header = assignment.fieldIndex < headers.length
+    final header =
+        assignment.fieldIndex >= 0 && assignment.fieldIndex < headers.length
         ? headers[assignment.fieldIndex]
         : assignment.fieldHeader;
     final currentDocument = document;

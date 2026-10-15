@@ -82,7 +82,9 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
   }
 
   void setCurrentFieldIndex(int fieldIndex) {
-    if (fieldIndex == state.state.currentFieldIndex) {
+    // Navegar a una asignación sin columna (`-1`) no debe dejar un campo
+    // actual inválido: el selector de campo indexa los encabezados con él.
+    if (fieldIndex < 0 || fieldIndex == state.state.currentFieldIndex) {
       return;
     }
     _updateState(state.state.copyWith(currentFieldIndex: fieldIndex));

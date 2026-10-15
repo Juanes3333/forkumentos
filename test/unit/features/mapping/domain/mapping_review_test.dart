@@ -105,6 +105,51 @@ void main() {
       expect(snapshot.invalidAssignments, hasLength(1));
     });
 
+    test('un campo sin columna (fieldIndex -1) no bloquea la exportación y se '
+        'reporta como huérfano', () {
+      final snapshot = buildMappingReviewSnapshot(
+        assignments: <FieldAssignment>[
+          _assignment(id: 'a1', fieldIndex: 0),
+          _assignment(
+            id: 'a2',
+            fieldIndex: -1,
+            fieldHeader: 'cédula',
+            selectedText: 'Perez',
+            startOffset: 4,
+            endOffset: 9,
+          ),
+        ],
+        datasourceHeaders: <String>['nombre', 'correo'],
+        document: _documentWithTexts(<String>['Ana Perez']),
+      );
+
+      expect(snapshot.invalidAssignments, isEmpty);
+      expect(snapshot.isExportReady, isTrue);
+      expect(snapshot.orphanFieldHeaders, <String>['cédula']);
+      // Solo "nombre" está mapeado; "correo" queda pendiente.
+      expect(snapshot.statistics.mappedFieldCount, 1);
+      expect(snapshot.missingFieldHeaders, <String>['correo']);
+    });
+
+    test('un campo sin columna sigue siendo inválido si su texto ya no está '
+        'en el documento', () {
+      final snapshot = buildMappingReviewSnapshot(
+        assignments: <FieldAssignment>[
+          _assignment(
+            id: 'a1',
+            fieldIndex: -1,
+            fieldHeader: 'cédula',
+            selectedText: 'Otro',
+          ),
+        ],
+        datasourceHeaders: <String>['nombre'],
+        document: _documentWithTexts(<String>['Ana']),
+      );
+
+      expect(snapshot.invalidAssignments, hasLength(1));
+      expect(snapshot.isExportReady, isFalse);
+    });
+
     test(
       'un mismo pageIndex/steps en body y header no se confunden entre si',
       () {

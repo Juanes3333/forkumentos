@@ -109,9 +109,13 @@ List<FieldAssignment> synchronizeMappingAssignments({
             assignmentStillMatchesDocument(assignment, documentTexts),
       )
       .map(
-        (assignment) => assignment.copyWith(
-          fieldHeader: datasourceHeaders[assignment.fieldIndex],
-        ),
+        (assignment) => assignment.fieldIndex < 0
+            // Un campo sin columna conserva su nombre: no hay encabezado
+            // vigente del que copiarlo.
+            ? assignment
+            : assignment.copyWith(
+                fieldHeader: datasourceHeaders[assignment.fieldIndex],
+              ),
       )
       .toList();
 }
