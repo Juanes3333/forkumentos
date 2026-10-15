@@ -66,8 +66,7 @@ final class DatasourceManagementScreen extends ConsumerWidget {
                       child: _DatasourceDetailsState(
                         datasource: datasource,
                         isLoading: isLoading,
-                        onReplace: () =>
-                            _pickAndImportDatasource(context, ref),
+                        onReplace: () => _pickAndImportDatasource(context, ref),
                         onRemove: notifier.removeDatasource,
                       ),
                     ),

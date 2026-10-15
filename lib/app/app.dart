@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/app/app_splash.dart';
 import 'package:forkumentos/core/launch/launch_arguments.dart';
 import 'package:forkumentos/core/theme/app_theme.dart';
+import 'package:forkumentos/features/datasource/presentation/datasource_sync_controller.dart';
 import 'package:forkumentos/routing/after_project_load.dart';
 import 'package:forkumentos/routing/app_router.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
@@ -71,7 +72,11 @@ final class _AppState extends ConsumerState<App> {
     // Keep-alive: reacts to a project being loaded (recientes + entrar al
     // workbench) from a ref that outlives the landing screen, which is torn
     // down the moment the project becomes active.
-    ref.watch(projectActivationListenerProvider);
+    ref
+      ..watch(projectActivationListenerProvider)
+      // Keep-alive: vigila el Excel gestionado del proyecto abierto y lo
+      // vuelve a leer cuando el usuario lo guarda en Excel.
+      ..watch(datasourceSyncListenerProvider);
 
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeProvider);

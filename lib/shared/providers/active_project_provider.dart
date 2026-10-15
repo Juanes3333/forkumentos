@@ -234,6 +234,26 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
     );
   }
 
+  /// Records the modified time and size of the managed datasource file as it
+  /// was when it was last read. On open, a file that differs is read again.
+  /// Deliberately does not mark the project dirty: it is bookkeeping, and a
+  /// project that is not otherwise modified simply re-checks next time.
+  void setDatasourceSyncedStat({required int mtimeMs, required int sizeBytes}) {
+    final currentProject = state.valueOrNull;
+    if (currentProject == null ||
+        (currentProject.datasourceSyncedMtimeMs == mtimeMs &&
+            currentProject.datasourceSyncedSizeBytes == sizeBytes)) {
+      return;
+    }
+
+    state = AsyncData(
+      currentProject.copyWith(
+        datasourceSyncedMtimeMs: mtimeMs,
+        datasourceSyncedSizeBytes: sizeBytes,
+      ),
+    );
+  }
+
   Future<void> updateMappingAssignments(
     List<Map<String, dynamic>> mappingAssignments,
   ) {

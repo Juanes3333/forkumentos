@@ -7,6 +7,7 @@ import 'package:forkumentos/features/settings/presentation/settings_dialog.dart'
 import 'package:forkumentos/routing/app_drop_target.dart';
 import 'package:forkumentos/routing/app_phase_provider.dart';
 import 'package:forkumentos/routing/project_wizard_screen.dart';
+import 'package:forkumentos/routing/workbench/datasource_sync_host.dart';
 import 'package:forkumentos/routing/workbench/workbench_screen.dart';
 
 final class AppShell extends ConsumerWidget {
@@ -18,15 +19,17 @@ final class AppShell extends ConsumerWidget {
 
     return ProjectWindowLifecycle(
       child: AppDropTarget(
-        child: Scaffold(
-          backgroundColor: AppColors.of(context).backgroundPrimary,
-          body: switch (phase) {
-            AppPhase.landing => ProjectWelcomeScreen(
-              onOpenSettings: () => showSettingsDialog(context),
-            ),
-            AppPhase.wizard => const ProjectWizardScreen(),
-            AppPhase.workbench => const WorkbenchScreen(),
-          },
+        child: DatasourceSyncHost(
+          child: Scaffold(
+            backgroundColor: AppColors.of(context).backgroundPrimary,
+            body: switch (phase) {
+              AppPhase.landing => ProjectWelcomeScreen(
+                onOpenSettings: () => showSettingsDialog(context),
+              ),
+              AppPhase.wizard => const ProjectWizardScreen(),
+              AppPhase.workbench => const WorkbenchScreen(),
+            },
+          ),
         ),
       ),
     );
