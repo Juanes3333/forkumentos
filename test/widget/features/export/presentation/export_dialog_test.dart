@@ -61,6 +61,67 @@ void main() {
     });
   });
 
+  group('selector de plantillas', () {
+    const choices = <ExportTemplateChoice>[
+      (id: 't1', name: 'Contrato'),
+      (id: 't2', name: 'Paz y salvo'),
+    ];
+
+    testWidgets('con varias plantillas aparecen marcadas y el resultado lleva '
+        'las elegidas en orden', (tester) async {
+      ExportDialogResult? result;
+      await _pumpDialog(
+        tester,
+        templateChoices: choices,
+        onResult: (value) => result = value,
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Plantillas a exportar'), findsOneWidget);
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Contrato'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Exportar'));
+      await tester.pumpAndSettle();
+
+      expect(result!.selectedTemplateIds, <String>['t2']);
+    });
+
+    testWidgets('sin ninguna plantilla marcada no se puede exportar', (
+      tester,
+    ) async {
+      ExportDialogResult? result;
+      await _pumpDialog(
+        tester,
+        templateChoices: choices,
+        onResult: (value) => result = value,
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Contrato'));
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Paz y salvo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Exportar'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNull);
+    });
+
+    testWidgets('con una sola plantilla no se muestra', (tester) async {
+      await _pumpDialog(
+        tester,
+        templateChoices: const <ExportTemplateChoice>[
+          (id: 't1', name: 'Contrato'),
+        ],
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Plantillas a exportar'), findsNothing);
+    });
+  });
+
   group('advertencia de campos sin columna', () {
     testWidgets('lista los campos y bloquea Exportar hasta confirmar', (
       WidgetTester tester,
@@ -288,6 +349,7 @@ Future<void> _pumpDialog(
   List<String> headers = const <String>['Nombre'],
   List<String> missingFieldHeaders = const <String>[],
   List<String> orphanFieldHeaders = const <String>[],
+  List<ExportTemplateChoice> templateChoices = const <ExportTemplateChoice>[],
   int rowCount = 5,
   int currentRowIndex = 0,
   bool createZipDefault = false,
@@ -312,6 +374,7 @@ Future<void> _pumpDialog(
                   currentRowIndex: currentRowIndex,
                   missingFieldHeaders: missingFieldHeaders,
                   orphanFieldHeaders: orphanFieldHeaders,
+                  templateChoices: templateChoices,
                   templateName: 'plantilla',
                   loadRowValues: (rowIndexes) async => <int, List<String?>>{
                     for (final index in rowIndexes)

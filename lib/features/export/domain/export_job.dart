@@ -44,4 +44,24 @@ final class ExportJob {
   /// (0 = first exported file). Only consulted when [filenameMode] is
   /// [FilenameMode.manual]; a missing/blank entry falls back to the pattern.
   final Map<int, String>? manualFilenames;
+
+  /// Copia del trabajo con otra carpeta de destino, ZIP o nombre de plantilla
+  /// (para exportar varias plantillas, cada una en su subcarpeta).
+  ExportJob copyWith({
+    String? destinationFolder,
+    bool? createZip,
+    String? templateBaseName,
+  }) {
+    return ExportJob(
+      destinationFolder: destinationFolder ?? this.destinationFolder,
+      filenamePattern: filenamePattern,
+      rangeMode: rangeMode,
+      rowIndexes: rowIndexes,
+      createZip: createZip ?? this.createZip,
+      templateBaseName: templateBaseName ?? this.templateBaseName,
+      customRangeText: customRangeText,
+      filenameMode: filenameMode,
+      manualFilenames: manualFilenames,
+    );
+  }
 }

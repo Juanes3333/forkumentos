@@ -15,13 +15,16 @@ import 'package:forkumentos/features/export/domain/export_result.dart';
 import 'package:forkumentos/features/export/presentation/export_dialog.dart';
 import 'package:forkumentos/features/export/presentation/export_progress_dialog.dart';
 import 'package:forkumentos/features/export/presentation/export_summary_dialog.dart';
+import 'package:forkumentos/features/mapping/data/mapping_json.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/domain/header_remap.dart';
 import 'package:forkumentos/features/mapping/presentation/active_mapping_provider.dart';
 import 'package:forkumentos/features/mapping/presentation/mapping_workflow_provider.dart';
 import 'package:forkumentos/features/preview/data/preview_record_repository.dart';
 import 'package:forkumentos/features/preview/presentation/preview_state_provider.dart';
+import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/template/presentation/active_template_provider.dart';
+import 'package:forkumentos/routing/workbench/multi_template_export.dart';
 import 'package:forkumentos/shared/models/document_text_path.dart';
 import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
@@ -100,6 +103,25 @@ Future<void> launchExport(
   final templateBaseName = p.basenameWithoutExtension(template.fileName);
   final recordRepository = ref.read(previewRecordRepositoryProvider);
 
+  // Con varias plantillas se puede elegir cuáles exportar. El mapeo de las
+  // que no están activas se reubica por nombre contra las columnas actuales.
+  final others = project.templates.length > 1
+      ? _otherTemplates(project, datasource.headers)
+      : const <_ParkedTemplate>[];
+  final templateChoices = project.templates.length > 1
+      ? <ExportTemplateChoice>[
+          for (final entry in project.templates)
+            (
+              id: entry.id,
+              name: p.basenameWithoutExtension(
+                entry.id == project.activeTemplateId
+                    ? template.fileName
+                    : entry.fileName,
+              ),
+            ),
+        ]
+      : const <ExportTemplateChoice>[];
+
   final dialogResult = await ExportDialog.show(
     context,
     destinationFolder: destinationFolder,
@@ -111,7 +133,11 @@ Future<void> launchExport(
       datasource.rowCount > 0 ? datasource.rowCount - 1 : 0,
     ),
     missingFieldHeaders: review?.missingFieldHeaders ?? const <String>[],
-    orphanFieldHeaders: review?.orphanFieldHeaders ?? const <String>[],
+    orphanFieldHeaders: <String>{
+      ...?review?.orphanFieldHeaders,
+      for (final other in others) ...other.orphanHeaders,
+    }.toList(),
+    templateChoices: templateChoices,
     templateName: templateBaseName,
     loadRowValues: (rowIndexes) => recordRepository.readRecords(
       datasource: datasource,
@@ -149,9 +175,33 @@ Future<void> launchExport(
         List<String?>.filled(datasource.headers.length, null);
   }
 
+  final multiTemplate = templateChoices.length > 1;
+  final selectedIds = dialogResult.selectedTemplateIds;
+  final inputs = <TemplateExportInput>[
+    if (multiTemplate)
+      for (final choice in templateChoices)
+        if (selectedIds.contains(choice.id))
+          if (choice.id == project.activeTemplateId)
+            (
+              name: choice.name,
+              bytes: Uint8List.fromList(templateBytes),
+              placeholders: placeholders,
+            )
+          else if (others.where((o) => o.id == choice.id).firstOrNull
+              case final parked?)
+            (
+              name: choice.name,
+              bytes: Uint8List.fromList(await File(parked.path).readAsBytes()),
+              placeholders: parked.placeholders,
+            ),
+  ];
+
   final session = ExportSession();
   final progressNotifier = ValueNotifier<ExportProgress>(
-    ExportProgress(current: 0, total: job.rowIndexes.length),
+    ExportProgress(
+      current: 0,
+      total: job.rowIndexes.length * (multiTemplate ? inputs.length : 1),
+    ),
   );
 
   if (!context.mounted) {
@@ -165,16 +215,27 @@ Future<void> launchExport(
     onCancel: session.cancel,
   );
 
-  final result = await session.run(
-    job: job,
-    templateBytes: Uint8List.fromList(templateBytes),
-    placeholders: placeholders,
-    headers: datasource.headers,
-    resolveRow: resolveRow,
-    onProgress: (progress) {
-      progressNotifier.value = progress;
-    },
-  );
+  void onProgress(ExportProgress progress) {
+    progressNotifier.value = progress;
+  }
+
+  final result = multiTemplate
+      ? await runTemplatesExport(
+          session: session,
+          job: job,
+          templates: inputs,
+          headers: datasource.headers,
+          resolveRow: resolveRow,
+          onProgress: onProgress,
+        )
+      : await session.run(
+          job: job,
+          templateBytes: Uint8List.fromList(templateBytes),
+          placeholders: placeholders,
+          headers: datasource.headers,
+          resolveRow: resolveRow,
+          onProgress: onProgress,
+        );
 
   if (context.mounted) {
     Navigator.of(context, rootNavigator: true).pop();
@@ -183,6 +244,36 @@ Future<void> launchExport(
   if (context.mounted) {
     await ExportSummaryDialog.show(context, result);
   }
+}
+
+/// Plantilla del proyecto que no es la activa, lista para exportar: su DOCX y
+/// su mapeo reubicado por nombre contra las columnas actuales.
+typedef _ParkedTemplate = ({
+  String id,
+  String path,
+  List<ExportPlaceholder> placeholders,
+  List<String> orphanHeaders,
+});
+
+List<_ParkedTemplate> _otherTemplates(Project project, List<String> headers) {
+  return <_ParkedTemplate>[
+    for (final entry in project.templates)
+      if (entry.id != project.activeTemplateId &&
+          entry.embeddedPath != null &&
+          File(entry.embeddedPath!).existsSync())
+        () {
+          final remapped = remapAssignmentsToHeaders(
+            assignments: mappingAssignmentsFromJson(entry.assignments),
+            headers: headers,
+          );
+          return (
+            id: entry.id,
+            path: entry.embeddedPath!,
+            placeholders: remapped.assignments.map(_toPlaceholder).toList(),
+            orphanHeaders: remapped.orphanHeaders,
+          );
+        }(),
+  ];
 }
 
 ExportPlaceholder _toPlaceholder(FieldAssignment assignment) {
@@ -248,11 +339,19 @@ Future<void> _showBlocked(BuildContext context, String message) {
 /// Drives format commands, cancel, ZIP, and aggregated progress.
 final class ExportSession {
   CancellableCommand<ExportResult>? _active;
+  bool _cancelRequested = false;
+
+  /// `true` si el usuario pidió cancelar (también entre dos plantillas).
+  bool get cancelRequested => _cancelRequested;
 
   void cancel() {
+    _cancelRequested = true;
     _active?.cancel();
   }
 
+  /// Exporta una plantilla. Para exportar varias, se llama una vez por
+  /// plantilla con [progressOffset] y [progressTotal] (el avance es el de todo
+  /// el paquete) y `writeZip: false` (el ZIP único lo arma quien llama).
   Future<ExportResult> run({
     required ExportJob job,
     required Uint8List templateBytes,
@@ -260,6 +359,9 @@ final class ExportSession {
     required List<String> headers,
     required Future<List<String?>> Function(int rowIndex) resolveRow,
     required void Function(ExportProgress progress) onProgress,
+    int progressOffset = 0,
+    int? progressTotal,
+    bool writeZip = true,
   }) async {
     final started = DateTime.now();
     final written = <String>[];
@@ -269,8 +371,8 @@ final class ExportSession {
     var skipped = 0;
     var cancelled = false;
 
-    final totalUnits = job.rowIndexes.length;
-    var completedUnits = 0;
+    final totalUnits = progressTotal ?? job.rowIndexes.length;
+    var completedUnits = progressOffset;
 
     void emit(String label) {
       onProgress(
@@ -299,7 +401,7 @@ final class ExportSession {
     _active = command;
     final partial = await command.execute(
       onProgress: (event) {
-        completedUnits = event.current;
+        completedUnits = progressOffset + event.current;
         emit(event.label ?? 'Generando DOCX…');
       },
     );
@@ -309,10 +411,10 @@ final class ExportSession {
     skipped += partial.skippedCount;
     errors.addAll(partial.errors);
     cancelled = partial.cancelled;
-    completedUnits = job.rowIndexes.length;
+    completedUnits = progressOffset + job.rowIndexes.length;
 
     String? zipPath;
-    if (job.createZip && written.isNotEmpty) {
+    if (writeZip && job.createZip && written.isNotEmpty) {
       emit('Creando ZIP…');
       final zipName = p.join(
         job.destinationFolder,

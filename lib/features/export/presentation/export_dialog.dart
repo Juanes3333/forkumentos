@@ -8,10 +8,20 @@ import 'package:forkumentos/shared/providers/settings_providers.dart';
 
 /// Options collected before starting an export.
 final class ExportDialogResult {
-  const ExportDialogResult({required this.job});
+  const ExportDialogResult({
+    required this.job,
+    this.selectedTemplateIds = const <String>[],
+  });
 
   final ExportJob job;
+
+  /// Ids de las plantillas elegidas para exportar, en el orden de las
+  /// pestañas. Vacío si el proyecto tiene una sola plantilla.
+  final List<String> selectedTemplateIds;
 }
+
+/// Una plantilla que se puede elegir en el diálogo de exportación.
+typedef ExportTemplateChoice = ({String id, String name});
 
 /// Loads datasource values for the given row indexes (used to pre-fill the
 /// manual filename fields with what the automatic pattern would produce).
@@ -33,6 +43,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required this.templateName,
     required this.loadRowValues,
     this.orphanFieldHeaders = const <String>[],
+    this.templateChoices = const <ExportTemplateChoice>[],
     super.key,
   });
 
@@ -46,6 +57,10 @@ final class ExportDialog extends ConsumerStatefulWidget {
   /// Campos mapeados cuya columna ya no existe en el Excel: en los
   /// documentos exportados saldrían vacíos, así que hay que confirmarlo.
   final List<String> orphanFieldHeaders;
+
+  /// Plantillas del proyecto entre las que elegir (con varias, se exporta
+  /// cada fila con cada plantilla marcada). Vacío o una: no se muestra.
+  final List<ExportTemplateChoice> templateChoices;
   final String templateName;
   final ExportRowValuesLoader loadRowValues;
 
@@ -60,6 +75,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
     required String templateName,
     required ExportRowValuesLoader loadRowValues,
     List<String> orphanFieldHeaders = const <String>[],
+    List<ExportTemplateChoice> templateChoices = const <ExportTemplateChoice>[],
   }) {
     return showDialog<ExportDialogResult>(
       context: context,
@@ -71,6 +87,7 @@ final class ExportDialog extends ConsumerStatefulWidget {
         currentRowIndex: currentRowIndex,
         missingFieldHeaders: missingFieldHeaders,
         orphanFieldHeaders: orphanFieldHeaders,
+        templateChoices: templateChoices,
         templateName: templateName,
         loadRowValues: loadRowValues,
       ),
@@ -96,6 +113,9 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   var _acknowledgedMissing = false;
   var _acknowledgedOrphans = false;
   var _defaultsApplied = false;
+  late final Set<String> _selectedTemplates = <String>{
+    for (final choice in widget.templateChoices) choice.id,
+  };
 
   @override
   void didChangeDependencies() {
@@ -193,6 +213,34 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              if (widget.templateChoices.length > 1) ...<Widget>[
+                Text(
+                  'Plantillas a exportar',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                for (final choice in widget.templateChoices)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(choice.name),
+                    value: _selectedTemplates.contains(choice.id),
+                    onChanged: (value) {
+                      setState(() {
+                        if (value ?? false) {
+                          _selectedTemplates.add(choice.id);
+                        } else {
+                          _selectedTemplates.remove(choice.id);
+                        }
+                      });
+                    },
+                  ),
+                Text(
+                  'Cada fila genera un documento por plantilla marcada, en una '
+                  'carpeta con el nombre de la plantilla.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+              ],
               if (_hasOrphanWarning) ...<Widget>[
                 Material(
                   color: Theme.of(context).colorScheme.errorContainer,
@@ -376,6 +424,9 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
   }
 
   bool get _canExport {
+    if (widget.templateChoices.length > 1 && _selectedTemplates.isEmpty) {
+      return false;
+    }
     if (_hasMissingWarning && !_acknowledgedMissing) {
       return false;
     }
@@ -433,6 +484,11 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
               ? _rangeController.text
               : null,
         ),
+        selectedTemplateIds: <String>[
+          // En el orden de las pestañas.
+          for (final choice in widget.templateChoices)
+            if (_selectedTemplates.contains(choice.id)) choice.id,
+        ],
       ),
     );
   }

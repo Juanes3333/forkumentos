@@ -10,9 +10,13 @@ final class ExportZipWriter {
   const ExportZipWriter();
 
   /// Creates [zipPath] containing [filePaths]. Returns the ZIP path.
+  ///
+  /// Each file goes in at its base name unless [entryNames] gives it another
+  /// path inside the ZIP (e.g. `plantilla/archivo.docx`).
   Future<String> writeZip({
     required String zipPath,
     required List<String> filePaths,
+    Map<String, String>? entryNames,
   }) async {
     final archive = Archive();
     for (final filePath in filePaths) {
@@ -21,7 +25,13 @@ final class ExportZipWriter {
         continue;
       }
       final bytes = await file.readAsBytes();
-      archive.addFile(ArchiveFile(p.basename(filePath), bytes.length, bytes));
+      archive.addFile(
+        ArchiveFile(
+          entryNames?[filePath] ?? p.basename(filePath),
+          bytes.length,
+          bytes,
+        ),
+      );
     }
 
     final encoded = ZipEncoder().encode(archive);
