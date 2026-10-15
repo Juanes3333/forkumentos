@@ -16,5 +16,9 @@ class Datasource with _$Datasource {
     required List<String?> previewRow,
     required int rowCount,
     required List<int> emptyColumnIndexes,
+
+    /// Fecha de modificación del archivo cuando se leyó; permite detectar
+    /// ediciones de valores que no cambian el tamaño ni la forma del archivo.
+    DateTime? fileModifiedAt,
   }) = _Datasource;
 }

@@ -27,6 +27,7 @@ final class CsvDatasourceRepository implements DatasourceRepository {
 
     final file = File(filePath);
     final fileSizeBytes = await file.length();
+    final modifiedAt = file.lastModifiedSync();
 
     // Se procesa el archivo fila por fila desde el stream de disco, en lugar
     // de cargarlo completo en memoria: el uso de memoria queda acotado a una
@@ -84,6 +85,7 @@ final class CsvDatasourceRepository implements DatasourceRepository {
         for (var index = 0; index < columnHasValue!.length; index++)
           if (!columnHasValue[index]) index,
       ],
+      fileModifiedAt: modifiedAt,
     );
   }
 }

@@ -323,6 +323,47 @@ void main() {
       expect(container.read(activeDatasourceProvider).valueOrNull?.rowCount, 1);
     });
 
+    test(
+      'valores editados con mismo tamaño y forma devuelven updated',
+      () async {
+        final tempDirectory = await Directory.systemTemp.createTemp(
+          'forkumentos_refresh_test_',
+        );
+        addTearDown(() => tempDirectory.delete(recursive: true));
+        final path = p.join(tempDirectory.path, 'clientes.csv');
+        File(path).writeAsStringSync('nombre,correo\nAna,ana@example.com\n');
+
+        // Misma forma, tamaño y primera fila; solo cambia la fecha de edición.
+        var loadCount = 0;
+        final fakeDatasourceRepository = FakeDatasourceRepository(
+          loadHandler: (filePath) async {
+            loadCount++;
+            return _buildDatasource(filePath).copyWith(
+              fileModifiedAt: DateTime.utc(2026, 1, 1, 0, 0, loadCount),
+            );
+          },
+        );
+        final container = _createContainer(fakeDatasourceRepository);
+        addTearDown(container.dispose);
+
+        await container
+            .read(activeProjectProvider.notifier)
+            .createProject(name: 'Proyecto');
+        await container
+            .read(activeDatasourceProvider.notifier)
+            .importDatasource(filePath: path);
+        container
+            .read(activeProjectProvider.notifier)
+            .setDatasourceExternalPath(path);
+
+        final result = await container
+            .read(activeDatasourceProvider.notifier)
+            .refreshDatasource();
+
+        expect(result.status, DatasourceRefreshStatus.updated);
+      },
+    );
+
     test('archivo con filas nuevas devuelve updated con rowDelta', () async {
       final tempDirectory = await Directory.systemTemp.createTemp(
         'forkumentos_refresh_test_',

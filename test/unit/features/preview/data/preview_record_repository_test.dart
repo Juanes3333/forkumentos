@@ -100,6 +100,54 @@ void main() {
     expect(repository.xlsxDecodeCount, 1);
   });
 
+  test('editar el XLSX en la misma ruta invalida la caché de filas', () async {
+    final filePath = p.join(tempDirectory.path, 'datos.xlsx');
+    await _writeWorkbook(
+      path: filePath,
+      rows: <List<CellValue?>>[
+        <CellValue?>[TextCellValue('nombre'), TextCellValue('edad')],
+        <CellValue?>[TextCellValue('Ana'), const IntCellValue(30)],
+      ],
+    );
+    final datasource = Datasource(
+      sourcePath: filePath,
+      fileName: 'datos.xlsx',
+      fileSizeBytes: File(filePath).lengthSync(),
+      importedAt: DateTime.utc(2026),
+      format: DatasourceFormat.xlsx,
+      headers: const <String>['nombre', 'edad'],
+      previewRow: const <String?>['Ana', '30'],
+      rowCount: 1,
+      emptyColumnIndexes: const <int>[],
+    );
+
+    final before = await repository.readRecord(
+      datasource: datasource,
+      rowIndex: 0,
+    );
+    expect(before, <String?>['Ana', '30']);
+
+    // El cliente guarda otro valor en el mismo archivo (Excel reemplaza el
+    // archivo y cambia su fecha de modificación).
+    await _writeWorkbook(
+      path: filePath,
+      rows: <List<CellValue?>>[
+        <CellValue?>[TextCellValue('nombre'), TextCellValue('edad')],
+        <CellValue?>[TextCellValue('Beatriz'), const IntCellValue(31)],
+      ],
+    );
+    File(
+      filePath,
+    ).setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+
+    final after = await repository.readRecord(
+      datasource: datasource,
+      rowIndex: 0,
+    );
+    expect(after, <String?>['Beatriz', '31']);
+    expect(repository.xlsxDecodeCount, 2);
+  });
+
   test('lee celda de fecha XLSX como texto legible, no serial', () async {
     final filePath = p.join(tempDirectory.path, 'fechas.xlsx');
     await _writeWorkbook(

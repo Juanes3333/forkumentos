@@ -15,12 +15,14 @@ final previewRecordRepositoryProvider = Provider<PreviewRecordRepository>(
 
 /// Reads datasource rows for preview/export.
 ///
-/// XLSX rows are cached per source path for the repository lifetime.
+/// XLSX rows are cached per source path, last-modified time and size: editing
+/// or replacing the file at the same path (Excel save, refresh) invalidates
+/// the cache, so preview and export never read stale rows.
 /// CSV export batches scan the file once in index order.
 final class PreviewRecordRepository {
   PreviewRecordRepository();
 
-  String? _xlsxCachePath;
+  String? _xlsxCacheKey;
   List<List<String?>>? _xlsxCacheRows;
   int _xlsxDecodeCount = 0;
 
@@ -123,7 +125,12 @@ final class PreviewRecordRepository {
     required String filePath,
     required int expectedLength,
   }) async {
-    if (_xlsxCachePath == filePath && _xlsxCacheRows != null) {
+    // La huella se toma antes de leer: si el archivo cambia entre medias, la
+    // clave queda atrasada y la siguiente lectura vuelve a decodificar.
+    final stat = File(filePath).statSync();
+    final cacheKey =
+        '$filePath|${stat.modified.microsecondsSinceEpoch}|${stat.size}';
+    if (_xlsxCacheKey == cacheKey && _xlsxCacheRows != null) {
       return _xlsxCacheRows!;
     }
 
@@ -133,7 +140,7 @@ final class PreviewRecordRepository {
       _XlsxTableRequest(bytes: bytes, expectedLength: expectedLength),
     );
     _xlsxDecodeCount++;
-    _xlsxCachePath = filePath;
+    _xlsxCacheKey = cacheKey;
     _xlsxCacheRows = rows;
     return rows;
   }

@@ -27,6 +27,10 @@ mixin _$Datasource {
   int get rowCount => throw _privateConstructorUsedError;
   List<int> get emptyColumnIndexes => throw _privateConstructorUsedError;
 
+  /// Fecha de modificación del archivo cuando se leyó; permite detectar
+  /// ediciones de valores que no cambian el tamaño ni la forma del archivo.
+  DateTime? get fileModifiedAt => throw _privateConstructorUsedError;
+
   /// Create a copy of Datasource
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -51,6 +55,7 @@ abstract class $DatasourceCopyWith<$Res> {
     List<String?> previewRow,
     int rowCount,
     List<int> emptyColumnIndexes,
+    DateTime? fileModifiedAt,
   });
 }
 
@@ -78,6 +83,7 @@ class _$DatasourceCopyWithImpl<$Res, $Val extends Datasource>
     Object? previewRow = null,
     Object? rowCount = null,
     Object? emptyColumnIndexes = null,
+    Object? fileModifiedAt = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -117,6 +123,10 @@ class _$DatasourceCopyWithImpl<$Res, $Val extends Datasource>
                 ? _value.emptyColumnIndexes
                 : emptyColumnIndexes // ignore: cast_nullable_to_non_nullable
                       as List<int>,
+            fileModifiedAt: freezed == fileModifiedAt
+                ? _value.fileModifiedAt
+                : fileModifiedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
           )
           as $Val,
     );
@@ -142,6 +152,7 @@ abstract class _$$DatasourceImplCopyWith<$Res>
     List<String?> previewRow,
     int rowCount,
     List<int> emptyColumnIndexes,
+    DateTime? fileModifiedAt,
   });
 }
 
@@ -168,6 +179,7 @@ class __$$DatasourceImplCopyWithImpl<$Res>
     Object? previewRow = null,
     Object? rowCount = null,
     Object? emptyColumnIndexes = null,
+    Object? fileModifiedAt = freezed,
   }) {
     return _then(
       _$DatasourceImpl(
@@ -207,6 +219,10 @@ class __$$DatasourceImplCopyWithImpl<$Res>
             ? _value._emptyColumnIndexes
             : emptyColumnIndexes // ignore: cast_nullable_to_non_nullable
                   as List<int>,
+        fileModifiedAt: freezed == fileModifiedAt
+            ? _value.fileModifiedAt
+            : fileModifiedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
       ),
     );
   }
@@ -225,6 +241,7 @@ class _$DatasourceImpl implements _Datasource {
     required final List<String?> previewRow,
     required this.rowCount,
     required final List<int> emptyColumnIndexes,
+    this.fileModifiedAt,
   }) : _headers = headers,
        _previewRow = previewRow,
        _emptyColumnIndexes = emptyColumnIndexes;
@@ -266,9 +283,14 @@ class _$DatasourceImpl implements _Datasource {
     return EqualUnmodifiableListView(_emptyColumnIndexes);
   }
 
+  /// Fecha de modificación del archivo cuando se leyó; permite detectar
+  /// ediciones de valores que no cambian el tamaño ni la forma del archivo.
+  @override
+  final DateTime? fileModifiedAt;
+
   @override
   String toString() {
-    return 'Datasource(sourcePath: $sourcePath, fileName: $fileName, fileSizeBytes: $fileSizeBytes, importedAt: $importedAt, format: $format, headers: $headers, previewRow: $previewRow, rowCount: $rowCount, emptyColumnIndexes: $emptyColumnIndexes)';
+    return 'Datasource(sourcePath: $sourcePath, fileName: $fileName, fileSizeBytes: $fileSizeBytes, importedAt: $importedAt, format: $format, headers: $headers, previewRow: $previewRow, rowCount: $rowCount, emptyColumnIndexes: $emptyColumnIndexes, fileModifiedAt: $fileModifiedAt)';
   }
 
   @override
@@ -295,7 +317,9 @@ class _$DatasourceImpl implements _Datasource {
             const DeepCollectionEquality().equals(
               other._emptyColumnIndexes,
               _emptyColumnIndexes,
-            ));
+            ) &&
+            (identical(other.fileModifiedAt, fileModifiedAt) ||
+                other.fileModifiedAt == fileModifiedAt));
   }
 
   @override
@@ -310,6 +334,7 @@ class _$DatasourceImpl implements _Datasource {
     const DeepCollectionEquality().hash(_previewRow),
     rowCount,
     const DeepCollectionEquality().hash(_emptyColumnIndexes),
+    fileModifiedAt,
   );
 
   /// Create a copy of Datasource
@@ -332,6 +357,7 @@ abstract class _Datasource implements Datasource {
     required final List<String?> previewRow,
     required final int rowCount,
     required final List<int> emptyColumnIndexes,
+    final DateTime? fileModifiedAt,
   }) = _$DatasourceImpl;
 
   @override
@@ -352,6 +378,11 @@ abstract class _Datasource implements Datasource {
   int get rowCount;
   @override
   List<int> get emptyColumnIndexes;
+
+  /// Fecha de modificación del archivo cuando se leyó; permite detectar
+  /// ediciones de valores que no cambian el tamaño ni la forma del archivo.
+  @override
+  DateTime? get fileModifiedAt;
 
   /// Create a copy of Datasource
   /// with the given fields replaced by the non-null parameter values.

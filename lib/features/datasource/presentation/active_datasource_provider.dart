@@ -258,13 +258,15 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
   }
 
   // ponytail: content identity is approximated from headers/rowCount/
-  // fileSizeBytes/previewRow since DatasourceRepository doesn't expose a
-  // byte hash or full row content. Good enough to distinguish "unchanged"
-  // from "changed" for the refresh button; upgrade to a real content hash
-  // if a false "unchanged" (same shape, edited values) becomes a problem.
+  // fileSizeBytes/previewRow plus the file's last-modified time, since
+  // DatasourceRepository doesn't expose a byte hash or full row content. The
+  // modified time catches edited values that keep the file's size and first
+  // row (a false "unchanged"); the opposite error — a save without real
+  // changes reported as "updated" — is harmless.
   bool _hasSameContent(Datasource a, Datasource b) {
     const listEquals = ListEquality<Object?>();
     return a.rowCount == b.rowCount &&
+        a.fileModifiedAt == b.fileModifiedAt &&
         a.fileSizeBytes == b.fileSizeBytes &&
         a.format == b.format &&
         listEquals.equals(a.headers, b.headers) &&

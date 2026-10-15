@@ -17,6 +17,9 @@ final class XlsxDatasourceRepository implements DatasourceRepository {
       throw const FormatException('Selecciona un archivo con extensión .xlsx.');
     }
 
+    // La fecha se toma antes de leer: si el archivo cambia entre medias, la
+    // siguiente comparación lo verá como modificado (falso positivo inocuo).
+    final modifiedAt = File(filePath).lastModifiedSync();
     final bytes = await File(filePath).readAsBytes();
     // ponytail: el paquete `excel` decodifica el workbook completo en
     // memoria (no ofrece una API de lectura incremental). El parseo se
@@ -40,6 +43,7 @@ final class XlsxDatasourceRepository implements DatasourceRepository {
       rowCount: parsed['rowCount']! as int,
       emptyColumnIndexes: (parsed['emptyColumnIndexes']! as List<Object?>)
           .cast<int>(),
+      fileModifiedAt: modifiedAt,
     );
   }
 }
