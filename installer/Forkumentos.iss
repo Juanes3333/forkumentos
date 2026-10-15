@@ -42,6 +42,10 @@ OutputBaseFilename=ForkumentosSetup_v1.8.0
 SetupIconFile=C:\Users\juane\Documents\forkumentos\assets\icons\forkumentosLight.ico
 SolidCompression=yes
 WizardStyle=modern windows11
+; La app se cierra sola tras lanzar el instalador con /SILENT (actualización
+; dentro de la app); si aún no terminó de cerrarse, Inno Setup la cierra.
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -65,5 +69,5 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
 

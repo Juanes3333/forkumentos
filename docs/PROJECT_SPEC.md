@@ -1,5 +1,9 @@
 # Forkumentos
 
+> **Documento histórico (v1.0 draft).** Describe la intención original del producto y ya no
+> refleja el código: p. ej. menciona exportación a PDF, eliminada después. La referencia vigente
+> es `.agents/AGENTS.md` y, ante cualquier duda, el código.
+
 > **Project Specification**
 >
 > Version: 1.0 (Draft)

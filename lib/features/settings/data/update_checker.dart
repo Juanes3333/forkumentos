@@ -119,6 +119,73 @@ final class UpdateChecker {
     }
   }
 
+  /// Descarga el instalador desde [downloadUrl] a un directorio temporal
+  /// nuevo (o a [targetDirectory]) y reporta el progreso
+  /// `(bytesRecibidos, bytesTotales)` con [onProgress]; `bytesTotales` es
+  /// `-1` si el servidor no informa el tamaño.
+  ///
+  /// Lanza [HttpException] si la respuesta no es 200. Si la descarga falla
+  /// a medias, borra el archivo parcial.
+  static Future<File> downloadInstaller({
+    required String downloadUrl,
+    required String version,
+    void Function(int received, int total)? onProgress,
+    HttpClient? httpClient,
+    Directory? targetDirectory,
+  }) async {
+    final client = httpClient ?? HttpClient();
+    try {
+      final request = await client.getUrl(Uri.parse(downloadUrl));
+      request.headers.set('User-Agent', 'Forkumentos/$version');
+      final response = await request.close();
+      if (response.statusCode != 200) {
+        throw HttpException(
+          'No se pudo descargar el instalador (HTTP ${response.statusCode})',
+        );
+      }
+
+      final directory =
+          targetDirectory ??
+          await Directory.systemTemp.createTemp('forkumentos_update_');
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}'
+        'ForkumentosSetup_v$version.exe',
+      );
+      final total = response.contentLength;
+      final sink = file.openWrite();
+      var received = 0;
+      try {
+        await for (final chunk in response) {
+          sink.add(chunk);
+          received += chunk.length;
+          onProgress?.call(received, total);
+        }
+        await sink.close();
+      } on Object {
+        await sink.close();
+        if (file.existsSync()) {
+          file.deleteSync();
+        }
+        rethrow;
+      }
+      return file;
+    } finally {
+      if (httpClient == null) {
+        client.close();
+      }
+    }
+  }
+
+  /// Lanza [installer] en modo silencioso, desacoplado de este proceso, y
+  /// cierra la app para que el instalador pueda reemplazar los binarios.
+  /// El instalador vuelve a abrir Forkumentos al terminar.
+  static Future<void> launchInstallerAndExit(File installer) async {
+    await Process.start(installer.path, const <String>[
+      '/SILENT',
+    ], mode: ProcessStartMode.detached);
+    exit(0);
+  }
+
   /// Compara dos versiones semánticas (major.minor.patch).
   /// Devuelve `true` si [latest] es estrictamente mayor que [current].
   @visibleForTesting

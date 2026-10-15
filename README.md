@@ -173,7 +173,7 @@ Default workspace under `Documents/Forkumentos` with folders for projects, expor
 | Analysis | `very_good_analysis` |
 | Installer | Inno Setup (`installer/Forkumentos.iss`) |
 
-Architecture is **feature-first** (`lib/features/*`) with shared models/providers and a routing/workbench shell that orchestrates cross-feature flows (for example export). Features do not import each other directly.
+Architecture is **feature-first** (`lib/features/*`) with shared models/providers and a routing/workbench shell that orchestrates cross-feature flows (for example export). Cross-feature orchestration lives in `routing/` rather than in direct feature-to-feature imports (a few legacy exceptions exist in `mapping` and `preview`).
 
 ---
 
@@ -236,11 +236,13 @@ Closing the window with unsaved changes prompts according to Settings.
 
 ```
 forkumentos/
+├── .agents/            # AI config source of truth (Antigravity): AGENTS.md, rules, skills, subagents, sync script
+├── .claude/            # Generated copy for Claude Code (run `python .agents/scripts/sync.py`)
 ├── assets/
 │   ├── icons/          # Application .ico branding
 │   ├── images/
 │   └── logo/           # Theme-aware SVG logos
-├── docs/               # Spec, architecture, design system, playbooks
+├── docs/               # Design system and original (historical) spec
 ├── installer/          # Inno Setup script for Windows packaging
 ├── lib/
 │   ├── app/            # Bootstrap, splash, root App
@@ -258,6 +260,7 @@ forkumentos/
 │   ├── shared/         # Document model, providers, widgets
 │   └── main.dart
 ├── test/               # Unit and widget tests
+├── tool/               # Dev scripts (batch .fork creator)
 ├── windows/            # Flutter Windows runner, icon, version resources
 ├── CHANGELOG.md
 └── LICENSE

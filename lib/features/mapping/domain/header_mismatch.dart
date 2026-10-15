@@ -23,8 +23,13 @@ final class HeaderMismatch {
   final List<String> affectedAssignmentIds;
 }
 
-/// Compara [newHeaders] contra el `fieldHeader` que recuerda cada asignación
-/// y devuelve una discrepancia por columna, ordenadas por índice.
+/// Compara [newHeaders] contra lo que el proyecto espera en cada columna y
+/// devuelve una discrepancia por columna, ordenadas por índice.
+///
+/// En una columna con asignaciones manda el `fieldHeader` que ellas
+/// recuerdan (son lo que `findInvalidAssignmentIds` valida). En una columna
+/// sin asignaciones se compara contra [currentHeaders], los encabezados de
+/// la fuente activa, y la discrepancia sale sin asignaciones afectadas.
 ///
 /// Las asignaciones cuya columna ya no existe en [newHeaders] se ignoran: no
 /// hay un nombre nuevo que aceptar y `findInvalidAssignmentIds` ya las marca
@@ -32,7 +37,9 @@ final class HeaderMismatch {
 List<HeaderMismatch> detectHeaderMismatches({
   required List<String> newHeaders,
   required List<FieldAssignment> assignments,
+  List<String> currentHeaders = const <String>[],
 }) {
+  final assignedIndexes = <int>{};
   final expectedByIndex = <int, String>{};
   final idsByIndex = <int, List<String>>{};
 
@@ -41,11 +48,25 @@ List<HeaderMismatch> detectHeaderMismatches({
     if (index < 0 || index >= newHeaders.length) {
       continue;
     }
+    assignedIndexes.add(index);
     if (newHeaders[index] == assignment.fieldHeader) {
       continue;
     }
     expectedByIndex.putIfAbsent(index, () => assignment.fieldHeader);
     idsByIndex.putIfAbsent(index, () => <String>[]).add(assignment.id);
+  }
+
+  final limit = currentHeaders.length < newHeaders.length
+      ? currentHeaders.length
+      : newHeaders.length;
+  for (var index = 0; index < limit; index++) {
+    if (assignedIndexes.contains(index)) {
+      continue;
+    }
+    if (newHeaders[index] != currentHeaders[index]) {
+      expectedByIndex[index] = currentHeaders[index];
+      idsByIndex[index] = <String>[];
+    }
   }
 
   final indexes = expectedByIndex.keys.toList()..sort();

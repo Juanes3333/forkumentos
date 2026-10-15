@@ -21,7 +21,7 @@ Please include a brief summary of the changes and the related issue/ticket.
 - Describe how these changes were manually tested.
 
 ## Checklist
-- [ ] My code follows the code style guidelines of this project (specified in `.cursor/rules/`).
+- [ ] My code follows the code style guidelines of this project (specified in `.agents/AGENTS.md` and `.agents/rules/`).
 - [ ] I have run `dart format` on all modified files.
 - [ ] `flutter analyze` reports zero warnings, lints, or errors.
 - [ ] All new and existing tests pass.

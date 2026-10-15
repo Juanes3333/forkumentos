@@ -13,10 +13,11 @@
 migrate_working_dir/
 installer/*.exe
 
-# Agent / IDE local config (not part of the product)
-.cursor/
-.claude/
-.agents/
+# Estado local de herramientas de IA. La configuración compartida (.agents/ y
+# .claude/CLAUDE.md|agents|rules|skills) SÍ se versiona.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
 
 # Runtime workspace data (user-generated)
 Cache/
@@ -27,9 +28,6 @@ Workspace/
 
 # Graphify generated output
 graphify-out/
-
-# Local planning drafts (not product source)
-implementation_plan.md
 
 # IntelliJ related
 *.iml

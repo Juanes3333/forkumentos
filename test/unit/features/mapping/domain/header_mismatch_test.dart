@@ -59,6 +59,53 @@ void main() {
 
       expect(mismatches, isEmpty);
     });
+
+    test('columna sin asignaciones se compara contra currentHeaders', () {
+      final mismatches = detectHeaderMismatches(
+        newHeaders: const <String>['nombre', 'correo'],
+        assignments: <FieldAssignment>[_assignment('a', 0, 'nombre')],
+        currentHeaders: const <String>['nombre', 'email'],
+      );
+
+      expect(mismatches, hasLength(1));
+      expect(mismatches.single.fieldIndex, 1);
+      expect(mismatches.single.expectedHeader, 'email');
+      expect(mismatches.single.actualHeader, 'correo');
+      expect(mismatches.single.affectedAssignmentIds, isEmpty);
+    });
+
+    test('sin asignaciones detecta cambios solo con currentHeaders', () {
+      final mismatches = detectHeaderMismatches(
+        newHeaders: const <String>['a', 'B2', 'c'],
+        assignments: const <FieldAssignment>[],
+        currentHeaders: const <String>['a', 'b'],
+      );
+
+      expect(mismatches.map((m) => m.fieldIndex), <int>[1]);
+    });
+
+    test('tras Omitir, cambiar otra vez de archivo sigue avisando', () {
+      // Las asignaciones recuerdan "viejo"; la fuente activa ya es la
+      // "omitida" (intermedio) y llega un tercer archivo.
+      final mismatches = detectHeaderMismatches(
+        newHeaders: const <String>['otro'],
+        assignments: <FieldAssignment>[_assignment('a', 0, 'viejo')],
+        currentHeaders: const <String>['intermedio'],
+      );
+
+      expect(mismatches.single.expectedHeader, 'viejo');
+      expect(mismatches.single.affectedAssignmentIds, <String>['a']);
+    });
+
+    test('volver al archivo original tras Omitir no avisa', () {
+      final mismatches = detectHeaderMismatches(
+        newHeaders: const <String>['viejo'],
+        assignments: <FieldAssignment>[_assignment('a', 0, 'viejo')],
+        currentHeaders: const <String>['intermedio'],
+      );
+
+      expect(mismatches, isEmpty);
+    });
   });
 
   test('applyHeaderMismatches renombra solo las asignaciones afectadas', () {

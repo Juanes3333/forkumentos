@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:forkumentos/core/theme/app_colors.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_color_palette.dart';
 import 'package:forkumentos/features/mapping/domain/mapping_field_status.dart';
@@ -75,6 +76,14 @@ final class _MappingReviewSidebarState extends State<MappingReviewSidebar> {
           final previewValue = index < widget.previewRow.length
               ? widget.previewRow[index]
               : null;
+          // Tras "Omitir" en el diálogo de encabezados, las asignaciones
+          // siguen recordando el nombre viejo: se avisa para que no parezca
+          // que el cambio se aceptó.
+          final staleHeader = fieldAssignments
+              .map((assignment) => assignment.fieldHeader)
+              .where((header) => header != widget.headers[index])
+              .firstOrNull;
+          final warningColor = AppColors.of(context).warning;
 
           return MouseRegion(
             onEnter: (_) => widget.onFieldHoverChanged(index),
@@ -86,10 +95,30 @@ final class _MappingReviewSidebarState extends State<MappingReviewSidebar> {
                 children: <Widget>[
                   ListTile(
                     leading: Icon(Icons.circle, size: 12, color: color),
-                    title: Text(widget.headers[index]),
+                    title: Row(
+                      children: <Widget>[
+                        Expanded(child: Text(widget.headers[index])),
+                        if (staleHeader != null)
+                          Tooltip(
+                            message: 'El encabezado cambió de nombre',
+                            child: Icon(
+                              Icons.warning_amber_rounded,
+                              size: 18,
+                              color: warningColor,
+                            ),
+                          ),
+                      ],
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
+                        if (staleHeader != null)
+                          Text(
+                            'Encabezado no coincide (esperaba '
+                            '"$staleHeader")',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: warningColor),
+                          ),
                         Text(
                           status == MappingFieldStatus.assigned
                               ? '$count asignación${count == 1 ? '' : 'es'}'

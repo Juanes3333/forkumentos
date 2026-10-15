@@ -547,9 +547,13 @@ Future<void> _replaceDatasource(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _refreshDatasource(BuildContext context, WidgetRef ref) async {
-  final result = await ref
-      .read(activeDatasourceProvider.notifier)
-      .refreshDatasource();
+  final result = await refreshDatasourceConfirmingHeaders(
+    context: context,
+    ref: ref,
+  );
+  if (result == null) {
+    return;
+  }
 
   final String message;
   switch (result.status) {

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forkumentos/features/settings/data/update_checker.dart';
 import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
@@ -24,5 +26,32 @@ base class UpdateCheckNotifier extends AsyncNotifier<UpdateCheckResult?> {
     state = await AsyncValue.guard(() async {
       return UpdateChecker.check(currentVersion: forkumentosVersion);
     });
+  }
+}
+
+/// Descarga y lanza el instalador de una actualización. Existe como provider
+/// para que los tests puedan sustituirlo sin tocar la red ni cerrar el
+/// proceso.
+final updateInstallerProvider = Provider<UpdateInstaller>(
+  (ref) => const UpdateInstaller(),
+);
+
+class UpdateInstaller {
+  const UpdateInstaller();
+
+  Future<File> download({
+    required String downloadUrl,
+    required String version,
+    void Function(int received, int total)? onProgress,
+  }) {
+    return UpdateChecker.downloadInstaller(
+      downloadUrl: downloadUrl,
+      version: version,
+      onProgress: onProgress,
+    );
+  }
+
+  Future<void> launchAndExit(File installer) {
+    return UpdateChecker.launchInstallerAndExit(installer);
   }
 }

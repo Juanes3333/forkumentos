@@ -17,5 +17,7 @@ Workspace/
 # Documentos ofimáticos, vengan de donde vengan.
 *.docx
 
-# El script que construye el grafo no forma parte del grafo que construye.
-tool/graphify_rebuild.py
+# Configuración de IA (reglas, skills, subagentes, scripts): .claude/ es copia generada de
+# .agents/ y ninguna es conocimiento del producto; se leen directamente.
+.claude/
+.agents/

@@ -9,6 +9,7 @@ import 'package:forkumentos/core/workspace/workspace_paths.dart';
 import 'package:forkumentos/features/settings/data/update_checker.dart';
 import 'package:forkumentos/features/settings/domain/app_settings.dart';
 import 'package:forkumentos/features/settings/presentation/update_check_provider.dart';
+import 'package:forkumentos/shared/providers/active_project_provider.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
@@ -509,14 +510,32 @@ final class _UpdateStatusCard extends StatelessWidget {
   }
 }
 
-final class _UpdateAvailableCard extends StatelessWidget {
+final class _UpdateAvailableCard extends ConsumerStatefulWidget {
   const _UpdateAvailableCard({required this.result});
 
   final UpdateCheckResult result;
 
   @override
+  ConsumerState<_UpdateAvailableCard> createState() =>
+      _UpdateAvailableCardState();
+}
+
+final class _UpdateAvailableCardState
+    extends ConsumerState<_UpdateAvailableCard> {
+  bool _isDownloading = false;
+
+  /// Fracción descargada (0.0 a 1.0), o `null` si el servidor no informa el
+  /// tamaño y la barra debe ser indeterminada.
+  double? _progress;
+  String? _downloadError;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final result = widget.result;
+    final canInstall = result.downloadUrl != null;
+    final progress = _progress;
+
     return Card(
       color: theme.colorScheme.primaryContainer,
       child: Padding(
@@ -565,21 +584,87 @@ final class _UpdateAvailableCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 12),
+            if (_isDownloading) ...[
+              LinearProgressIndicator(value: progress),
+              const SizedBox(height: 6),
+              Text(
+                progress == null
+                    ? 'Descargando actualización...'
+                    : 'Descargando actualización... '
+                          '${(progress * 100).toStringAsFixed(0)}%',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+            ],
             FilledButton.icon(
-              onPressed: () => _openDownload(result),
-              icon: const Icon(Icons.download),
-              label: const Text('Descargar actualización'),
+              onPressed: _isDownloading
+                  ? null
+                  : canInstall
+                  ? _downloadAndInstall
+                  : _openReleasePage,
+              icon: Icon(canInstall ? Icons.download : Icons.open_in_new),
+              label: Text(canInstall ? 'Actualizar ahora' : 'Ver en GitHub'),
             ),
+            if (_downloadError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _downloadError!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  void _openDownload(UpdateCheckResult result) {
-    // Abrir en el navegador: preferir el URL directo del asset .exe,
-    // fallback a la página del release en GitHub.
-    final url = result.downloadUrl ?? result.htmlUrl;
+  Future<void> _downloadAndInstall() async {
+    // La app se cierra para instalar: no perder trabajo sin guardar.
+    if (ref.read(activeProjectProvider).valueOrNull?.isDirty ?? false) {
+      setState(() {
+        _downloadError =
+            'Guarda el proyecto antes de actualizar: la aplicación se '
+            'cerrará para instalar la nueva versión.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isDownloading = true;
+      _progress = null;
+      _downloadError = null;
+    });
+
+    final installer = ref.read(updateInstallerProvider);
+    try {
+      final file = await installer.download(
+        downloadUrl: widget.result.downloadUrl!,
+        version: widget.result.latestVersion,
+        onProgress: (received, total) {
+          if (!mounted || total <= 0) {
+            return;
+          }
+          setState(() => _progress = received / total);
+        },
+      );
+      await installer.launchAndExit(file);
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isDownloading = false;
+        _downloadError =
+            'No se pudo descargar la actualización. Verifica tu conexión e '
+            'intenta de nuevo.';
+      });
+    }
+  }
+
+  void _openReleasePage() {
+    final url = widget.result.htmlUrl;
     if (url != null) {
       unawaited(Process.start('explorer', <String>[url]));
     }
