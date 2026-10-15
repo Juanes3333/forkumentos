@@ -52,17 +52,27 @@ final class ActiveMappingNotifier extends Notifier<MappingSession> {
   MappingSession build() {
     final initialProject = ref.read(activeProjectProvider).valueOrNull;
     ref
-      ..listen<({String? id, List<Map<String, dynamic>> assignments})>(
+      ..listen<
+        ({
+          String? id,
+          String? templateId,
+          List<Map<String, dynamic>> assignments,
+        })
+      >(
         activeProjectProvider.select((projectState) {
           final project = projectState.valueOrNull;
           return (
             id: project?.id,
+            templateId: project?.activeTemplateId,
             assignments:
                 project?.mappingAssignments ?? <Map<String, dynamic>>[],
           );
         }),
         (previousProject, nextProject) {
-          if (previousProject?.id == nextProject.id) {
+          // Cambiar de proyecto o de plantilla activa carga otro mapeo y
+          // reinicia el historial (cada plantilla tiene el suyo).
+          if (previousProject?.id == nextProject.id &&
+              previousProject?.templateId == nextProject.templateId) {
             return;
           }
           _resetHistory(

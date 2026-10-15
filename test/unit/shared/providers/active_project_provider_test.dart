@@ -239,6 +239,133 @@ void main() {
     expect(state.hasError, isFalse);
     expect(state.valueOrNull, isNull);
   });
+
+  group('varias plantillas', () {
+    File docx(String name) => File(p.join(tempDirectory.path, 'src', name))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(name);
+
+    Future<ProviderContainer> projectWithTemplate() async {
+      final container = _createContainer(
+        FakeProjectRepository(),
+        tempDirectory.path,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeProjectProvider.notifier);
+      await notifier.createProject(name: 'Paquete');
+      notifier.setEmbeddedArtifactPaths(
+        templatePath: docx('contrato.docx').path,
+      );
+      await notifier.updateMappingAssignments(const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'a1', 'fieldIndex': 0},
+      ]);
+      return container;
+    }
+
+    Project project(ProviderContainer container) =>
+        container.read(activeProjectProvider).requireValue!;
+
+    test('añadir una segunda plantilla guarda la primera con su mapeo y deja '
+        'activa la nueva con mapeo vacío', () async {
+      final container = await projectWithTemplate();
+
+      await container
+          .read(activeProjectProvider.notifier)
+          .addTemplate(sourcePath: docx('paz_y_salvo.docx').path);
+
+      final current = project(container);
+      expect(current.templates.map((t) => t.fileName), <String>[
+        'contrato.docx',
+        'paz_y_salvo.docx',
+      ]);
+      expect(current.activeTemplateId, current.templates[1].id);
+      expect(current.mappingAssignments, isEmpty);
+      expect(current.templates.first.assignments, <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'a1', 'fieldIndex': 0},
+      ]);
+      // La copia vive en la caché del proyecto, no en el origen.
+      expect(
+        current.embeddedTemplatePath,
+        startsWith(p.join(tempDirectory.path, 'Cache', current.id)),
+      );
+      expect(File(current.embeddedTemplatePath!).existsSync(), isTrue);
+      expect(current.isDirty, isTrue);
+    });
+
+    test('cambiar de plantilla guarda el mapeo de la activa y carga el de la '
+        'otra', () async {
+      final container = await projectWithTemplate();
+      final notifier = container.read(activeProjectProvider.notifier);
+      await notifier.addTemplate(sourcePath: docx('paz_y_salvo.docx').path);
+      await notifier.updateMappingAssignments(const <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'b1', 'fieldIndex': 1},
+      ]);
+      final firstId = project(container).templates.first.id;
+      final secondId = project(container).templates.last.id;
+
+      notifier.selectTemplate(firstId);
+
+      var current = project(container);
+      expect(current.activeTemplateId, firstId);
+      expect(current.mappingAssignments, <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'a1', 'fieldIndex': 0},
+      ]);
+      expect(current.embeddedTemplatePath, endsWith('contrato.docx'));
+
+      notifier.selectTemplate(secondId);
+
+      current = project(container);
+      expect(current.mappingAssignments, <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'b1', 'fieldIndex': 1},
+      ]);
+      expect(current.embeddedTemplatePath, endsWith('paz_y_salvo.docx'));
+    });
+
+    test('quitar la plantilla activa pasa a la vecina y, con una sola, el '
+        'proyecto vuelve a la forma de una plantilla', () async {
+      final container = await projectWithTemplate();
+      final notifier = container.read(activeProjectProvider.notifier);
+      await notifier.addTemplate(sourcePath: docx('paz_y_salvo.docx').path);
+      final secondId = project(container).activeTemplateId!;
+
+      notifier.removeTemplate(secondId);
+
+      final current = project(container);
+      expect(current.templates, isEmpty);
+      expect(current.activeTemplateId, isNull);
+      expect(current.embeddedTemplatePath, endsWith('contrato.docx'));
+      expect(current.mappingAssignments, <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'a1', 'fieldIndex': 0},
+      ]);
+    });
+
+    test('no se puede quitar la única plantilla', () async {
+      final container = await projectWithTemplate();
+      final notifier = container.read(activeProjectProvider.notifier);
+      final before = project(container).embeddedTemplatePath;
+
+      notifier.removeTemplate('cualquiera');
+
+      expect(project(container).embeddedTemplatePath, before);
+    });
+
+    test('añadir una plantilla a un proyecto sin plantilla la deja como la '
+        'primera, sin lista', () async {
+      final container = _createContainer(
+        FakeProjectRepository(),
+        tempDirectory.path,
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(activeProjectProvider.notifier);
+      await notifier.createProject(name: 'Vacío');
+
+      await notifier.addTemplate(sourcePath: docx('contrato.docx').path);
+
+      final current = project(container);
+      expect(current.templates, isEmpty);
+      expect(current.embeddedTemplatePath, endsWith('contrato.docx'));
+    });
+  });
 }
 
 ProviderContainer _createContainer(ProjectRepository repository, String root) {

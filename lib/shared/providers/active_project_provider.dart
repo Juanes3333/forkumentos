@@ -7,7 +7,9 @@ import 'package:forkumentos/core/logging/logging_service.dart';
 import 'package:forkumentos/features/project/data/project_repository_provider.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
+import 'package:forkumentos/features/project/domain/project_template.dart';
 import 'package:forkumentos/shared/providers/settings_providers.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 final activeProjectProvider =
@@ -231,6 +233,160 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
 
     state = AsyncData(
       currentProject.copyWith(datasourceExternalPath: path, isDirty: true),
+    );
+  }
+
+  /// Plantillas del proyecto con la activa sincronizada desde los campos del
+  /// proyecto (que son la fuente de verdad mientras está activa), y el id de la
+  /// activa. Si el proyecto aún tiene una sola plantilla (lista vacía), la
+  /// convierte en la primera entrada de la lista.
+  ({List<ProjectTemplate> templates, String? activeId}) _syncedTemplates(
+    Project project,
+  ) {
+    final activePath = project.embeddedTemplatePath;
+    if (project.templates.isEmpty) {
+      if (activePath == null || activePath.isEmpty) {
+        return (templates: const <ProjectTemplate>[], activeId: null);
+      }
+      final id = _uuid.v4();
+      return (
+        templates: <ProjectTemplate>[
+          ProjectTemplate(
+            id: id,
+            fileName: p.basename(activePath),
+            embeddedPath: activePath,
+            assignments: project.mappingAssignments,
+          ),
+        ],
+        activeId: id,
+      );
+    }
+    return (
+      templates: <ProjectTemplate>[
+        for (final template in project.templates)
+          if (template.id == project.activeTemplateId)
+            template.copyWith(
+              fileName: activePath == null
+                  ? template.fileName
+                  : p.basename(activePath),
+              embeddedPath: activePath,
+              assignments: project.mappingAssignments,
+            )
+          else
+            template,
+      ],
+      activeId: project.activeTemplateId,
+    );
+  }
+
+  /// Añade [sourcePath] como una plantilla más del proyecto y la deja activa.
+  /// Copia el archivo a la caché del proyecto. Con el proyecto sin plantilla,
+  /// simplemente es la primera.
+  Future<void> addTemplate({required String sourcePath}) {
+    return _enqueueOperation(() async {
+      final current = state.valueOrNull;
+      if (current == null) {
+        return;
+      }
+      final newId = _uuid.v4();
+      final fileName = p.basename(sourcePath);
+      var cachedPath = sourcePath;
+      final paths = ref.read(workspacePathsProvider);
+      if (paths != null) {
+        final directory = p.join(
+          paths.projectCache(current.id),
+          'template',
+          newId,
+        );
+        await Directory(directory).create(recursive: true);
+        cachedPath = p.join(directory, fileName);
+        await File(sourcePath).copy(cachedPath);
+      }
+
+      final synced = _syncedTemplates(current);
+      if (synced.templates.isEmpty) {
+        state = AsyncData(
+          current.copyWith(
+            embeddedTemplatePath: cachedPath,
+            mappingAssignments: const <Map<String, dynamic>>[],
+            isDirty: true,
+          ),
+        );
+        return;
+      }
+      state = AsyncData(
+        current.copyWith(
+          templates: <ProjectTemplate>[
+            ...synced.templates,
+            ProjectTemplate(
+              id: newId,
+              fileName: fileName,
+              embeddedPath: cachedPath,
+            ),
+          ],
+          activeTemplateId: newId,
+          embeddedTemplatePath: cachedPath,
+          mappingAssignments: const <Map<String, dynamic>>[],
+          isDirty: true,
+        ),
+      );
+    });
+  }
+
+  /// Hace activa la plantilla [id]: guarda el mapeo de la que estaba activa y
+  /// carga el de la nueva. No marca el proyecto como modificado.
+  void selectTemplate(String id) {
+    final current = state.valueOrNull;
+    if (current == null || id == current.activeTemplateId) {
+      return;
+    }
+    final synced = _syncedTemplates(current);
+    final target = synced.templates.where((t) => t.id == id).firstOrNull;
+    if (target == null) {
+      return;
+    }
+    state = AsyncData(
+      current.copyWith(
+        templates: synced.templates,
+        activeTemplateId: id,
+        embeddedTemplatePath: target.embeddedPath,
+        mappingAssignments: target.assignments,
+      ),
+    );
+  }
+
+  /// Quita la plantilla [id] (con su mapeo). Si era la activa, pasa a serlo la
+  /// vecina. Con una sola plantilla restante el proyecto vuelve a la forma de
+  /// una sola plantilla. No quita la única plantilla del proyecto.
+  void removeTemplate(String id) {
+    final current = state.valueOrNull;
+    if (current == null) {
+      return;
+    }
+    final synced = _syncedTemplates(current);
+    final index = synced.templates.indexWhere((t) => t.id == id);
+    if (index == -1 || synced.templates.length < 2) {
+      return;
+    }
+    final remaining = <ProjectTemplate>[
+      for (final template in synced.templates)
+        if (template.id != id) template,
+    ];
+    final removedActive = id == synced.activeId;
+    final next = removedActive
+        ? remaining[index.clamp(0, remaining.length - 1)]
+        : remaining.firstWhere((t) => t.id == synced.activeId);
+
+    state = AsyncData(
+      current.copyWith(
+        templates: remaining.length == 1
+            ? const <ProjectTemplate>[]
+            : remaining,
+        activeTemplateId: remaining.length == 1 ? null : next.id,
+        embeddedTemplatePath: next.embeddedPath,
+        mappingAssignments: next.assignments,
+        isDirty: true,
+      ),
     );
   }
 
