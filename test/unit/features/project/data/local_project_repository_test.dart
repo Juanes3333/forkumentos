@@ -116,6 +116,97 @@ void main() {
     expect(loadedProject.datasourceExternalPath, externalPath);
   });
 
+  test('la huella del Excel gestionado persiste y los proyectos viejos la '
+      'cargan en null', () async {
+    final datasourceSource = File(p.join(tempDirectory.path, 'datos.csv'))
+      ..writeAsStringSync('nombre\nAna\n');
+    final withStat = Project(
+      id: 'project-sync',
+      name: 'Con huella',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026, 1, 2),
+      datasourceSyncedMtimeMs: 1767225600000,
+      datasourceSyncedSizeBytes: 4096,
+    );
+    final withoutStat = withStat.copyWith(
+      id: 'project-nosync',
+      datasourceSyncedMtimeMs: null,
+      datasourceSyncedSizeBytes: null,
+    );
+
+    Future<Project> roundTrip(Project project, String name) async {
+      final filePath = p.join(tempDirectory.path, '$name.fork');
+      await repository.save(
+        project: project,
+        filePath: filePath,
+        datasourceSourcePath: datasourceSource.path,
+        cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+      );
+      return repository.load(
+        filePath,
+        cacheDirectory: p.join(tempDirectory.path, 'LoadCache-$name'),
+      );
+    }
+
+    final loaded = await roundTrip(withStat, 'con');
+    expect(loaded.datasourceSyncedMtimeMs, 1767225600000);
+    expect(loaded.datasourceSyncedSizeBytes, 4096);
+
+    final loadedOld = await roundTrip(withoutStat, 'sin');
+    expect(loadedOld.datasourceSyncedMtimeMs, isNull);
+    expect(loadedOld.datasourceSyncedSizeBytes, isNull);
+  });
+
+  test('guardar con el Excel ya no disponible usa la copia embebida de la '
+      'caché del proyecto', () async {
+    final cacheRoot = p.join(tempDirectory.path, 'Cache');
+    final project = Project(
+      id: 'project-snapshot',
+      name: 'Con copia',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026, 1, 2),
+    );
+    File(p.join(cacheRoot, project.id, 'datasource', 'datos.csv'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('nombre\nCopia\n');
+    final filePath = p.join(tempDirectory.path, 'con_copia.fork');
+
+    // El Excel gestionado se borró o está bloqueado: no existe en disco.
+    final saved = await repository.save(
+      project: project,
+      filePath: filePath,
+      datasourceSourcePath: p.join(tempDirectory.path, 'borrado', 'datos.csv'),
+      cacheDirectory: cacheRoot,
+    );
+    expect(
+      saved.embeddedDatasourcePath,
+      p.join(cacheRoot, project.id, 'datasource', 'datos.csv'),
+    );
+
+    final archive = ZipDecoder().decodeBytes(File(filePath).readAsBytesSync());
+    final embedded = archive.findFile('datasource/datos.csv')!;
+    expect(utf8.decode(embedded.content as List<int>), 'nombre\nCopia\n');
+  });
+
+  test('guardar sin Excel ni copia embebida sigue fallando', () async {
+    final project = Project(
+      id: 'project-nada',
+      name: 'Sin nada',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026, 1, 2),
+    );
+
+    await expectLater(
+      repository.save(
+        project: project,
+        filePath: p.join(tempDirectory.path, 'sin_nada.fork'),
+        datasourceSourcePath: p.join(tempDirectory.path, 'no', 'datos.csv'),
+        cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+      ),
+      throwsA(isA<FileSystemException>()),
+    );
+  });
+
   test(
     'proyectos guardados sin datasourceExternalPath cargan con null',
     () async {

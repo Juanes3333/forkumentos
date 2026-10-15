@@ -39,7 +39,15 @@ mixin _$Project {
   // consistent with how embeddedTemplatePath/embeddedDatasourcePath are
   // already handled outside the generated serializer.
   @JsonKey(includeFromJson: false, includeToJson: false)
-  String? get datasourceExternalPath => throw _privateConstructorUsedError;
+  String? get datasourceExternalPath => throw _privateConstructorUsedError; // Fecha de modificación (ms desde epoch) y tamaño del Excel gestionado
+  // tal como estaban cuando se leyó por última vez. Al abrir el proyecto,
+  // si el archivo difiere, se vuelve a leer. Se leen y escriben a mano en
+  // project.json, igual que datasourceExternalPath; null en proyectos
+  // anteriores.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  int? get datasourceSyncedMtimeMs => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  int? get datasourceSyncedSizeBytes => throw _privateConstructorUsedError;
 
   /// Serializes this Project to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -69,6 +77,10 @@ abstract class $ProjectCopyWith<$Res> {
     String? embeddedDatasourcePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? datasourceExternalPath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    int? datasourceSyncedMtimeMs,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    int? datasourceSyncedSizeBytes,
   });
 }
 
@@ -97,6 +109,8 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? embeddedTemplatePath = freezed,
     Object? embeddedDatasourcePath = freezed,
     Object? datasourceExternalPath = freezed,
+    Object? datasourceSyncedMtimeMs = freezed,
+    Object? datasourceSyncedSizeBytes = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -140,6 +154,14 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
                 ? _value.datasourceExternalPath
                 : datasourceExternalPath // ignore: cast_nullable_to_non_nullable
                       as String?,
+            datasourceSyncedMtimeMs: freezed == datasourceSyncedMtimeMs
+                ? _value.datasourceSyncedMtimeMs
+                : datasourceSyncedMtimeMs // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            datasourceSyncedSizeBytes: freezed == datasourceSyncedSizeBytes
+                ? _value.datasourceSyncedSizeBytes
+                : datasourceSyncedSizeBytes // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -168,6 +190,10 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
     String? embeddedDatasourcePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? datasourceExternalPath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    int? datasourceSyncedMtimeMs,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    int? datasourceSyncedSizeBytes,
   });
 }
 
@@ -195,6 +221,8 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? embeddedTemplatePath = freezed,
     Object? embeddedDatasourcePath = freezed,
     Object? datasourceExternalPath = freezed,
+    Object? datasourceSyncedMtimeMs = freezed,
+    Object? datasourceSyncedSizeBytes = freezed,
   }) {
     return _then(
       _$ProjectImpl(
@@ -238,6 +266,14 @@ class __$$ProjectImplCopyWithImpl<$Res>
             ? _value.datasourceExternalPath
             : datasourceExternalPath // ignore: cast_nullable_to_non_nullable
                   as String?,
+        datasourceSyncedMtimeMs: freezed == datasourceSyncedMtimeMs
+            ? _value.datasourceSyncedMtimeMs
+            : datasourceSyncedMtimeMs // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        datasourceSyncedSizeBytes: freezed == datasourceSyncedSizeBytes
+            ? _value.datasourceSyncedSizeBytes
+            : datasourceSyncedSizeBytes // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -261,6 +297,10 @@ class _$ProjectImpl implements _Project {
     this.embeddedDatasourcePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     this.datasourceExternalPath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    this.datasourceSyncedMtimeMs,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    this.datasourceSyncedSizeBytes,
   }) : _mappingAssignments = mappingAssignments;
 
   factory _$ProjectImpl.fromJson(Map<String, dynamic> json) =>
@@ -303,10 +343,21 @@ class _$ProjectImpl implements _Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final String? datasourceExternalPath;
+  // Fecha de modificación (ms desde epoch) y tamaño del Excel gestionado
+  // tal como estaban cuando se leyó por última vez. Al abrir el proyecto,
+  // si el archivo difiere, se vuelve a leer. Se leen y escriben a mano en
+  // project.json, igual que datasourceExternalPath; null en proyectos
+  // anteriores.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final int? datasourceSyncedMtimeMs;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final int? datasourceSyncedSizeBytes;
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath, datasourceExternalPath: $datasourceExternalPath)';
+    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath, datasourceExternalPath: $datasourceExternalPath, datasourceSyncedMtimeMs: $datasourceSyncedMtimeMs, datasourceSyncedSizeBytes: $datasourceSyncedSizeBytes)';
   }
 
   @override
@@ -332,7 +383,17 @@ class _$ProjectImpl implements _Project {
             (identical(other.embeddedDatasourcePath, embeddedDatasourcePath) ||
                 other.embeddedDatasourcePath == embeddedDatasourcePath) &&
             (identical(other.datasourceExternalPath, datasourceExternalPath) ||
-                other.datasourceExternalPath == datasourceExternalPath));
+                other.datasourceExternalPath == datasourceExternalPath) &&
+            (identical(
+                  other.datasourceSyncedMtimeMs,
+                  datasourceSyncedMtimeMs,
+                ) ||
+                other.datasourceSyncedMtimeMs == datasourceSyncedMtimeMs) &&
+            (identical(
+                  other.datasourceSyncedSizeBytes,
+                  datasourceSyncedSizeBytes,
+                ) ||
+                other.datasourceSyncedSizeBytes == datasourceSyncedSizeBytes));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -349,6 +410,8 @@ class _$ProjectImpl implements _Project {
     embeddedTemplatePath,
     embeddedDatasourcePath,
     datasourceExternalPath,
+    datasourceSyncedMtimeMs,
+    datasourceSyncedSizeBytes,
   );
 
   /// Create a copy of Project
@@ -381,6 +444,10 @@ abstract class _Project implements Project {
     final String? embeddedDatasourcePath,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final String? datasourceExternalPath,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final int? datasourceSyncedMtimeMs,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final int? datasourceSyncedSizeBytes,
   }) = _$ProjectImpl;
 
   factory _Project.fromJson(Map<String, dynamic> json) = _$ProjectImpl.fromJson;
@@ -412,7 +479,17 @@ abstract class _Project implements Project {
   // already handled outside the generated serializer.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
-  String? get datasourceExternalPath;
+  String? get datasourceExternalPath; // Fecha de modificación (ms desde epoch) y tamaño del Excel gestionado
+  // tal como estaban cuando se leyó por última vez. Al abrir el proyecto,
+  // si el archivo difiere, se vuelve a leer. Se leen y escriben a mano en
+  // project.json, igual que datasourceExternalPath; null en proyectos
+  // anteriores.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  int? get datasourceSyncedMtimeMs;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  int? get datasourceSyncedSizeBytes;
 
   /// Create a copy of Project
   /// with the given fields replaced by the non-null parameter values.

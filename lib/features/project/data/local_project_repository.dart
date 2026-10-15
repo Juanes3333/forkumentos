@@ -14,6 +14,8 @@ const _mappingsFileName = 'mappings.json';
 const _templateDirName = 'template';
 const _datasourceDirName = 'datasource';
 const _manifestVersion = 1;
+const _readAttempts = 3;
+const _readRetryDelay = Duration(milliseconds: 250);
 
 final class LocalProjectRepository implements ProjectRepository {
   const LocalProjectRepository();
@@ -64,6 +66,10 @@ final class LocalProjectRepository implements ProjectRepository {
       // correct, backward-compatible result in that case.
       datasourceExternalPath:
           extracted.projectJson['datasourceExternalPath'] as String?,
+      datasourceSyncedMtimeMs:
+          (extracted.projectJson['datasourceSyncedMtimeMs'] as num?)?.toInt(),
+      datasourceSyncedSizeBytes:
+          (extracted.projectJson['datasourceSyncedSizeBytes'] as num?)?.toInt(),
     );
   }
 
@@ -91,6 +97,10 @@ final class LocalProjectRepository implements ProjectRepository {
       'updatedAt': now.toIso8601String(),
       if (project.datasourceExternalPath != null)
         'datasourceExternalPath': project.datasourceExternalPath,
+      if (project.datasourceSyncedMtimeMs != null)
+        'datasourceSyncedMtimeMs': project.datasourceSyncedMtimeMs,
+      if (project.datasourceSyncedSizeBytes != null)
+        'datasourceSyncedSizeBytes': project.datasourceSyncedSizeBytes,
     };
     archive
       ..addFile(_utf8File(_projectFileName, jsonEncode(projectPayload)))
@@ -124,11 +134,21 @@ final class LocalProjectRepository implements ProjectRepository {
         datasourceSourcePath ?? project.embeddedDatasourcePath;
     if (resolvedDatasource != null && resolvedDatasource.isNotEmpty) {
       final fileName = p.basename(resolvedDatasource);
-      final bytes = await File(resolvedDatasource).readAsBytes();
+      final read = await _readDatasourceBytes(
+        path: resolvedDatasource,
+        snapshotPath: cacheDirectory == null
+            ? null
+            : p.join(cacheDirectory, project.id, _datasourceDirName, fileName),
+      );
+      final bytes = read.bytes;
       archive.addFile(
         ArchiveFile('$_datasourceDirName/$fileName', bytes.length, bytes),
       );
-      if (cacheDirectory != null) {
+      if (read.fromSnapshotPath != null) {
+        // El archivo no se pudo leer: lo embebido es la copia de la caché, que
+        // ya está donde debe; no hay nada que copiar.
+        embeddedDatasourcePath = read.fromSnapshotPath;
+      } else if (cacheDirectory != null) {
         embeddedDatasourcePath = await _copyIntoCache(
           sourcePath: resolvedDatasource,
           cacheDirectory: cacheDirectory,
@@ -173,6 +193,38 @@ final class LocalProjectRepository implements ProjectRepository {
       embeddedTemplatePath: embeddedTemplatePath,
       embeddedDatasourcePath: embeddedDatasourcePath,
     );
+  }
+
+  /// Lee el Excel que se va a embeber. Guardar el proyecto nunca debe fallar
+  /// porque el archivo esté bloqueado un instante (Excel guardando, antivirus,
+  /// OneDrive) o ya no exista: se reintenta unas veces y, si sigue sin
+  /// poderse leer, se usa la última copia embebida en la caché del proyecto.
+  Future<({List<int> bytes, String? fromSnapshotPath})> _readDatasourceBytes({
+    required String path,
+    required String? snapshotPath,
+  }) async {
+    FileSystemException? lastError;
+    for (var attempt = 0; attempt < _readAttempts; attempt++) {
+      try {
+        return (bytes: await File(path).readAsBytes(), fromSnapshotPath: null);
+      } on FileSystemException catch (error) {
+        lastError = error;
+        if (attempt < _readAttempts - 1) {
+          await Future<void>.delayed(_readRetryDelay);
+        }
+      }
+    }
+    if (snapshotPath != null && !p.equals(snapshotPath, path)) {
+      final snapshot = File(snapshotPath);
+      // ignore: avoid_slow_async_io
+      if (await snapshot.exists()) {
+        return (
+          bytes: await snapshot.readAsBytes(),
+          fromSnapshotPath: snapshotPath,
+        );
+      }
+    }
+    throw lastError!;
   }
 
   bool _looksLikeLegacyJson(List<int> bytes) {

@@ -28,6 +28,15 @@ class Project with _$Project {
     // already handled outside the generated serializer.
     @JsonKey(includeFromJson: false, includeToJson: false)
     String? datasourceExternalPath,
+    // Fecha de modificación (ms desde epoch) y tamaño del Excel gestionado
+    // tal como estaban cuando se leyó por última vez. Al abrir el proyecto,
+    // si el archivo difiere, se vuelve a leer. Se leen y escriben a mano en
+    // project.json, igual que datasourceExternalPath; null en proyectos
+    // anteriores.
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    int? datasourceSyncedMtimeMs,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    int? datasourceSyncedSizeBytes,
   }) = _Project;
 
   factory Project.fromJson(Map<String, dynamic> json) =>
