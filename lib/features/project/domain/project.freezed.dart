@@ -47,7 +47,14 @@ mixin _$Project {
   @JsonKey(includeFromJson: false, includeToJson: false)
   int? get datasourceSyncedMtimeMs => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
-  int? get datasourceSyncedSizeBytes => throw _privateConstructorUsedError;
+  int? get datasourceSyncedSizeBytes => throw _privateConstructorUsedError; // Plantillas del proyecto en el orden de las pestañas. Vacía mientras el
+  // proyecto tiene una sola (formato .fork v1); con dos o más incluye
+  // también la activa, y `activeTemplateId` dice cuál es. Se leen y
+  // escriben a mano en LocalProjectRepository (formato .fork v2).
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<ProjectTemplate> get templates => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get activeTemplateId => throw _privateConstructorUsedError;
 
   /// Serializes this Project to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -81,6 +88,10 @@ abstract class $ProjectCopyWith<$Res> {
     int? datasourceSyncedMtimeMs,
     @JsonKey(includeFromJson: false, includeToJson: false)
     int? datasourceSyncedSizeBytes,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    List<ProjectTemplate> templates,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? activeTemplateId,
   });
 }
 
@@ -111,6 +122,8 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
     Object? datasourceExternalPath = freezed,
     Object? datasourceSyncedMtimeMs = freezed,
     Object? datasourceSyncedSizeBytes = freezed,
+    Object? templates = null,
+    Object? activeTemplateId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -162,6 +175,14 @@ class _$ProjectCopyWithImpl<$Res, $Val extends Project>
                 ? _value.datasourceSyncedSizeBytes
                 : datasourceSyncedSizeBytes // ignore: cast_nullable_to_non_nullable
                       as int?,
+            templates: null == templates
+                ? _value.templates
+                : templates // ignore: cast_nullable_to_non_nullable
+                      as List<ProjectTemplate>,
+            activeTemplateId: freezed == activeTemplateId
+                ? _value.activeTemplateId
+                : activeTemplateId // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -194,6 +215,10 @@ abstract class _$$ProjectImplCopyWith<$Res> implements $ProjectCopyWith<$Res> {
     int? datasourceSyncedMtimeMs,
     @JsonKey(includeFromJson: false, includeToJson: false)
     int? datasourceSyncedSizeBytes,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    List<ProjectTemplate> templates,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? activeTemplateId,
   });
 }
 
@@ -223,6 +248,8 @@ class __$$ProjectImplCopyWithImpl<$Res>
     Object? datasourceExternalPath = freezed,
     Object? datasourceSyncedMtimeMs = freezed,
     Object? datasourceSyncedSizeBytes = freezed,
+    Object? templates = null,
+    Object? activeTemplateId = freezed,
   }) {
     return _then(
       _$ProjectImpl(
@@ -274,6 +301,14 @@ class __$$ProjectImplCopyWithImpl<$Res>
             ? _value.datasourceSyncedSizeBytes
             : datasourceSyncedSizeBytes // ignore: cast_nullable_to_non_nullable
                   as int?,
+        templates: null == templates
+            ? _value._templates
+            : templates // ignore: cast_nullable_to_non_nullable
+                  as List<ProjectTemplate>,
+        activeTemplateId: freezed == activeTemplateId
+            ? _value.activeTemplateId
+            : activeTemplateId // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -301,7 +336,12 @@ class _$ProjectImpl implements _Project {
     this.datasourceSyncedMtimeMs,
     @JsonKey(includeFromJson: false, includeToJson: false)
     this.datasourceSyncedSizeBytes,
-  }) : _mappingAssignments = mappingAssignments;
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<ProjectTemplate> templates = const <ProjectTemplate>[],
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    this.activeTemplateId,
+  }) : _mappingAssignments = mappingAssignments,
+       _templates = templates;
 
   factory _$ProjectImpl.fromJson(Map<String, dynamic> json) =>
       _$$ProjectImplFromJson(json);
@@ -354,10 +394,30 @@ class _$ProjectImpl implements _Project {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final int? datasourceSyncedSizeBytes;
+  // Plantillas del proyecto en el orden de las pestañas. Vacía mientras el
+  // proyecto tiene una sola (formato .fork v1); con dos o más incluye
+  // también la activa, y `activeTemplateId` dice cuál es. Se leen y
+  // escriben a mano en LocalProjectRepository (formato .fork v2).
+  final List<ProjectTemplate> _templates;
+  // Plantillas del proyecto en el orden de las pestañas. Vacía mientras el
+  // proyecto tiene una sola (formato .fork v1); con dos o más incluye
+  // también la activa, y `activeTemplateId` dice cuál es. Se leen y
+  // escriben a mano en LocalProjectRepository (formato .fork v2).
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<ProjectTemplate> get templates {
+    if (_templates is EqualUnmodifiableListView) return _templates;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_templates);
+  }
+
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final String? activeTemplateId;
 
   @override
   String toString() {
-    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath, datasourceExternalPath: $datasourceExternalPath, datasourceSyncedMtimeMs: $datasourceSyncedMtimeMs, datasourceSyncedSizeBytes: $datasourceSyncedSizeBytes)';
+    return 'Project(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt, mappingAssignments: $mappingAssignments, filePath: $filePath, isDirty: $isDirty, embeddedTemplatePath: $embeddedTemplatePath, embeddedDatasourcePath: $embeddedDatasourcePath, datasourceExternalPath: $datasourceExternalPath, datasourceSyncedMtimeMs: $datasourceSyncedMtimeMs, datasourceSyncedSizeBytes: $datasourceSyncedSizeBytes, templates: $templates, activeTemplateId: $activeTemplateId)';
   }
 
   @override
@@ -393,7 +453,13 @@ class _$ProjectImpl implements _Project {
                   other.datasourceSyncedSizeBytes,
                   datasourceSyncedSizeBytes,
                 ) ||
-                other.datasourceSyncedSizeBytes == datasourceSyncedSizeBytes));
+                other.datasourceSyncedSizeBytes == datasourceSyncedSizeBytes) &&
+            const DeepCollectionEquality().equals(
+              other._templates,
+              _templates,
+            ) &&
+            (identical(other.activeTemplateId, activeTemplateId) ||
+                other.activeTemplateId == activeTemplateId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -412,6 +478,8 @@ class _$ProjectImpl implements _Project {
     datasourceExternalPath,
     datasourceSyncedMtimeMs,
     datasourceSyncedSizeBytes,
+    const DeepCollectionEquality().hash(_templates),
+    activeTemplateId,
   );
 
   /// Create a copy of Project
@@ -448,6 +516,10 @@ abstract class _Project implements Project {
     final int? datasourceSyncedMtimeMs,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final int? datasourceSyncedSizeBytes,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<ProjectTemplate> templates,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final String? activeTemplateId,
   }) = _$ProjectImpl;
 
   factory _Project.fromJson(Map<String, dynamic> json) = _$ProjectImpl.fromJson;
@@ -489,7 +561,16 @@ abstract class _Project implements Project {
   int? get datasourceSyncedMtimeMs;
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
-  int? get datasourceSyncedSizeBytes;
+  int? get datasourceSyncedSizeBytes; // Plantillas del proyecto en el orden de las pestañas. Vacía mientras el
+  // proyecto tiene una sola (formato .fork v1); con dos o más incluye
+  // también la activa, y `activeTemplateId` dice cuál es. Se leen y
+  // escriben a mano en LocalProjectRepository (formato .fork v2).
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<ProjectTemplate> get templates;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? get activeTemplateId;
 
   /// Create a copy of Project
   /// with the given fields replaced by the non-null parameter values.

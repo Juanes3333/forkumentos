@@ -5,6 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/features/project/data/local_project_repository.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
+import 'package:forkumentos/features/project/domain/project_template.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -114,6 +115,148 @@ void main() {
       cacheDirectory: p.join(tempDirectory.path, 'LoadCache2'),
     );
     expect(loadedProject.datasourceExternalPath, externalPath);
+  });
+
+  group('varias plantillas (.fork v2)', () {
+    Future<({Project project, List<File> sources, String filePath})>
+    saveThree() async {
+      final sources = <File>[
+        for (final (name, text) in <(String, String)>[
+          ('contrato.docx', 'DOCX-CONTRATO'),
+          ('paz_y_salvo.docx', 'DOCX-PAZ'),
+          ('acta.docx', 'DOCX-ACTA'),
+        ])
+          File(p.join(tempDirectory.path, 'src', name))
+            ..createSync(recursive: true)
+            ..writeAsStringSync(text),
+      ];
+      final project = Project(
+        id: 'project-multi',
+        name: 'Paquete',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026, 1, 2),
+        activeTemplateId: 't2',
+        mappingAssignments: const <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'b1', 'fieldIndex': 1},
+        ],
+        embeddedTemplatePath: sources[1].path,
+        templates: <ProjectTemplate>[
+          ProjectTemplate(
+            id: 't1',
+            fileName: 'contrato.docx',
+            embeddedPath: sources[0].path,
+            assignments: const <Map<String, dynamic>>[
+              <String, dynamic>{'id': 'a1', 'fieldIndex': 0},
+            ],
+          ),
+          const ProjectTemplate(
+            id: 't2',
+            fileName: 'paz_y_salvo.docx',
+            assignments: <Map<String, dynamic>>[
+              <String, dynamic>{'id': 'desactualizado', 'fieldIndex': 9},
+            ],
+          ),
+          ProjectTemplate(
+            id: 't3',
+            fileName: 'acta.docx',
+            embeddedPath: sources[2].path,
+          ),
+        ],
+      );
+      final filePath = p.join(tempDirectory.path, 'paquete.fork');
+      await repository.save(
+        project: project,
+        filePath: filePath,
+        cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+      );
+      return (project: project, sources: sources, filePath: filePath);
+    }
+
+    test(
+      'guarda cada plantilla con su mapeo y las recupera al cargar',
+      () async {
+        final saved = await saveThree();
+
+        final archive = ZipDecoder().decodeBytes(
+          File(saved.filePath).readAsBytesSync(),
+        );
+        final manifest =
+            jsonDecode(
+                  utf8.decode(
+                    archive.findFile('manifest.json')!.content as List<int>,
+                  ),
+                )
+                as Map<String, dynamic>;
+        expect(manifest['version'], 2);
+        expect(archive.findFile('template/t1/contrato.docx'), isNotNull);
+        expect(archive.findFile('template/t2/paz_y_salvo.docx'), isNotNull);
+        expect(archive.findFile('template/t3/acta.docx'), isNotNull);
+
+        final loaded = await repository.load(
+          saved.filePath,
+          cacheDirectory: p.join(tempDirectory.path, 'LoadCache'),
+        );
+        expect(loaded.templates.map((t) => t.id), <String>['t1', 't2', 't3']);
+        expect(loaded.templates.map((t) => t.fileName), <String>[
+          'contrato.docx',
+          'paz_y_salvo.docx',
+          'acta.docx',
+        ]);
+        expect(loaded.activeTemplateId, 't2');
+        // La plantilla activa es la que usa el proyecto, con su mapeo.
+        expect(
+          File(loaded.embeddedTemplatePath!).readAsStringSync(),
+          'DOCX-PAZ',
+        );
+        expect(loaded.mappingAssignments, <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'b1', 'fieldIndex': 1},
+        ]);
+        expect(loaded.templates.first.assignments, <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'a1', 'fieldIndex': 0},
+        ]);
+        expect(
+          File(loaded.templates[2].embeddedPath!).readAsStringSync(),
+          'DOCX-ACTA',
+        );
+      },
+    );
+
+    test('con una sola plantilla se sigue escribiendo el formato v1', () async {
+      final source = File(p.join(tempDirectory.path, 'unica.docx'))
+        ..writeAsStringSync('DOCX');
+      final filePath = p.join(tempDirectory.path, 'una.fork');
+
+      await repository.save(
+        project: Project(
+          id: 'project-una',
+          name: 'Una',
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        ),
+        filePath: filePath,
+        templateSourcePath: source.path,
+        cacheDirectory: p.join(tempDirectory.path, 'Cache'),
+      );
+
+      final archive = ZipDecoder().decodeBytes(
+        File(filePath).readAsBytesSync(),
+      );
+      final manifest =
+          jsonDecode(
+                utf8.decode(
+                  archive.findFile('manifest.json')!.content as List<int>,
+                ),
+              )
+              as Map<String, dynamic>;
+      expect(manifest['version'], 1);
+      expect(archive.findFile('template/unica.docx'), isNotNull);
+      final loaded = await repository.load(
+        filePath,
+        cacheDirectory: p.join(tempDirectory.path, 'LoadCache'),
+      );
+      expect(loaded.templates, isEmpty);
+      expect(loaded.activeTemplateId, isNull);
+    });
   });
 
   test('la huella del Excel gestionado persiste y los proyectos viejos la '

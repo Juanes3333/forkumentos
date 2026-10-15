@@ -1,5 +1,6 @@
 // ignore_for_file: invalid_annotation_target
 
+import 'package:forkumentos/features/project/domain/project_template.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'project.freezed.dart';
@@ -37,6 +38,15 @@ class Project with _$Project {
     int? datasourceSyncedMtimeMs,
     @JsonKey(includeFromJson: false, includeToJson: false)
     int? datasourceSyncedSizeBytes,
+    // Plantillas del proyecto en el orden de las pestañas. Vacía mientras el
+    // proyecto tiene una sola (formato .fork v1); con dos o más incluye
+    // también la activa, y `activeTemplateId` dice cuál es. Se leen y
+    // escriben a mano en LocalProjectRepository (formato .fork v2).
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    @Default(<ProjectTemplate>[])
+    List<ProjectTemplate> templates,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String? activeTemplateId,
   }) = _Project;
 
   factory Project.fromJson(Map<String, dynamic> json) =>

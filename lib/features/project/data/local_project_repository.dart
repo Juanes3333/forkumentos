@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:forkumentos/features/project/domain/project.dart';
 import 'package:forkumentos/features/project/domain/project_repository.dart';
+import 'package:forkumentos/features/project/domain/project_template.dart';
 import 'package:path/path.dart' as p;
 
 const _manifestFileName = 'manifest.json';
@@ -14,6 +15,7 @@ const _mappingsFileName = 'mappings.json';
 const _templateDirName = 'template';
 const _datasourceDirName = 'datasource';
 const _manifestVersion = 1;
+const _multiTemplateManifestVersion = 2;
 const _readAttempts = 3;
 const _readRetryDelay = Duration(milliseconds: 250);
 
@@ -60,6 +62,16 @@ final class LocalProjectRepository implements ProjectRepository {
     return project.copyWith(
       filePath: filePath,
       isDirty: false,
+      templates: <ProjectTemplate>[
+        for (final template in extracted.templates)
+          ProjectTemplate(
+            id: template.id,
+            fileName: template.fileName,
+            embeddedPath: template.embeddedPath,
+            assignments: template.assignments,
+          ),
+      ],
+      activeTemplateId: extracted.activeTemplateId,
       embeddedTemplatePath: extracted.embeddedTemplatePath,
       embeddedDatasourcePath: extracted.embeddedDatasourcePath,
       // Absent in projects saved before this field existed; null is the
@@ -82,15 +94,35 @@ final class LocalProjectRepository implements ProjectRepository {
     String? cacheDirectory,
   }) async {
     final now = DateTime.now().toUtc();
+    // Con una sola plantilla se sigue escribiendo el formato v1 (lo abren
+    // también las versiones anteriores); v2 solo con varias plantillas.
+    final multiTemplate = project.templates.length >= 2;
     final archive = Archive()
       ..addFile(
         _utf8File(
           _manifestFileName,
-          jsonEncode(<String, dynamic>{'version': _manifestVersion}),
+          jsonEncode(<String, dynamic>{
+            'version': multiTemplate
+                ? _multiTemplateManifestVersion
+                : _manifestVersion,
+          }),
         ),
       );
 
     final projectPayload = <String, dynamic>{
+      if (multiTemplate) ...<String, dynamic>{
+        'activeTemplateId': project.activeTemplateId,
+        'templates': <Map<String, dynamic>>[
+          for (final template in project.templates)
+            <String, dynamic>{
+              'id': template.id,
+              'fileName': template.fileName,
+              'assignments': template.id == project.activeTemplateId
+                  ? project.mappingAssignments
+                  : template.assignments,
+            },
+        ],
+      },
       'id': project.id,
       'name': project.name,
       'createdAt': project.createdAt.toUtc().toIso8601String(),
@@ -110,9 +142,40 @@ final class LocalProjectRepository implements ProjectRepository {
 
     var embeddedTemplatePath = project.embeddedTemplatePath;
     var embeddedDatasourcePath = project.embeddedDatasourcePath;
+    var savedTemplates = project.templates;
 
     final resolvedTemplate = templateSourcePath ?? project.embeddedTemplatePath;
-    if (resolvedTemplate != null && resolvedTemplate.isNotEmpty) {
+    if (multiTemplate) {
+      savedTemplates = <ProjectTemplate>[];
+      for (final template in project.templates) {
+        final isActive = template.id == project.activeTemplateId;
+        final source = isActive ? resolvedTemplate : template.embeddedPath;
+        if (source == null || source.isEmpty || !File(source).existsSync()) {
+          savedTemplates.add(template);
+          continue;
+        }
+        final bytes = await File(source).readAsBytes();
+        archive.addFile(
+          ArchiveFile(
+            '$_templateDirName/${template.id}/${template.fileName}',
+            bytes.length,
+            bytes,
+          ),
+        );
+        final cached = cacheDirectory == null
+            ? source
+            : await _copyIntoCache(
+                sourcePath: source,
+                cacheDirectory: cacheDirectory,
+                projectId: project.id,
+                kind: p.join(_templateDirName, template.id),
+              );
+        savedTemplates.add(template.copyWith(embeddedPath: cached));
+        if (isActive) {
+          embeddedTemplatePath = cached;
+        }
+      }
+    } else if (resolvedTemplate != null && resolvedTemplate.isNotEmpty) {
       final fileName = p.basename(resolvedTemplate);
       final bytes = await File(resolvedTemplate).readAsBytes();
       archive.addFile(
@@ -190,6 +253,7 @@ final class LocalProjectRepository implements ProjectRepository {
       filePath: filePath,
       updatedAt: now,
       isDirty: false,
+      templates: savedTemplates,
       embeddedTemplatePath: embeddedTemplatePath,
       embeddedDatasourcePath: embeddedDatasourcePath,
     );
@@ -308,16 +372,34 @@ final class _IsolateLoadRequest {
   final String cacheDirectory;
 }
 
+final class _LoadedTemplate {
+  const _LoadedTemplate({
+    required this.id,
+    required this.fileName,
+    required this.assignments,
+    this.embeddedPath,
+  });
+
+  final String id;
+  final String fileName;
+  final String? embeddedPath;
+  final List<Map<String, dynamic>> assignments;
+}
+
 final class _IsolateLoadResult {
   const _IsolateLoadResult({
     required this.projectJson,
     required this.mappingAssignments,
+    this.templates = const <_LoadedTemplate>[],
+    this.activeTemplateId,
     this.embeddedTemplatePath,
     this.embeddedDatasourcePath,
   });
 
   final Map<String, dynamic> projectJson;
   final List<Map<String, dynamic>> mappingAssignments;
+  final List<_LoadedTemplate> templates;
+  final String? activeTemplateId;
   final String? embeddedTemplatePath;
   final String? embeddedDatasourcePath;
 }
@@ -341,7 +423,7 @@ _IsolateLoadResult _decodeAndExtractInIsolate(_IsolateLoadRequest request) {
 
   final manifest = _decodeObject(manifestRaw, 'manifiesto');
   final version = manifest['version'];
-  if (version != _manifestVersion) {
+  if (version != _manifestVersion && version != _multiTemplateManifestVersion) {
     throw FormatException('Versión de proyecto no soportada: $version.');
   }
 
@@ -373,11 +455,58 @@ _IsolateLoadResult _decodeAndExtractInIsolate(_IsolateLoadRequest request) {
   final extractRoot = p.join(request.cacheDirectory, projectId);
   Directory(extractRoot).createSync(recursive: true);
 
-  final embeddedTemplatePath = _extractSingleArtifactSync(
-    archive: archive,
-    dirPrefix: '$_templateDirName/',
-    destinationDir: p.join(extractRoot, _templateDirName),
-  );
+  final templates = <_LoadedTemplate>[];
+  String? activeTemplateId;
+  String? embeddedTemplatePath;
+  final rawTemplates = projectJson['templates'];
+  if (version == _multiTemplateManifestVersion && rawTemplates is List) {
+    activeTemplateId = projectJson['activeTemplateId'] as String?;
+    for (final raw in rawTemplates) {
+      if (raw is! Map) {
+        continue;
+      }
+      final id = raw['id'] as String?;
+      final fileName = raw['fileName'] as String?;
+      if (id == null || id.isEmpty || fileName == null) {
+        continue;
+      }
+      final entry = archive.findFile('$_templateDirName/$id/$fileName');
+      String? embeddedPath;
+      if (entry != null && entry.isFile) {
+        final destination = p.join(extractRoot, _templateDirName, id);
+        Directory(destination).createSync(recursive: true);
+        embeddedPath = p.join(destination, p.basename(fileName));
+        File(
+          embeddedPath,
+        ).writeAsBytesSync(entry.content as List<int>, flush: true);
+      }
+      final assignments = <Map<String, dynamic>>[
+        for (final item in (raw['assignments'] as List?) ?? const <Object?>[])
+          if (item is Map) item.cast<String, dynamic>(),
+      ];
+      templates.add(
+        _LoadedTemplate(
+          id: id,
+          fileName: fileName,
+          embeddedPath: embeddedPath,
+          assignments: assignments,
+        ),
+      );
+      if (id == activeTemplateId) {
+        embeddedTemplatePath = embeddedPath;
+        // El mapeo de la plantilla activa es el que usa el proyecto.
+        mappingAssignments
+          ..clear()
+          ..addAll(assignments);
+      }
+    }
+  } else {
+    embeddedTemplatePath = _extractSingleArtifactSync(
+      archive: archive,
+      dirPrefix: '$_templateDirName/',
+      destinationDir: p.join(extractRoot, _templateDirName),
+    );
+  }
   final embeddedDatasourcePath = _extractSingleArtifactSync(
     archive: archive,
     dirPrefix: '$_datasourceDirName/',
@@ -387,6 +516,8 @@ _IsolateLoadResult _decodeAndExtractInIsolate(_IsolateLoadRequest request) {
   return _IsolateLoadResult(
     projectJson: projectJson,
     mappingAssignments: mappingAssignments,
+    templates: templates,
+    activeTemplateId: activeTemplateId,
     embeddedTemplatePath: embeddedTemplatePath,
     embeddedDatasourcePath: embeddedDatasourcePath,
   );
