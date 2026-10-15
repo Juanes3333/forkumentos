@@ -46,6 +46,11 @@ class ManagedDatasourceStore {
     return destination;
   }
 
+  /// Guarda una copia de [current] en `anteriores/` junto a él (antes de
+  /// modificarlo).
+  Future<void> backUpFile(File current) =>
+      _backUp(current, p.dirname(current.path));
+
   Future<void> _backUp(File current, String folder) async {
     final backups = Directory(p.join(folder, backupsFolderName));
     await backups.create(recursive: true);
