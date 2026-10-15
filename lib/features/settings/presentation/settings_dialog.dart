@@ -14,15 +14,24 @@ import 'package:forkumentos/shared/providers/settings_providers.dart';
 import 'package:forkumentos/shared/widgets/about_forkumentos_dialog.dart';
 import 'package:forkumentos/shared/widgets/forkumentos_logo.dart';
 
-Future<void> showSettingsDialog(BuildContext context) {
+/// Abre Ajustes. [onSaveProject] guarda el proyecto activo (lo compone
+/// `routing/`, porque esta feature no importa `project`) y devuelve `false`
+/// si no se pudo guardar; lo usa "Guardar y actualizar".
+Future<void> showSettingsDialog(
+  BuildContext context, {
+  Future<bool> Function()? onSaveProject,
+}) {
   return showDialog<void>(
     context: context,
-    builder: (BuildContext context) => const _SettingsDialog(),
+    builder: (BuildContext context) =>
+        _SettingsDialog(onSaveProject: onSaveProject),
   );
 }
 
 final class _SettingsDialog extends ConsumerStatefulWidget {
-  const _SettingsDialog();
+  const _SettingsDialog({this.onSaveProject});
+
+  final Future<bool> Function()? onSaveProject;
 
   @override
   ConsumerState<_SettingsDialog> createState() => _SettingsDialogState();
@@ -137,7 +146,7 @@ final class _SettingsDialogState extends ConsumerState<_SettingsDialog>
                           autosaveController: _autosaveController,
                         ),
                         _ExportTab(settings: settings),
-                        const _AboutTab(),
+                        _AboutTab(onSaveProject: widget.onSaveProject),
                       ],
                     ),
                   ),
@@ -417,7 +426,9 @@ final class _ExportTab extends ConsumerWidget {
 }
 
 final class _AboutTab extends ConsumerWidget {
-  const _AboutTab();
+  const _AboutTab({this.onSaveProject});
+
+  final Future<bool> Function()? onSaveProject;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -470,7 +481,10 @@ final class _AboutTab extends ConsumerWidget {
 
         if (updateState.valueOrNull != null) ...[
           if (updateState.value!.isUpdateAvailable)
-            _UpdateAvailableCard(result: updateState.value!)
+            _UpdateAvailableCard(
+              result: updateState.value!,
+              onSaveProject: onSaveProject,
+            )
           else
             const _UpdateStatusCard(
               icon: Icons.check_circle_outline,
@@ -511,30 +525,35 @@ final class _UpdateStatusCard extends StatelessWidget {
 }
 
 final class _UpdateAvailableCard extends ConsumerStatefulWidget {
-  const _UpdateAvailableCard({required this.result});
+  const _UpdateAvailableCard({required this.result, this.onSaveProject});
 
   final UpdateCheckResult result;
+  final Future<bool> Function()? onSaveProject;
 
   @override
   ConsumerState<_UpdateAvailableCard> createState() =>
       _UpdateAvailableCardState();
 }
 
+enum _UnsavedChoice { save, cancel }
+
 final class _UpdateAvailableCardState
     extends ConsumerState<_UpdateAvailableCard> {
-  bool _isDownloading = false;
-
-  /// Fracción descargada (0.0 a 1.0), o `null` si el servidor no informa el
-  /// tamaño y la barra debe ser indeterminada.
-  double? _progress;
-  String? _downloadError;
+  String? _saveError;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final result = widget.result;
     final canInstall = result.downloadUrl != null;
-    final progress = _progress;
+    final install = ref.watch(updateInstallProvider);
+    final isDownloading = install.phase == UpdateInstallPhase.downloading;
+    final isReady = install.phase == UpdateInstallPhase.ready;
+    final progress = install.progress;
+    final downloadError = install.phase == UpdateInstallPhase.failed
+        ? 'No se pudo descargar la actualización. Verifica tu conexión e '
+              'intenta de nuevo.'
+        : _saveError;
 
     return Card(
       color: theme.colorScheme.primaryContainer,
@@ -584,7 +603,7 @@ final class _UpdateAvailableCardState
               ),
             ],
             const SizedBox(height: 12),
-            if (_isDownloading) ...[
+            if (isDownloading) ...[
               LinearProgressIndicator(value: progress),
               const SizedBox(height: 6),
               Text(
@@ -597,18 +616,32 @@ final class _UpdateAvailableCardState
               const SizedBox(height: 12),
             ],
             FilledButton.icon(
-              onPressed: _isDownloading
+              onPressed: isDownloading
                   ? null
                   : canInstall
-                  ? _downloadAndInstall
+                  ? _install
                   : _openReleasePage,
               icon: Icon(canInstall ? Icons.download : Icons.open_in_new),
-              label: Text(canInstall ? 'Actualizar ahora' : 'Ver en GitHub'),
+              label: Text(
+                !canInstall
+                    ? 'Ver en GitHub'
+                    : isReady
+                    ? 'Instalar actualización descargada'
+                    : 'Actualizar ahora',
+              ),
             ),
-            if (_downloadError != null) ...[
+            if (canInstall) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Se cerrarán todas las ventanas de Forkumentos para instalar '
+                'la actualización. Guarda tus proyectos antes de continuar.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+            if (downloadError != null) ...[
               const SizedBox(height: 8),
               Text(
-                _downloadError!,
+                downloadError,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
                 ),
@@ -620,47 +653,72 @@ final class _UpdateAvailableCardState
     );
   }
 
-  Future<void> _downloadAndInstall() async {
-    // La app se cierra para instalar: no perder trabajo sin guardar.
-    if (ref.read(activeProjectProvider).valueOrNull?.isDirty ?? false) {
-      setState(() {
-        _downloadError =
-            'Guarda el proyecto antes de actualizar: la aplicación se '
-            'cerrará para instalar la nueva versión.';
-      });
+  /// Descarga (si hace falta) y lanza el instalador. La app se cierra para
+  /// instalar, así que antes de descargar y otra vez justo antes de lanzar
+  /// se comprueba que no haya cambios sin guardar: el usuario puede haber
+  /// editado mientras se descargaba. Si Ajustes se cerró durante la descarga
+  /// no se lanza nada por su cuenta; el instalador queda listo y se ofrece
+  /// al volver a abrir Ajustes.
+  Future<void> _install() async {
+    setState(() => _saveError = null);
+    if (!await _confirmNothingUnsaved()) {
       return;
     }
-
-    setState(() {
-      _isDownloading = true;
-      _progress = null;
-      _downloadError = null;
-    });
-
-    final installer = ref.read(updateInstallerProvider);
-    try {
-      final file = await installer.download(
-        downloadUrl: widget.result.downloadUrl!,
-        version: widget.result.latestVersion,
-        onProgress: (received, total) {
-          if (!mounted || total <= 0) {
-            return;
-          }
-          setState(() => _progress = received / total);
-        },
-      );
-      await installer.launchAndExit(file);
-    } on Object {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isDownloading = false;
-        _downloadError =
-            'No se pudo descargar la actualización. Verifica tu conexión e '
-            'intenta de nuevo.';
-      });
+    final notifier = ref.read(updateInstallProvider.notifier);
+    final downloaded = await notifier.download(widget.result);
+    if (!downloaded || !mounted) {
+      return;
     }
+    if (!await _confirmNothingUnsaved()) {
+      return;
+    }
+    await notifier.launch();
+  }
+
+  /// `true` si no hay cambios sin guardar o el usuario los guardó. Si hay,
+  /// ofrece "Guardar y actualizar" o "Cancelar".
+  Future<bool> _confirmNothingUnsaved() async {
+    if (!(ref.read(activeProjectProvider).valueOrNull?.isDirty ?? false)) {
+      return true;
+    }
+    final choice = await showDialog<_UnsavedChoice>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Hay cambios sin guardar'),
+        content: const Text(
+          'Para instalar la actualización Forkumentos se cerrará. '
+          'Guarda el proyecto para no perder tu trabajo.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_UnsavedChoice.cancel),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(_UnsavedChoice.save),
+            child: const Text('Guardar y actualizar'),
+          ),
+        ],
+      ),
+    );
+    if (choice != _UnsavedChoice.save || !mounted) {
+      return false;
+    }
+    final save = widget.onSaveProject;
+    final saved = save != null && await save();
+    if (!mounted) {
+      return false;
+    }
+    if (!saved ||
+        (ref.read(activeProjectProvider).valueOrNull?.isDirty ?? false)) {
+      setState(() {
+        _saveError =
+            'No se pudo guardar el proyecto, así que no se actualizó. '
+            'Guárdalo manualmente e inténtalo de nuevo.';
+      });
+      return false;
+    }
+    return true;
   }
 
   void _openReleasePage() {

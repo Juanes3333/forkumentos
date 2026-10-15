@@ -138,7 +138,16 @@ final class _FileRibbonActions extends ConsumerWidget {
             _RibbonActionButton(
               icon: Icons.settings_outlined,
               label: 'Configuración',
-              onPressed: () => showSettingsDialog(context),
+              onPressed: () => showSettingsDialog(
+                context,
+                onSaveProject: () async {
+                  final active = ref.read(activeProjectProvider).valueOrNull;
+                  if (active == null) {
+                    return true;
+                  }
+                  return saveActiveProject(context, ref, active);
+                },
+              ),
             ),
             _RibbonActionButton(
               icon: Icons.info_outline,

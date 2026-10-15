@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forkumentos/core/logging/logging_providers.dart';
@@ -65,9 +66,12 @@ void main() {
   Widget createWidget({
     UpdateCheckResult? updateResult,
     UpdateInstaller? installer,
+    Future<bool> Function()? onSaveProject,
+    bool noWorkspace = false,
   }) {
     return ProviderScope(
       overrides: <Override>[
+        if (noWorkspace) workspacePathsProvider.overrideWithValue(null),
         settingsProvider.overrideWith(_FakeSettingsNotifier.new),
         loggingServiceProvider.overrideWithValue(FakeLoggingService()),
         if (installer != null)
@@ -82,7 +86,8 @@ void main() {
           body: Builder(
             builder: (BuildContext context) {
               return ElevatedButton(
-                onPressed: () => showSettingsDialog(context),
+                onPressed: () =>
+                    showSettingsDialog(context, onSaveProject: onSaveProject),
                 child: const Text('Open Settings'),
               );
             },
@@ -246,7 +251,20 @@ void main() {
       expect(updateButtonCallback(tester), isNotNull);
     });
 
-    testWidgets('con cambios sin guardar no descarga', (
+    ProviderContainer containerOf(WidgetTester tester) =>
+        ProviderScope.containerOf(
+          tester.element(find.text('Actualizar ahora')),
+        );
+
+    // Un proyecto recién creado queda con cambios sin guardar.
+    Future<void> makeProjectDirty(WidgetTester tester) async {
+      await containerOf(
+        tester,
+      ).read(activeProjectProvider.notifier).createProject(name: 'Proyecto');
+      await tester.pump();
+    }
+
+    testWidgets('con cambios sin guardar pregunta y Cancelar no descarga', (
       WidgetTester tester,
     ) async {
       final installer = _FakeUpdateInstaller();
@@ -254,17 +272,128 @@ void main() {
         tester,
         createWidget(updateResult: _updateWithInstaller, installer: installer),
       );
-      // Un proyecto recién creado queda con cambios sin guardar.
-      await ProviderScope.containerOf(
-        tester.element(find.text('Actualizar ahora')),
-      ).read(activeProjectProvider.notifier).createProject(name: 'Proyecto');
+      await makeProjectDirty(tester);
+
+      await tester.tap(find.text('Actualizar ahora'));
+      await tester.pumpAndSettle();
+      expect(find.text('Hay cambios sin guardar'), findsOneWidget);
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+
+      expect(installer.onProgress, isNull);
+      expect(installer.launched, isNull);
+    });
+
+    testWidgets('Guardar y actualizar guarda y luego descarga', (
+      WidgetTester tester,
+    ) async {
+      final installer = _FakeUpdateInstaller();
+      late ProviderContainer container;
+      var saves = 0;
+      await openAboutTab(
+        tester,
+        createWidget(
+          updateResult: _updateWithInstaller,
+          installer: installer,
+          // Sin rutas de workspace, cerrar el proyecto no toca el disco real
+          // (que no completa dentro de testWidgets).
+          noWorkspace: true,
+          onSaveProject: () async {
+            saves++;
+            await container.read(activeProjectProvider.notifier).closeProject();
+            return true;
+          },
+        ),
+      );
+      container = containerOf(tester);
+      await makeProjectDirty(tester);
+
+      await tester.tap(find.text('Actualizar ahora'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Guardar y actualizar'));
+      // Tras guardar empieza la descarga y su barra indeterminada anima sin
+      // parar, así que no se puede esperar a que se asiente.
       await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(saves, 1);
+      expect(installer.onProgress, isNotNull);
+    });
+
+    testWidgets('si el guardado falla no descarga y lo explica', (
+      WidgetTester tester,
+    ) async {
+      final installer = _FakeUpdateInstaller();
+      await openAboutTab(
+        tester,
+        createWidget(
+          updateResult: _updateWithInstaller,
+          installer: installer,
+          onSaveProject: () async => false,
+        ),
+      );
+      await makeProjectDirty(tester);
+
+      await tester.tap(find.text('Actualizar ahora'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Guardar y actualizar'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('No se pudo guardar'), findsOneWidget);
+      expect(installer.onProgress, isNull);
+    });
+
+    testWidgets('editar durante la descarga pide guardar antes de lanzar', (
+      WidgetTester tester,
+    ) async {
+      final installer = _FakeUpdateInstaller();
+      await openAboutTab(
+        tester,
+        createWidget(updateResult: _updateWithInstaller, installer: installer),
+      );
 
       await tester.tap(find.text('Actualizar ahora'));
       await tester.pump();
+      await makeProjectDirty(tester);
+      installer.downloadCompleter.complete(File('instalador.exe'));
+      await tester.pumpAndSettle();
 
-      expect(find.textContaining('Guarda el proyecto'), findsOneWidget);
-      expect(installer.onProgress, isNull);
+      expect(find.text('Hay cambios sin guardar'), findsOneWidget);
+      expect(installer.launched, isNull);
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(installer.launched, isNull);
+      expect(find.text('Instalar actualización descargada'), findsOneWidget);
+    });
+
+    testWidgets('reabrir Ajustes durante la descarga no inicia otra', (
+      WidgetTester tester,
+    ) async {
+      final installer = _FakeUpdateInstaller();
+      await openAboutTab(
+        tester,
+        createWidget(updateResult: _updateWithInstaller, installer: installer),
+      );
+      await tester.tap(find.text('Actualizar ahora'));
+      await tester.pump();
+
+      // La barra indeterminada anima sin parar: no se puede usar
+      // pumpAndSettle mientras dura la descarga.
+      const step = Duration(seconds: 1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      await tester.pump(step);
+      await tester.tap(find.text('Open Settings'));
+      await tester.pump();
+      await tester.pump(step);
+      await tester.tap(find.text('Acerca de'));
+      await tester.pump();
+      await tester.pump(step);
+
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(updateButtonCallback(tester), isNull);
     });
 
     testWidgets('sin instalador .exe ofrece abrir la página del release', (

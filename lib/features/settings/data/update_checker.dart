@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -81,20 +82,10 @@ final class UpdateChecker {
       final htmlUrl = json['html_url'] as String?;
       final publishedAt = json['published_at'] as String?;
 
-      // Buscar el asset .exe del installer entre los assets del release.
-      String? downloadUrl;
-      final assets = json['assets'] as List<Object?>?;
-      if (assets != null) {
-        for (final asset in assets) {
-          if (asset is Map<String, Object?>) {
-            final name = asset['name'] as String? ?? '';
-            if (name.toLowerCase().endsWith('.exe')) {
-              downloadUrl = asset['browser_download_url'] as String?;
-              break;
-            }
-          }
-        }
-      }
+      final downloadUrl = selectInstallerUrl(
+        assets: json['assets'] as List<Object?>?,
+        version: latestVersion,
+      );
 
       final isNewer = isNewerVersion(
         current: currentVersion,
@@ -119,25 +110,77 @@ final class UpdateChecker {
     }
   }
 
+  /// Nombre exacto del instalador que publica cada release
+  /// (`OutputBaseFilename` de `installer/Forkumentos.iss`). Se construye desde
+  /// la versión parseada, porque el tag puede ser `v1.8.0` o `1.8.0`.
+  @visibleForTesting
+  static String installerAssetName(String version) =>
+      'ForkumentosSetup_v${parseVersion(version).join('.')}.exe';
+
+  /// Devuelve la URL de descarga del instalador de [version] entre [assets],
+  /// o `null` si el release no trae un asset con el nombre exacto o su URL no
+  /// es `https`. Nunca se ejecuta un `.exe` cualquiera del release.
+  @visibleForTesting
+  static String? selectInstallerUrl({
+    required List<Object?>? assets,
+    required String version,
+  }) {
+    if (assets == null) {
+      return null;
+    }
+    final expected = installerAssetName(version).toLowerCase();
+    for (final asset in assets) {
+      if (asset is! Map<String, Object?>) {
+        continue;
+      }
+      final name = (asset['name'] as String? ?? '').toLowerCase();
+      final url = asset['browser_download_url'] as String?;
+      if (name == expected && url != null && url.startsWith('https://')) {
+        return url;
+      }
+    }
+    return null;
+  }
+
+  static const Duration _connectTimeout = Duration(seconds: 15);
+  static const Duration _idleTimeout = Duration(seconds: 30);
+  static const String _downloadDirPrefix = 'forkumentos_update_';
+
   /// Descarga el instalador desde [downloadUrl] a un directorio temporal
   /// nuevo (o a [targetDirectory]) y reporta el progreso
   /// `(bytesRecibidos, bytesTotales)` con [onProgress]; `bytesTotales` es
   /// `-1` si el servidor no informa el tamaño.
   ///
-  /// Lanza [HttpException] si la respuesta no es 200. Si la descarga falla
-  /// a medias, borra el archivo parcial.
+  /// Lanza [HttpException] si la respuesta no es 200 o llega incompleta, y
+  /// [TimeoutException] si la conexión no se establece o el flujo se queda
+  /// sin datos durante [idleTimeout]. Si la descarga falla a medias, borra el
+  /// archivo parcial y el directorio temporal que creó. El instalador
+  /// descargado con éxito **no** se borra: el proceso desacoplado se ejecuta
+  /// desde ese archivo; las descargas viejas se limpian al iniciar la
+  /// siguiente.
   static Future<File> downloadInstaller({
     required String downloadUrl,
     required String version,
     void Function(int received, int total)? onProgress,
     HttpClient? httpClient,
     Directory? targetDirectory,
+    Duration connectTimeout = _connectTimeout,
+    Duration idleTimeout = _idleTimeout,
   }) async {
     final client = httpClient ?? HttpClient();
+    if (httpClient == null) {
+      client.connectionTimeout = connectTimeout;
+    }
+    if (targetDirectory == null) {
+      _deleteStaleDownloads();
+    }
+    Directory? createdDirectory;
     try {
-      final request = await client.getUrl(Uri.parse(downloadUrl));
+      final request = await client
+          .getUrl(Uri.parse(downloadUrl))
+          .timeout(connectTimeout);
       request.headers.set('User-Agent', 'Forkumentos/$version');
-      final response = await request.close();
+      final response = await request.close().timeout(idleTimeout);
       if (response.statusCode != 200) {
         throw HttpException(
           'No se pudo descargar el instalador (HTTP ${response.statusCode})',
@@ -146,7 +189,9 @@ final class UpdateChecker {
 
       final directory =
           targetDirectory ??
-          await Directory.systemTemp.createTemp('forkumentos_update_');
+          (createdDirectory = await Directory.systemTemp.createTemp(
+            _downloadDirPrefix,
+          ));
       final file = File(
         '${directory.path}${Platform.pathSeparator}'
         'ForkumentosSetup_v$version.exe',
@@ -155,12 +200,17 @@ final class UpdateChecker {
       final sink = file.openWrite();
       var received = 0;
       try {
-        await for (final chunk in response) {
+        await for (final chunk in response.timeout(idleTimeout)) {
           sink.add(chunk);
           received += chunk.length;
           onProgress?.call(received, total);
         }
         await sink.close();
+        if (total > 0 && received != total) {
+          throw HttpException(
+            'Descarga incompleta ($received de $total bytes)',
+          );
+        }
       } on Object {
         await sink.close();
         if (file.existsSync()) {
@@ -169,10 +219,41 @@ final class UpdateChecker {
         rethrow;
       }
       return file;
+    } on Object {
+      if (createdDirectory != null && createdDirectory.existsSync()) {
+        createdDirectory.deleteSync(recursive: true);
+      }
+      rethrow;
     } finally {
       if (httpClient == null) {
         client.close();
       }
+    }
+  }
+
+  /// Borra descargas de instaladores de más de una hora. Mejor esfuerzo: un
+  /// instalador que sigue en ejecución o en uso simplemente no se puede
+  /// borrar y se ignora.
+  static void _deleteStaleDownloads() {
+    try {
+      final limit = DateTime.now().subtract(const Duration(hours: 1));
+      for (final entity in Directory.systemTemp.listSync()) {
+        if (entity is! Directory ||
+            !entity.uri.pathSegments
+                .where((segment) => segment.isNotEmpty)
+                .last
+                .startsWith(_downloadDirPrefix) ||
+            entity.statSync().modified.isAfter(limit)) {
+          continue;
+        }
+        try {
+          entity.deleteSync(recursive: true);
+        } on FileSystemException {
+          continue;
+        }
+      }
+    } on FileSystemException {
+      return;
     }
   }
 
