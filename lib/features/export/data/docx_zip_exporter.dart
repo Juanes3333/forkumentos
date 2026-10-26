@@ -1126,7 +1126,9 @@ bool _isPageBreak(XmlElement breakElement) {
 
 /// Espejo de `_isInsideTable` en `docx_document_repository.dart`: dentro de
 /// una celda (`w:tc`, a cualquier profundidad) los saltos de página no
-/// trocean el párrafo, porque el bloque de tabla es indivisible.
+/// trocean el párrafo, porque el bloque de tabla es indivisible. La única
+/// excepción (`_tableOpensNewPage` del parser) solo mueve el corte de página de
+/// la vista y no cambia ningún bloque, así que aquí no tiene espejo.
 bool _isInsideTable(XmlElement element) {
   for (final ancestor in element.ancestors.whereType<XmlElement>()) {
     if (ancestor.name.local == 'tc') {

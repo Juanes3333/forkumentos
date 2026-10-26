@@ -375,6 +375,36 @@ void main() {
       expect(_countElements(documentXml, 'lastRenderedPageBreak'), 0);
     });
 
+    test('el marcador que abre página en la primera celda de una tabla no '
+        'altera los índices de bloque de lo que viene después', () {
+      final documentXml = _exportDocumentXml(
+        bodyContent: '''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:lastRenderedPageBreak /><w:t>Celda</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+<w:p><w:r><w:t>Hola Eva</w:t></w:r></w:p>
+''',
+        replacements: const <DocxTextReplacement>[
+          // Párrafo, tabla y párrafo: el último es el bloque raíz 2 tanto en
+          // ingesta como aquí, con o sin el marcador de apertura de página.
+          DocxTextReplacement(
+            steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 2)],
+            startOffset: 5,
+            endOffset: 8,
+            text: 'Ana',
+          ),
+        ],
+      );
+
+      expect(_wTexts(documentXml), <String>['Antes', 'Celda', 'Hola Ana']);
+      expect(_countElements(documentXml, 'lastRenderedPageBreak'), 0);
+    });
+
     test('un campo tras un w:tab en el chunk posterior al marcador conserva '
         'el tab y el offset del gap', () {
       final documentXml = _exportDocumentXml(

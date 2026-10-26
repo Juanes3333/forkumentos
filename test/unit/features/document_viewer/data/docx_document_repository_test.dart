@@ -1423,6 +1423,314 @@ ${List<String>.filled(40, _longParagraphXml(startsPage: false)).join()}
     expect(document.pages.length, greaterThan(1));
   });
 
+  group('tabla que Word abre en una página nueva', () {
+    test('el marcador inicial de la primera celda abre página antes de la '
+        'tabla', () async {
+      final filePath = p.join(tempDirectory.path, 'tabla_abre_pagina.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+$_tableOpeningPageXml
+<w:p><w:r><w:t>Después</w:t></w:r></w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(2));
+      expect(_paragraphs(document.pages[0]).single.runs.single.text, 'Antes');
+      expect(document.pages[1].blocks.first, isA<DocumentTableBlock>());
+      expect(_paragraphs(document.pages[1]).single.runs.single.text, 'Después');
+    });
+
+    test('con la heurística apagada por un marcador fuera de tabla el corte '
+        'antes de la tabla también se aplica', () async {
+      final filePath = p.join(tempDirectory.path, 'tabla_con_marcadores.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Portada</w:t></w:r></w:p>
+<w:p><w:r><w:lastRenderedPageBreak /><w:t>Página dos</w:t></w:r></w:p>
+$_tableOpeningPageXml
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(3));
+      expect(document.pages[2].blocks.single, isA<DocumentTableBlock>());
+    });
+
+    test('un marcador precedido de texto en la celda no abre página', () async {
+      final filePath = p.join(tempDirectory.path, 'tabla_marcador_medio.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+$_tableMidMarkerXml
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(1));
+    });
+
+    test('un marcador en una fila posterior no abre página', () async {
+      final filePath = p.join(tempDirectory.path, 'tabla_partida_fila2.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+<w:tbl>
+  <w:tr><w:tc><w:p><w:r><w:t>Fila 1</w:t></w:r></w:p></w:tc></w:tr>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:lastRenderedPageBreak /><w:t>Fila 2</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(1));
+    });
+
+    test('una tabla al inicio del documento no deja una página vacía '
+        'delante', () async {
+      final filePath = p.join(tempDirectory.path, 'tabla_primer_bloque.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+$_tableOpeningPageXml
+<w:p><w:r><w:t>Después</w:t></w:r></w:p>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(1));
+      expect(document.pages.single.blocks.first, isA<DocumentTableBlock>());
+    });
+
+    test('el marcador no cambia el recuento de bloques de la tabla', () async {
+      final filePath = p.join(tempDirectory.path, 'tabla_bloques.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+$_tableOpeningPageXml
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      final table =
+          (document.pages[1].blocks.single as DocumentTableBlock).table;
+      expect(table.rows.single.cells.single.blocks, hasLength(1));
+    });
+
+    test(
+      'tras un salto de página explícito no añade una página en blanco',
+      () async {
+        final filePath = p.join(tempDirectory.path, 'salto_y_tabla.docx');
+        await File(filePath).writeAsBytes(
+          _buildDocxBytes(
+            documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r><w:r><w:br w:type="page" /></w:r></w:p>
+$_tableOpeningPageXml
+'''),
+          ),
+        );
+
+        final document = await repository.load(filePath);
+
+        expect(document.pages, hasLength(2));
+        expect(document.pages[1].blocks.single, isA<DocumentTableBlock>());
+      },
+    );
+
+    test('con dos tablas seguidas solo corta antes de la que lleva el '
+        'marcador', () async {
+      final filePath = p.join(tempDirectory.path, 'dos_tablas.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+$_tableMidMarkerXml
+$_tableOpeningPageXml
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(2));
+      expect(document.pages[0].blocks, hasLength(2));
+      expect(document.pages[1].blocks.single, isA<DocumentTableBlock>());
+    });
+
+    test('un marcador en una tabla anidada en la primera celda no abre '
+        'página', () async {
+      final filePath = p.join(tempDirectory.path, 'tabla_anidada.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      $_tableOpeningPageXml
+      <w:p><w:r><w:t>Después de la anidada</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+'''),
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(document.pages, hasLength(1));
+    });
+
+    test(
+      'el corte antes de la tabla no apaga la heurística de relleno',
+      () async {
+        final filePath = p.join(tempDirectory.path, 'tabla_y_texto_largo.docx');
+        await File(filePath).writeAsBytes(
+          _buildDocxBytes(
+            documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+$_tableOpeningPageXml
+${List<String>.filled(40, _longParagraphXml(startsPage: false)).join()}
+'''),
+          ),
+        );
+
+        final document = await repository.load(filePath);
+
+        // Página 1: "Antes". Desde la tabla, el texto largo sin marcadores se
+        // sigue repartiendo por estimación: no queda todo en una página.
+        expect(document.pages.length, greaterThan(2));
+        expect(_paragraphs(document.pages[0]).single.runs.single.text, 'Antes');
+      },
+    );
+  });
+
+  group('dibujos flotantes fuera de la hoja', () {
+    // Word no dibuja lo que cae fuera de la hoja; el visor pinta los dibujos
+    // flotantes en línea con el texto, así que sin descartarlos un logo
+    // repetido y relegado fuera de página aparece dos veces.
+    Future<DocumentParagraph> loadFooterParagraph(
+      String name,
+      String drawings,
+    ) async {
+      final filePath = p.join(tempDirectory.path, '$name.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithFooter,
+          extraEntries: <String, String>{
+            'word/footer1.xml':
+                '''
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r>$drawings<w:t>Pie</w:t></w:r></w:p>
+</w:ftr>
+''',
+            'word/_rels/document.xml.rels': _footerRelationshipsXml,
+            'word/_rels/footer1.xml.rels': _imageRelationshipsXml,
+          },
+          binaryEntries: <String, List<int>>{
+            'word/media/image1.png': _pngBytes,
+          },
+        ),
+      );
+      final document = await repository.load(filePath);
+      expect(document.omissions, isNot(contains(DocumentOmission.image)));
+      return (document.footer.first as DocumentParagraphBlock).paragraph;
+    }
+
+    int imageCount(DocumentParagraph paragraph) =>
+        paragraph.runs.where((run) => run.image != null).length;
+
+    test('en un pie, un ancla muy por debajo de su párrafo no se pinta y la '
+        'visible sí', () async {
+      final paragraph = await loadFooterParagraph(
+        'pie_ancla_fuera',
+        _anchoredDrawingXml(verticalEmu: _farBelowEmu) +
+            _anchoredDrawingXml(verticalEmu: 58420),
+      );
+
+      expect(imageCount(paragraph), 1);
+    });
+
+    test('un ancla relativa a la página con el mismo desplazamiento sí se '
+        'pinta', () async {
+      final paragraph = await loadFooterParagraph(
+        'pie_ancla_pagina',
+        _anchoredDrawingXml(verticalFrom: 'page', verticalEmu: _farBelowEmu),
+      );
+
+      expect(imageCount(paragraph), 1);
+    });
+
+    test('en el cuerpo un ancla relativa al párrafo no se descarta: el '
+        'párrafo puede estar arriba de la página', () async {
+      final filePath = p.join(tempDirectory.path, 'cuerpo_ancla.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody(
+            '<w:p><w:r>'
+            '${_anchoredDrawingXml(verticalEmu: _farBelowEmu)}'
+            '<w:t>Texto</w:t></w:r></w:p>',
+          ),
+          extraEntries: <String, String>{
+            'word/_rels/document.xml.rels': _imageRelationshipsXml,
+          },
+          binaryEntries: <String, List<int>>{
+            'word/media/image1.png': _pngBytes,
+          },
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(imageCount(_paragraphs(document.pages.single).single), 1);
+    });
+
+    test('un ancla más allá del ancho de la hoja no se pinta', () async {
+      final filePath = p.join(tempDirectory.path, 'cuerpo_ancla_ancho.docx');
+      await File(filePath).writeAsBytes(
+        _buildDocxBytes(
+          documentXml: _documentWithBody(
+            '<w:p><w:r>'
+            '${_anchoredDrawingXml(horizontalEmu: 9144000)}'
+            '<w:t>Texto</w:t></w:r></w:p>',
+          ),
+          extraEntries: <String, String>{
+            'word/_rels/document.xml.rels': _imageRelationshipsXml,
+          },
+          binaryEntries: <String, List<int>>{
+            'word/media/image1.png': _pngBytes,
+          },
+        ),
+      );
+
+      final document = await repository.load(filePath);
+
+      expect(imageCount(_paragraphs(document.pages.single).single), 0);
+    });
+  });
+
   test('falla con bytes corruptos no ZIP', () async {
     final filePath = p.join(tempDirectory.path, 'corrupto.docx');
     await File(filePath).writeAsBytes(<int>[0, 1, 2, 3, 4, 5, 6]);
@@ -1439,6 +1747,30 @@ ${List<String>.filled(40, _longParagraphXml(startsPage: false)).join()}
     );
   });
 }
+
+// Tabla de una celda cuyo primer run empieza con el marcador con el que Word
+// abre una página nueva: la tabla arranca arriba de una página.
+const _tableOpeningPageXml = '''
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:lastRenderedPageBreak /><w:t>Celda</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>''';
+
+// Igual, pero el marcador cae a mitad del texto de la celda: Word partió la
+// celda entre dos páginas, no abrió una con la tabla.
+const _tableMidMarkerXml = '''
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p>
+        <w:r><w:t>Uno</w:t><w:lastRenderedPageBreak /><w:t>Dos</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>''';
 
 // Párrafo de 600 caracteres — el mismo volumen que usa el caso heurístico —
 // opcionalmente precedido del marcador con el que Word abre una página nueva.
@@ -1508,6 +1840,52 @@ const _inlineDrawingXml = '''
     <a:graphic><a:graphicData><a:blip r:embed="rId5" /></a:graphicData></a:graphic>
   </wp:inline>
 </w:drawing>
+''';
+
+// 686,4 pt: más que media hoja carta (792 pt) y menos que una entera.
+const _farBelowEmu = 8717280;
+
+// Dibujo flotante (`wp:anchor`) de 1 x 0,5 pulgadas con el desplazamiento
+// indicado en EMU (12700 EMU = 1 punto; una hoja carta mide 612 x 792 pt).
+String _anchoredDrawingXml({
+  String horizontalFrom = 'column',
+  int horizontalEmu = 0,
+  String verticalFrom = 'paragraph',
+  int verticalEmu = 0,
+}) {
+  return '''
+<w:drawing xmlns:wp="urn:test"
+    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <wp:anchor>
+    <wp:positionH relativeFrom="$horizontalFrom">
+      <wp:posOffset>$horizontalEmu</wp:posOffset>
+    </wp:positionH>
+    <wp:positionV relativeFrom="$verticalFrom">
+      <wp:posOffset>$verticalEmu</wp:posOffset>
+    </wp:positionV>
+    <wp:extent cx="914400" cy="457200" />
+    <a:graphic><a:graphicData><a:blip r:embed="rId5" /></a:graphicData></a:graphic>
+  </wp:anchor>
+</w:drawing>
+''';
+}
+
+const _documentWithFooter = '''
+<w:document
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:r><w:t>Cuerpo</w:t></w:r></w:p>
+    <w:sectPr><w:footerReference w:type="default" r:id="rId2" /></w:sectPr>
+  </w:body>
+</w:document>
+''';
+
+const _footerRelationshipsXml = '''
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml" />
+</Relationships>
 ''';
 
 const _imageRelationshipsXml = '''

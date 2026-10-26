@@ -110,6 +110,8 @@ Map<String, Object?> _parseDocxContent(Map<String, Object?> payload) {
     relationships: _parsePartRelationships(archiveEntries, 'word/document.xml'),
     stylesTable: stylesTable,
     omissions: omissions,
+    pageWidthPoints: sectionMetrics.widthPoints,
+    pageHeightPoints: sectionMetrics.heightPoints,
   );
   final pages = _extractPages(body, bodyContext, sectionMetrics);
 
@@ -615,8 +617,12 @@ List<_SerializedBlockSegment>? _resolveSectionReferenceBlocks(
   // propia parte (word/_rels/header1.xml.rels), no desde el de document.xml.
   return _parseContainerBlocks(
     parsed.rootElement,
-    bodyContext.withRelationships(
-      _parsePartRelationships(bodyContext.archiveEntries, target),
+    bodyContext.forPart(
+      relationships: _parsePartRelationships(
+        bodyContext.archiveEntries,
+        target,
+      ),
+      isFooter: referenceLocalName == 'footerReference',
     ),
   );
 }
@@ -962,6 +968,20 @@ List<_SerializedBlockSegment> _parseContainerBlocks(
     }
 
     if (localName == 'tbl') {
+      // ponytail: solo agrupa en páginas; no cambia el recuento de bloques ni
+      // la clave de ruta, así que el exportador no necesita espejo (ignora y
+      // borra todos los `lastRenderedPageBreak`). Solo a nivel body, igual
+      // que `pageBreakBefore`.
+      if (respectPageBreakBefore &&
+          segments.isNotEmpty &&
+          _tableOpensNewPage(child)) {
+        final lastIndex = segments.length - 1;
+        segments[lastIndex] = _SerializedBlockSegment(
+          block: segments[lastIndex].block,
+          endsWithPageBreak: true,
+        );
+      }
+
       segments.add(
         _SerializedBlockSegment(
           block: _serializeTable(child, context),
@@ -1297,6 +1317,11 @@ List<_ParagraphChunk> _collectRawParagraphChunks(
       final localName = element.name.local;
 
       if (localName == 'drawing' || localName == 'pict') {
+        // Un dibujo fuera de la hoja no aporta texto ni bloques: descartarlo
+        // no toca offsets ni el recuento que el exportador espeja.
+        if (_isAnchoredOffPage(element, context)) {
+          continue;
+        }
         final image = _resolveImage(element, context);
         if (image == null) {
           context.omissions.add(DocumentOmission.image);
@@ -1422,6 +1447,62 @@ bool _isOutsideParagraphFlow(XmlElement element, XmlElement paragraph) {
     }
   }
   return false;
+}
+
+/// `true` si [drawing] es un dibujo flotante (`wp:anchor`) que Word coloca
+/// fuera de la hoja y por tanto no dibuja. El visor pinta los flotantes en
+/// línea con el texto, así que sin descartarlo un logo repetido y relegado
+/// fuera de página aparece dos veces.
+///
+/// Solo descarta lo que seguro cae fuera: la base de cualquier desplazamiento
+/// está dentro de la hoja, así que un `posOffset` de al menos el ancho (o el
+/// alto) de la hoja la saca por la derecha (o por abajo). En un pie el párrafo
+/// vive en la mitad inferior, así que un desplazamiento vertical relativo a él
+/// de media hoja ya la saca. En el cuerpo ese caso no se descarta: el párrafo
+/// puede estar arriba de la página y el ancla seguir dentro.
+bool _isAnchoredOffPage(XmlElement drawing, _ParseContext context) {
+  final anchor = _firstChildByLocalName(drawing, 'anchor');
+  if (anchor == null) {
+    return false;
+  }
+
+  final horizontal = _anchorOffset(anchor, 'positionH');
+  if (horizontal != null && horizontal.points >= context.pageWidthPoints) {
+    return true;
+  }
+
+  final vertical = _anchorOffset(anchor, 'positionV');
+  if (vertical == null) {
+    return false;
+  }
+  if (vertical.points >= context.pageHeightPoints) {
+    return true;
+  }
+  final relativeToText =
+      vertical.relativeFrom == 'paragraph' || vertical.relativeFrom == 'line';
+  return context.isFooter &&
+      relativeToText &&
+      vertical.points >= context.pageHeightPoints / 2;
+}
+
+/// `w:positionH`/`w:positionV` de un ancla con `w:posOffset` (en EMU); `null`
+/// si va alineada (`w:align`) o no declara desplazamiento.
+({String? relativeFrom, double points})? _anchorOffset(
+  XmlElement anchor,
+  String positionLocalName,
+) {
+  final position = _firstChildByLocalName(anchor, positionLocalName);
+  final offset = position == null
+      ? null
+      : _firstChildByLocalName(position, 'posOffset');
+  final emu = offset == null ? null : int.tryParse(offset.innerText.trim());
+  if (position == null || emu == null) {
+    return null;
+  }
+  return (
+    relativeFrom: _attributeValue(position, 'relativeFrom'),
+    points: emu / _emuPerPoint,
+  );
 }
 
 /// Extrae los bytes y el tamaño de un `w:drawing` (DrawingML) o `w:pict`
@@ -1586,6 +1667,35 @@ bool _isInsideTable(XmlElement element) {
   for (final ancestor in element.ancestors.whereType<XmlElement>()) {
     if (ancestor.name.local == 'tc') {
       return true;
+    }
+  }
+  return false;
+}
+
+/// `true` si Word maquetó [table] arrancando arriba de una página: su primer
+/// `w:lastRenderedPageBreak` está en el primer párrafo de la primera celda de
+/// la primera fila, antes de cualquier texto. Los marcadores de las demás
+/// filas o a mitad de un texto señalan que Word partió la tabla entre dos
+/// páginas, y como la tabla es atómica se siguen ignorando.
+bool _tableOpensNewPage(XmlElement table) {
+  final firstRow = _firstChildByLocalName(table, 'tr');
+  final firstCell = firstRow == null
+      ? null
+      : _firstChildByLocalName(firstRow, 'tc');
+  final firstParagraph = firstCell == null
+      ? null
+      : _firstChildByLocalName(firstCell, 'p');
+  if (firstParagraph == null) {
+    return false;
+  }
+
+  for (final element in firstParagraph.descendants.whereType<XmlElement>()) {
+    final localName = element.name.local;
+    if (localName == 'lastRenderedPageBreak') {
+      return true;
+    }
+    if (localName == 't' && element.innerText.isNotEmpty) {
+      return false;
     }
   }
   return false;
@@ -2075,19 +2185,33 @@ final class _ParseContext {
     required this.relationships,
     required this.stylesTable,
     required this.omissions,
+    required this.pageWidthPoints,
+    required this.pageHeightPoints,
+    this.isFooter = false,
   });
 
   final Map<String, ArchiveFile> archiveEntries;
   final Map<String, String> relationships;
   final _StylesTable stylesTable;
   final Set<DocumentOmission> omissions;
+  final double pageWidthPoints;
+  final double pageHeightPoints;
+  final bool isFooter;
 
-  _ParseContext withRelationships(Map<String, String> relationships) {
+  /// Contexto de otra parte (encabezado o pie): sus propias relaciones y, para
+  /// los dibujos flotantes, si se maqueta en la mitad inferior de la hoja.
+  _ParseContext forPart({
+    required Map<String, String> relationships,
+    required bool isFooter,
+  }) {
     return _ParseContext(
       archiveEntries: archiveEntries,
       relationships: relationships,
       stylesTable: stylesTable,
       omissions: omissions,
+      pageWidthPoints: pageWidthPoints,
+      pageHeightPoints: pageHeightPoints,
+      isFooter: isFooter,
     );
   }
 }
