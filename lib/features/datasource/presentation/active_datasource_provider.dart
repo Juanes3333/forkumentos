@@ -72,6 +72,26 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
 
   int _operationToken = 0;
 
+  /// Importaciones y refrescos que aún están leyendo el archivo.
+  final Set<Future<void>> _inFlight = <Future<void>>{};
+
+  /// Completa cuando no queda ninguna lectura en vuelo (incluidas las que se
+  /// lancen mientras se espera).
+  Future<void> whenIdle() async {
+    while (_inFlight.isNotEmpty) {
+      await Future.wait(_inFlight.toList());
+    }
+  }
+
+  Future<T> _track<T>(Future<T> operation) {
+    late final Future<void> done;
+    done = operation
+        .then<void>((_) {}, onError: (Object _) {})
+        .whenComplete(() => _inFlight.remove(done));
+    _inFlight.add(done);
+    return operation;
+  }
+
   @override
   FutureOr<Datasource?> build() {
     // Deliberately `listen` only, not `watch`, on activeProjectProvider.
@@ -167,7 +187,9 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
   Future<void> importDatasource({
     required String filePath,
     bool adoptIntoWorkspace = true,
-  }) async {
+  }) => _track(_import(filePath, adoptIntoWorkspace));
+
+  Future<void> _import(String filePath, bool adoptIntoWorkspace) async {
     final operationToken = ++_operationToken;
     final previousState = state;
     final previousDatasource = previousState.valueOrNull;
@@ -221,7 +243,9 @@ final class ActiveDatasourceNotifier extends AsyncNotifier<Datasource?> {
   /// state — the caller is responsible for re-syncing
   /// `Project.embeddedDatasourcePath` afterwards (see the `ponytail:` note
   /// below for why this method cannot safely do that itself).
-  Future<DatasourceRefreshResult> refreshDatasource() async {
+  Future<DatasourceRefreshResult> refreshDatasource() => _track(_refresh());
+
+  Future<DatasourceRefreshResult> _refresh() async {
     final externalPath = ref.read(
       activeProjectProvider.select(
         (state) => state.valueOrNull?.datasourceExternalPath,

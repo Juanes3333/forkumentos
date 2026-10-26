@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.2
+
+### Fixed
+- Al «Guardar y cerrar» un proyecto recién abierto, la app se colgaba si el Excel aún se estaba importando: el cierre intentaba borrar la caché con el archivo en uso. Ahora espera a que termine la importación (hasta 10 s) y, si Windows aún bloquea la carpeta, cierra igual sin colgarse.
+
 ## 1.9.1
 
 ### Fixed

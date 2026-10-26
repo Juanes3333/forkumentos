@@ -20,7 +20,7 @@
 
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white">
 
-  <img src="https://img.shields.io/badge/Version-1.9.1-5B8DEF?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Version-1.9.2-5B8DEF?style=for-the-badge">
 
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge">
 
@@ -32,7 +32,7 @@
 
 ---
 
-**Version 1.9.1**
+**Version 1.9.2**
 
 Forkumentos keeps templates and data local: portable `.fork` projects embed the DOCX template, datasource, and field mappings so you can reopen the same work on another machine. When you refresh data, Forkumentos re-reads the original spreadsheet path you imported (not only the embedded cache copy). Replacing a spreadsheet whose column headers changed prompts you to accept the new names or cancel. DOCX export keeps per-run formatting (e.g. bold labels next to replaced values). Settings can check GitHub Releases for a newer installer.
 
@@ -334,4 +334,4 @@ It targets professional desktop document workflows: keep templates and data loca
 
 - Repository: [github.com/Juanes3333/forkumentos](https://github.com/Juanes3333/forkumentos)
 - Releases: [github.com/Juanes3333/forkumentos/releases](https://github.com/Juanes3333/forkumentos/releases)
-- Version: **1.9.1**
+- Version: **1.9.2**

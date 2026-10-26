@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -240,6 +241,61 @@ void main() {
     expect(state.valueOrNull, isNull);
   });
 
+  test(
+    'closeProject cierra aunque la caché esté bloqueada por otro proceso',
+    () async {
+      final fakeRepository = FakeProjectRepository();
+      final container = _createContainer(fakeRepository, tempDirectory.path);
+      addTearDown(container.dispose);
+
+      final notifier = container.read(activeProjectProvider.notifier);
+      await notifier.createProject(name: 'Proyecto bloqueado');
+      final id = container.read(activeProjectProvider).requireValue!.id;
+      final locked = File(p.join(tempDirectory.path, 'Cache', id, 'datos.xlsx'))
+        ..createSync(recursive: true);
+      final handle = locked.openSync(mode: FileMode.write);
+      addTearDown(handle.closeSync);
+
+      await notifier.closeProject();
+
+      final state = container.read(activeProjectProvider);
+      expect(state.isLoading, isFalse);
+      expect(state.hasError, isFalse);
+      expect(state.valueOrNull, isNull);
+    },
+  );
+
+  test('closeProject espera a que termine la importación antes de borrar la '
+      'caché', () async {
+    final importing = Completer<void>();
+    final container = _createContainer(
+      FakeProjectRepository(),
+      tempDirectory.path,
+      extra: <Override>[
+        datasourceIdleProvider.overrideWithValue(() => importing.future),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(activeProjectProvider.notifier);
+    await notifier.createProject(name: 'Proyecto importando');
+    final id = container.read(activeProjectProvider).requireValue!.id;
+    final cache = Directory(p.join(tempDirectory.path, 'Cache', id))
+      ..createSync(recursive: true);
+
+    final closing = notifier.closeProject();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(container.read(activeProjectProvider).isLoading, isTrue);
+    expect(cache.existsSync(), isTrue);
+
+    importing.complete();
+    await closing;
+
+    expect(container.read(activeProjectProvider).valueOrNull, isNull);
+    expect(cache.existsSync(), isFalse);
+  });
+
   group('varias plantillas', () {
     File docx(String name) => File(p.join(tempDirectory.path, 'src', name))
       ..createSync(recursive: true)
@@ -368,12 +424,17 @@ void main() {
   });
 }
 
-ProviderContainer _createContainer(ProjectRepository repository, String root) {
+ProviderContainer _createContainer(
+  ProjectRepository repository,
+  String root, {
+  List<Override> extra = const <Override>[],
+}) {
   return ProviderContainer(
     overrides: <Override>[
       loggingServiceProvider.overrideWithValue(FakeLoggingService()),
       projectRepositoryProvider.overrideWithValue(repository),
       workspacePathsProvider.overrideWithValue(WorkspacePaths(root: root)),
+      ...extra,
     ],
   );
 }

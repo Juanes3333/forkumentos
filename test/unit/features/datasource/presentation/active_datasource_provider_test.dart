@@ -236,6 +236,27 @@ void main() {
     },
   );
 
+  test('whenIdle espera a la importación en vuelo, incluso si falla', () async {
+    final pendingLoad = Completer<Datasource>();
+    final container = _createContainer(
+      FakeDatasourceRepository(loadHandler: (_) => pendingLoad.future),
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(activeDatasourceProvider.notifier);
+
+    await notifier.whenIdle();
+    unawaited(notifier.importDatasource(filePath: '/tmp/lento.csv'));
+    var idle = false;
+    final waiting = notifier.whenIdle().then((_) => idle = true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(idle, isFalse);
+
+    pendingLoad.completeError(StateError('archivo roto'));
+    await waiting;
+
+    expect(idle, isTrue);
+  });
+
   group('fuente borrador (proyecto solo con Word)', () {
     test('los campos creados sobre el documento se exponen como encabezados '
         'de una fuente sin archivo, en orden', () async {

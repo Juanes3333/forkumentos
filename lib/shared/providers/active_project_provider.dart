@@ -17,6 +17,17 @@ final activeProjectProvider =
       ActiveProjectNotifier.new,
     );
 
+/// Completa cuando la fuente de datos activa no tiene ninguna importación en
+/// vuelo. Lo implementa la feature `datasource` (se conecta en `main.dart`);
+/// por defecto no espera nada.
+final datasourceIdleProvider = Provider<Future<void> Function()>(
+  (ref) => () async {},
+);
+
+/// Tope de espera a la importación al cerrar, para que una lectura atascada
+/// no deje el cierre colgado.
+const _closeWaitForDatasource = Duration(seconds: 10);
+
 final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
   final Uuid _uuid = const Uuid();
   Future<void> _operationQueue = Future<void>.value();
@@ -161,10 +172,26 @@ final class ActiveProjectNotifier extends AsyncNotifier<Project?> {
 
       final paths = ref.read(workspacePathsProvider);
       if (currentProject != null && paths != null) {
+        // La importación disparada al guardar tiene abierto el xlsx de la
+        // caché: se espera a que suelte el archivo antes de borrarlo.
+        await ref
+            .read(datasourceIdleProvider)()
+            .timeout(_closeWaitForDatasource, onTimeout: () {});
         final cacheDir = Directory(paths.projectCache(currentProject.id));
-        // ignore: avoid_slow_async_io
-        if (await cacheDir.exists()) {
-          await cacheDir.delete(recursive: true);
+        try {
+          // ignore: avoid_slow_async_io
+          if (await cacheDir.exists()) {
+            await cacheDir.delete(recursive: true);
+          }
+        } on FileSystemException catch (error, stackTrace) {
+          // Un archivo aún abierto (p. ej. el Excel recién importado) no debe
+          // dejar el proyecto a medio cerrar: la caché queda para la próxima.
+          _logger.warning(
+            'No se pudo borrar la caché del proyecto',
+            module: 'Project',
+            error: error,
+            stackTrace: stackTrace,
+          );
         }
       }
 
