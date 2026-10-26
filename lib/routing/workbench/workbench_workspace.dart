@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:forkumentos/features/datasource/presentation/active_datasource_provider.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_controller_provider.dart';
 import 'package:forkumentos/features/document_viewer/presentation/document_viewer_screen.dart';
 import 'package:forkumentos/features/mapping/domain/field_assignment.dart';
@@ -70,8 +69,6 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
     final templateState = ref.watch(activeTemplateProvider);
     final templatePath = templateState.valueOrNull?.sourcePath;
     final reviewMode = ref.watch(workbenchReviewRenderModeProvider);
-    final datasource = ref.watch(activeDatasourceProvider).valueOrNull;
-    final headers = datasource?.headers ?? const <String>[];
     final assignments = ref.watch(
       activeMappingProvider.select((session) => session.state.assignments),
     );
@@ -147,9 +144,9 @@ final class _WorkbenchWorkspaceState extends ConsumerState<WorkbenchWorkspace> {
                     document: document,
                   ),
             // null (not empty callback): SelectableText would stale TextSpans.
-            onSelectionChanged: isPreview || headers.isEmpty
-                ? null
-                : _handleSelectionChanged,
+            // Sin Excel también se selecciona: el cuadro ofrece crear el
+            // primer campo desde el texto.
+            onSelectionChanged: isPreview ? null : _handleSelectionChanged,
           ),
         ),
         if (!isPreview && selectionState.hasSelection)
