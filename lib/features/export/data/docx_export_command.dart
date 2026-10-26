@@ -172,9 +172,9 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
       try {
         // One Isolate.run for prepare + apply + write: avoids sharing prepared
         // archive buffers across repeated isolate transfers.
-        final paths = await Isolate.run(
-          () =>
-              _exportPreparedBatch(templateBytes: templateBytes, jobs: pending),
+        final paths = await _exportBatchInIsolate(
+          templateBytes: templateBytes,
+          jobs: pending,
         );
         written.addAll(paths);
         exported += paths.length;
@@ -224,6 +224,20 @@ final class _DocxRowExportJob {
   final List<DocxTextReplacement> replacements;
   final List<DocxListReplacement> listReplacements;
   final List<DocxRangeReplacement> rangeReplacements;
+}
+
+/// Genera el lote en otro hilo. Va fuera de la clase a propósito: una función
+/// anónima creada dentro de `execute` captura `this` y, con él, `resolveRow`
+/// y todo lo que ve la app (ventana, nodos de foco…), y esos objetos no se
+/// pueden enviar a otro hilo («object is unsendable»), con lo que fallaban
+/// todas las filas del lote. Aquí solo viajan los bytes y los trabajos.
+Future<List<String>> _exportBatchInIsolate({
+  required Uint8List templateBytes,
+  required List<_DocxRowExportJob> jobs,
+}) {
+  return Isolate.run(
+    () => _exportPreparedBatch(templateBytes: templateBytes, jobs: jobs),
+  );
 }
 
 List<String> _exportPreparedBatch({

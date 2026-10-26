@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -67,6 +68,48 @@ void main() {
     expect(result.exportedCount, lessThan(4));
     expect(result.skippedCount, greaterThan(0));
     expect(result.exportedCount + result.failedCount + result.skippedCount, 4);
+  });
+
+  test('exporta aunque la fila se resuelva con algo que no se puede enviar a '
+      'otro hilo (en la app es la ventana)', () async {
+    final template = _buildDocxBytes(
+      documentXml: _documentWithBody(
+        '<w:p><w:r><w:t>Hola Ana</w:t></w:r></w:p>',
+      ),
+    );
+    // Un `Completer` no viaja por un `SendPort`: la app tiene los suyos
+    // (`WidgetsFlutterBinding`, nodos de foco…) al alcance de `resolveRow`, y
+    // el hilo que genera los DOCX no debe arrastrarlos.
+    final unsendable = Completer<void>();
+
+    final command = DocxExportCommand(
+      templateBytes: template,
+      destinationFolder: tempDirectory.path,
+      filenamePattern: const FilenamePattern(
+        blocks: <FilenamePatternBlock>[FilenameTextBlock('doc')],
+      ),
+      rowIndexes: const <int>[0],
+      placeholders: const <ExportPlaceholder>[
+        ExportPlaceholder(
+          steps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)],
+          startOffset: 5,
+          endOffset: 8,
+          fieldIndex: 0,
+        ),
+      ],
+      headers: const <String>['nombre'],
+      templateBaseName: 'plantilla',
+      resolveRow: (rowIndex) async {
+        unsendable.isCompleted;
+        return const <String?>['Eva'];
+      },
+    );
+
+    final result = await command.execute();
+
+    expect(result.errors, isEmpty);
+    expect(result.exportedCount, 1);
+    expect(result.failedCount, 0);
   });
 
   test('exporta al menos 3 filas a archivos DOCX distintos', () async {
