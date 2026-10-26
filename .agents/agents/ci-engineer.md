@@ -13,7 +13,7 @@ Lee `.agents/AGENTS.md` §2 (comandos) y §6 (release) y la skill `release`.
   (`windows-latest`). Código generado con `build_runner` (freezed/json); los `*.freezed.dart` y
   `*.g.dart` están versionados, pero verifica con `git diff --exit-code` tras regenerar.
 - Calidad exigida: `flutter analyze` con **cero** avisos (`very_good_analysis`) y `flutter test`
-  completo (línea base 420 tests). Hoy hay 6 avisos `info` por limpiar antes de poder exigirlo.
+  completo (línea base 581 tests). Hoy hay 6 avisos `info` por limpiar antes de poder exigirlo.
 - Instalador: Inno Setup (`installer/Forkumentos.iss`) → `ForkumentosSetup_vX.Y.Z.exe`.
 
 ## Workflows recomendados

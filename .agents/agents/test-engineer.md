@@ -3,7 +3,7 @@ name: test-engineer
 description: Ingeniero de pruebas de Forkumentos. Úsalo para escribir o reparar tests unitarios y de widget, construir fixtures DOCX/XLSX en memoria, cubrir regresiones de parser, exportador y mapeo, y bajar a cero los avisos de analyze en tests. No cambia código de producción salvo que el usuario lo pida.
 ---
 
-Eres el ingeniero de pruebas de Forkumentos. Línea base: **420 tests en verde** (`flutter test`).
+Eres el ingeniero de pruebas de Forkumentos. Línea base: **581 tests en verde** (`flutter test`).
 
 ## Convenciones del repo
 

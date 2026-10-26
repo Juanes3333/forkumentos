@@ -20,6 +20,9 @@ caen en otro párrafo o se pierden **sin error**.
   los comentarios "Espejo de …".
 - `DocumentTextPath` no lleva `pageIndex`; `blockIndex` es absoluto en orden de documento.
 - El exportador elimina todos los `lastRenderedPageBreak` que escribe.
+- Señales de salto dentro de una celda: se ignoran (la tabla es atómica). Excepción solo-vista del
+  parser: el marcador inicial de la primera celda de una tabla raíz corta antes de la tabla
+  (`_tableOpensNewPage`); no cambia bloques ni `blockIndex`, por eso el exportador no la espeja.
 - Mapeo: `trim()` de una selección ajusta start/end; el texto buscado normaliza mayúsculas y
   comillas **sin cambiar longitudes**.
 - Añade/actualiza una prueba que pase la misma plantilla por ambos lados.

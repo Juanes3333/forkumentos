@@ -94,7 +94,10 @@ Deben coincidir exactamente:
    `w:sectPr` intermedio (último chunk; `nextPage` rompe, `continuous`/`nextColumn` no).
    `pageBreakBefore`/`sectPr` solo a nivel body, nunca en celdas ni header/footer.
 4. **Dentro de una celda de tabla se ignoran TODAS las señales de salto** (`_isInsideTable`, mismo
-   nombre en ambos archivos). Un `DocumentTableBlock` es atómico.
+   nombre en ambos archivos). Un `DocumentTableBlock` es atómico. Única excepción, solo vista y
+   solo en el parser (`_tableOpensNewPage`): un `lastRenderedPageBreak` antes de cualquier texto
+   del primer párrafo de la primera celda de una tabla **raíz** significa "Word la abrió en página
+   nueva" y corta antes de la tabla (no crea bloques ni cuenta para `hasRenderedPageBreaks`).
 
 Ambos archivos llevan comentarios "Espejo de …". **Consérvalos y cambia los dos lados a la vez.**
 
@@ -186,6 +189,11 @@ de runs conserva texto/formato (no volcar todo al primer `<w:t>`).
 - Atajos del visor: Ctrl+rueda = zoom, Ctrl+Z / Ctrl+Mayús+Z = deshacer/rehacer; al elegir una
   coincidencia se resalta la palabra exacta además de hacer scroll.
 - Ajustes: 5 pestañas (General, Apariencia, Comportamiento, Exportación, Acerca de).
+- El cuadro «Asignar campo» (`workbench_selection_tooltip.dart`) se coloca con un
+  `CustomSingleChildLayout` que mide su **tamaño real** (hoy ~300 px de alto) y lo pone arriba, abajo o
+  al lado del texto sin tapar la selección; no vuelvas a una altura supuesta. La selección en el
+  documento funciona también sin Excel (el cuadro ofrece «Crear campo nuevo»); solo la Vista previa
+  la desactiva.
 
 ## 6. Versionado y release
 
@@ -238,7 +246,7 @@ si cambiaron `.md`/`.yaml`/imágenes pide antes la extracción semántica. Skill
 
 ## 8. Estado conocido y deuda
 
-- Línea base 2026-10-14: `flutter test` = **420 en verde**. `flutter analyze` = 6 avisos `info`
+- Línea base 2026-10-24: `flutter test` = **581 en verde**. `flutter analyze` = 6 avisos `info`
   (línea >80 en `document_viewer_screen.dart:750`; `use_raw_strings` y
   `missing_whitespace_between_adjacent_strings` en tests de export/catálogo): pendientes de limpiar.
 - Hallazgos abiertos de la ultrareview sobre el diff sin commitear (updater y encabezados):
@@ -254,6 +262,11 @@ si cambiaron `.md`/`.yaml`/imágenes pide antes la extracción semántica. Skill
     parsea el archivo dos veces y pregunta aun con cero asignaciones.
   - `DatasourceResourceCard` (asistente) refresca/reemplaza **sin** `*ConfirmingHeaders`.
 - Tablas más altas que una página no se parten (atómicas); rangos y listas solo a nivel raíz.
+- `Isolate.run`/`compute` solo desde funciones **de nivel superior** que reciben datos simples: una
+  función anónima dentro de un método captura `this` (y con él la ventana) y falla con «object is
+  unsendable» (`DocxExportCommand` lo sufrió: fallaban todos los lotes de exportación).
+- Los dibujos flotantes (`wp:anchor`) se pintan **en línea** con el texto, no en su posición real.
+  Solo se descartan los que seguro caen fuera de la hoja (`_isAnchoredOffPage`: Word no los dibuja).
 - `docs/PROJECT_SPEC.md` es histórico (menciona PDF).
 
 ## 9. Mapa de documentación

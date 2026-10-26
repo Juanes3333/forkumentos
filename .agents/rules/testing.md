@@ -8,7 +8,7 @@ paths:
 
 # Pruebas
 
-Línea base: `flutter test` = 420 en verde; `flutter analyze` sin avisos en tests también.
+Línea base: `flutter test` = 581 en verde; `flutter analyze` sin avisos en tests también.
 
 - `test/unit/**` sin Flutter; `test/widget/**` con `ProviderScope` y overrides inyectados en el
   `ProviderScope`; fakes compartidos en `test/support/fakes.dart`; `test/integration/` reservado a
