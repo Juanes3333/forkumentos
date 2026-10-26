@@ -95,13 +95,13 @@ final class DocxExportCommand extends CancellableCommand<ExportResult> {
           final rootStep = placeholder.steps.length == 1
               ? placeholder.steps.first
               : null;
-          final endBlockIndex = placeholder.endBlockIndex;
-          if (endBlockIndex != null && rootStep is ExportRootBlockStep) {
+          final endSteps = placeholder.endSteps;
+          if (endSteps != null) {
             rangeReplacements.add(
               DocxRangeReplacement(
-                startBlockIndex: rootStep.blockIndex,
+                startSteps: placeholder.steps,
                 startOffset: placeholder.startOffset,
-                endBlockIndex: endBlockIndex,
+                endSteps: endSteps,
                 endOffset: placeholder.endOffset,
                 text: value,
               ),

@@ -294,21 +294,12 @@ ExportPlaceholder _toPlaceholder(FieldAssignment assignment) {
     endOffset: assignment.endOffset,
     fieldIndex: assignment.fieldIndex,
     isListField: assignment.isListField,
-    endBlockIndex: assignment.endPath == null
+    endSteps: assignment.endPath == null
         ? null
-        : _resolveRootBlockIndex(assignment.endPath!),
+        : <ExportPathStep>[
+            for (final step in assignment.endPath!.steps) _toExportStep(step),
+          ],
   );
-}
-
-/// Extrae el `blockIndex` raíz de [path], o `null` si no es un párrafo de
-/// nivel raíz (p. ej. una celda de tabla). `endBlockIndex` de
-/// [ExportPlaceholder] solo soporta rangos que terminan a nivel raíz.
-int? _resolveRootBlockIndex(DocumentTextPath path) {
-  if (path.steps.length != 1) {
-    return null;
-  }
-  final step = path.steps.single;
-  return step is RootDocumentBlockStep ? step.blockIndex : null;
 }
 
 ExportPathStep _toExportStep(DocumentPathStep step) {

@@ -777,10 +777,10 @@ void main() {
 ''',
         rangeReplacements: const <DocxRangeReplacement>[
           DocxRangeReplacement(
-            startBlockIndex: 0,
+            startSteps: _root0,
             // "Hola " (prefijo) | "mundo" (rango) empieza en offset 5.
             startOffset: 5,
-            endBlockIndex: 1,
+            endSteps: _root1,
             // "cruel" (rango) | " y frio." (sufijo) termina en offset 5.
             endOffset: 5,
             text: 'Ana',
@@ -792,7 +792,7 @@ void main() {
       expect(_countElements(documentXml, 'p'), 1);
     });
 
-    test('texto con \\n cruzando dos párrafos: P1 = prefijo + línea 0, '
+    test(r'texto con \n cruzando dos párrafos: P1 = prefijo + línea 0, '
         'P2 = línea 1 + sufijo, sin párrafos clonados', () {
       final documentXml = _exportDocumentXmlWithRanges(
         bodyContent: '''
@@ -801,9 +801,9 @@ void main() {
 ''',
         rangeReplacements: const <DocxRangeReplacement>[
           DocxRangeReplacement(
-            startBlockIndex: 0,
+            startSteps: _root0,
             startOffset: 10,
-            endBlockIndex: 1,
+            endSteps: _root1,
             endOffset: 0,
             text: 'Primera línea.\nSegunda línea.',
           ),
@@ -817,7 +817,7 @@ void main() {
       expect(_countElements(documentXml, 'p'), 2);
     });
 
-    test('texto con \\n cruzando tres párrafos: el párrafo intermedio se '
+    test(r'texto con \n cruzando tres párrafos: el párrafo intermedio se '
         'elimina y se clona uno nuevo por cada línea intermedia', () {
       final documentXml = _exportDocumentXmlWithRanges(
         bodyContent: '''
@@ -827,9 +827,9 @@ void main() {
 ''',
         rangeReplacements: const <DocxRangeReplacement>[
           DocxRangeReplacement(
-            startBlockIndex: 0,
+            startSteps: _root0,
             startOffset: 8,
-            endBlockIndex: 2,
+            endSteps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 2)],
             endOffset: 0,
             text: 'Uno.\nDos.\nTres.',
           ),
@@ -870,9 +870,11 @@ void main() {
         ],
         rangeReplacements: const <DocxRangeReplacement>[
           DocxRangeReplacement(
-            startBlockIndex: 1,
+            startSteps: <ExportPathStep>[
+              ExportPathStep.rootBlock(blockIndex: 1),
+            ],
             startOffset: 0,
-            endBlockIndex: 2,
+            endSteps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 2)],
             endOffset: 4,
             text: 'Junto.',
           ),
@@ -881,8 +883,106 @@ void main() {
 
       expect(_wTexts(documentXml), <String>['Hola', 'Junto.', 'Chau']);
     });
+
+    group('dentro de una celda de tabla', () {
+      List<ExportPathStep> cell(int row, int col, int block) =>
+          <ExportPathStep>[
+            const ExportPathStep.rootBlock(blockIndex: 1),
+            ExportPathStep.cellBlock(
+              rowIndex: row,
+              cellIndex: col,
+              blockIndex: block,
+            ),
+          ];
+
+      const table = r'''
+<w:p><w:r><w:t>Antes</w:t></w:r></w:p>
+<w:tbl>
+  <w:tr>
+    <w:tc>
+      <w:p><w:r><w:t>VEINTIDOS MILLONES CIENTO CUATRO MIL</w:t></w:r></w:p>
+      <w:p><w:r><w:t>PESOS M/CTE ($ 22.104.000)</w:t></w:r></w:p>
+    </w:tc>
+    <w:tc>
+      <w:p><w:r><w:t>Otra celda</w:t></w:r></w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+''';
+
+      test('una línea fusiona ambos párrafos de la celda sin dejar residuo '
+          'del texto original', () {
+        final documentXml = _exportDocumentXmlWithRanges(
+          bodyContent: table,
+          rangeReplacements: <DocxRangeReplacement>[
+            DocxRangeReplacement(
+              startSteps: cell(0, 0, 0),
+              startOffset: 0,
+              endSteps: cell(0, 0, 1),
+              endOffset: 11,
+              text: 'CUATRO MILLONES PESOS M/CTE',
+            ),
+          ],
+        );
+
+        expect(_wTexts(documentXml), <String>[
+          'Antes',
+          r'CUATRO MILLONES PESOS M/CTE ($ 22.104.000)',
+          'Otra celda',
+        ]);
+        expect(documentXml, isNot(contains('MILLONES CIENTO')));
+      });
+
+      test('dos líneas se reparten entre los dos párrafos de la celda', () {
+        final documentXml = _exportDocumentXmlWithRanges(
+          bodyContent: table,
+          rangeReplacements: <DocxRangeReplacement>[
+            DocxRangeReplacement(
+              startSteps: cell(0, 0, 0),
+              startOffset: 0,
+              endSteps: cell(0, 0, 1),
+              endOffset: 11,
+              text: 'CUATRO MILLONES\nPESOS M/CTE',
+            ),
+          ],
+        );
+
+        expect(_wTexts(documentXml), <String>[
+          'Antes',
+          'CUATRO MILLONES',
+          r'PESOS M/CTE ($ 22.104.000)',
+          'Otra celda',
+        ]);
+      });
+
+      test('un rango cuyo fin está en otra celda se descarta sin tocar el '
+          'documento', () {
+        final documentXml = _exportDocumentXmlWithRanges(
+          bodyContent: table,
+          rangeReplacements: <DocxRangeReplacement>[
+            DocxRangeReplacement(
+              startSteps: cell(0, 0, 0),
+              startOffset: 0,
+              endSteps: cell(0, 1, 0),
+              endOffset: 4,
+              text: 'X',
+            ),
+          ],
+        );
+
+        expect(_wTexts(documentXml), <String>[
+          'Antes',
+          'VEINTIDOS MILLONES CIENTO CUATRO MIL',
+          r'PESOS M/CTE ($ 22.104.000)',
+          'Otra celda',
+        ]);
+      });
+    });
   });
 }
+
+const _root0 = <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 0)];
+const _root1 = <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 1)];
 
 /// Un reemplazo de un párrafo de primer nivel, que es el caso de la mayoría
 /// de estas pruebas.

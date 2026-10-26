@@ -79,7 +79,6 @@ final class ActiveTemplateNotifier extends AsyncNotifier<Template?> {
     return null;
   }
 
-
   Future<void> importTemplate({required String filePath}) async {
     final operationToken = ++_operationToken;
     final previousState = state;

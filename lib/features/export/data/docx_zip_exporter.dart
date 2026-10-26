@@ -53,8 +53,8 @@ final class DocxListReplacement {
 }
 
 /// One resolved cross-paragraph text replacement: the source range starts at
-/// [startOffset] in the root-level `<w:p>` at [startBlockIndex] and ends at
-/// [endOffset] in the root-level `<w:p>` at [endBlockIndex] (mirrors
+/// [startOffset] in the `<w:p>` at [startSteps] and ends at [endOffset] in the
+/// `<w:p>` at [endSteps] (mirrors
 /// `FieldAssignment.path`/`startOffset`/`endPath`/`endOffset`).
 ///
 /// [text] is split on `\n`; the first line replaces the start paragraph's
@@ -63,20 +63,21 @@ final class DocxListReplacement {
 /// in-between `<w:p>`s were removed. A single-line [text] merges both
 /// paragraphs into one and drops the end paragraph.
 ///
-/// Root-level only, like [DocxListReplacement]: a range starting/ending
-/// inside a table cell is not supported.
+/// Both ends must be sibling paragraphs of the same container (the body or one
+/// table cell); a range across containers is dropped, so callers must reject
+/// it beforehand (see `assignmentStillMatchesDocument`).
 final class DocxRangeReplacement {
   const DocxRangeReplacement({
-    required this.startBlockIndex,
+    required this.startSteps,
     required this.startOffset,
-    required this.endBlockIndex,
+    required this.endSteps,
     required this.endOffset,
     required this.text,
   });
 
-  final int startBlockIndex;
+  final List<ExportPathStep> startSteps;
   final int startOffset;
-  final int endBlockIndex;
+  final List<ExportPathStep> endSteps;
   final int endOffset;
   final String text;
 }
@@ -231,9 +232,9 @@ String _applyToDocumentXml(
     for (final listReplacement in listReplacements)
       listReplacement.rootBlockIndex: listReplacement,
   };
-  final byStartBlockIndex = <int, DocxRangeReplacement>{
+  final byStartPathKey = <String, DocxRangeReplacement>{
     for (final rangeReplacement in rangeReplacements)
-      rangeReplacement.startBlockIndex: rangeReplacement,
+      _pathKey(rangeReplacement.startSteps): rangeReplacement,
   };
 
   // Absoluto y monotónico, en orden de documento: espejo exacto de
@@ -250,18 +251,22 @@ String _applyToDocumentXml(
   // afectado por una mutación de lista en un bloque anterior.
   final children = body.childElements.toList();
   final pendingLists = <_PendingListInsertion>[];
-  // Head blockIndex (primer chunk de cada `<w:p>`, o el único valor de cada
-  // `<w:tbl>`) -> elemento raíz. Espejo del `rootBlockIndex` que ya usan las
-  // listas: permite resolver P1/P2 de un rango cruzado después de terminar
-  // este recorrido, sin repetir la cuenta de blockIndex.
-  final elementByBlockIndex = <int, XmlElement>{};
+  // Clave de ruta del primer chunk de cada `<w:p>` (raíz o de celda) y de cada
+  // `<w:tbl>` raíz -> elemento. Permite resolver P1/P2 de un rango cruzado
+  // después de terminar este recorrido, sin repetir la cuenta de blockIndex.
+  // Se llena en orden de documento (el orden de inserción se usa para
+  // aplicar los rangos de atrás hacia adelante).
+  final elementByPathKey = <String, XmlElement>{};
 
   for (var i = 0; i < children.length; i++) {
     final child = children[i];
     final localName = child.name.local;
     if (localName == 'p') {
       final paragraphBlockIndex = blockIndex;
-      elementByBlockIndex[paragraphBlockIndex] = child;
+      elementByPathKey[_pathKey(<ExportPathStep>[
+            ExportPathStep.rootBlock(blockIndex: paragraphBlockIndex),
+          ])] =
+          child;
       final chunks = _splitParagraphChunks(child);
       for (final chunk in chunks) {
         final steps = <ExportPathStep>[
@@ -284,8 +289,16 @@ String _applyToDocumentXml(
     }
 
     if (localName == 'tbl') {
-      elementByBlockIndex[blockIndex] = child;
-      _walkTable(child, rootBlockIndex: blockIndex, byPath: byPath);
+      elementByPathKey[_pathKey(<ExportPathStep>[
+            ExportPathStep.rootBlock(blockIndex: blockIndex),
+          ])] =
+          child;
+      _walkTable(
+        child,
+        rootBlockIndex: blockIndex,
+        byPath: byPath,
+        elementByPathKey: elementByPathKey,
+      );
       blockIndex++;
     }
   }
@@ -297,14 +310,9 @@ String _applyToDocumentXml(
     _applyListInsertion(body, pending);
   }
 
-  final pendingRanges = _resolvePendingRanges(
-    children,
-    byStartBlockIndex,
-    elementByBlockIndex,
-  )..sort((a, b) => b.startBlockIndex.compareTo(a.startBlockIndex));
-  for (final pending in pendingRanges) {
-    _applyRangeReplacement(body, pending);
-  }
+  _resolvePendingRanges(byStartPathKey, elementByPathKey)
+    ..sort((a, b) => b.documentOrder.compareTo(a.documentOrder))
+    ..forEach(_applyRangeReplacement);
 
   _stripLastRenderedPageBreaks(document);
   return document.toXmlString();
@@ -386,26 +394,33 @@ void _applyListInsertion(XmlElement body, _PendingListInsertion pending) {
 }
 
 /// Resuelve cada [DocxRangeReplacement] a sus elementos `<w:p>` P1/P2 y a los
-/// elementos raíz que quedan estrictamente entre ambos (a eliminar). Un
-/// rango cuyo `startBlockIndex`/`endBlockIndex` no resuelva a un `<w:p>`
-/// válido en orden creciente se descarta: no hay dónde aplicarlo.
+/// hermanos que quedan estrictamente entre ambos (a eliminar). Un rango cuyos
+/// extremos no resuelvan a `<w:p>` hermanos (mismo body o misma celda) en
+/// orden creciente se descarta: no hay dónde aplicarlo.
 List<_PendingRangeReplacement> _resolvePendingRanges(
-  List<XmlElement> children,
-  Map<int, DocxRangeReplacement> byStartBlockIndex,
-  Map<int, XmlElement> elementByBlockIndex,
+  Map<String, DocxRangeReplacement> byStartPathKey,
+  Map<String, XmlElement> elementByPathKey,
 ) {
+  final orderByKey = <String, int>{
+    for (final (index, key) in elementByPathKey.keys.indexed) key: index,
+  };
   final pending = <_PendingRangeReplacement>[];
-  for (final range in byStartBlockIndex.values) {
-    final startElement = elementByBlockIndex[range.startBlockIndex];
-    final endElement = elementByBlockIndex[range.endBlockIndex];
+  for (final entry in byStartPathKey.entries) {
+    final range = entry.value;
+    final startElement = elementByPathKey[entry.key];
+    final endElement = elementByPathKey[_pathKey(range.endSteps)];
+    final parent = startElement?.parent;
     if (startElement == null ||
         endElement == null ||
         startElement.name.local != 'p' ||
-        endElement.name.local != 'p') {
+        endElement.name.local != 'p' ||
+        parent is! XmlElement ||
+        !identical(parent, endElement.parent)) {
       continue;
     }
-    final startIndex = children.indexOf(startElement);
-    final endIndex = children.indexOf(endElement);
+    final siblings = parent.childElements.toList();
+    final startIndex = siblings.indexOf(startElement);
+    final endIndex = siblings.indexOf(endElement);
     if (startIndex < 0 || endIndex < startIndex) {
       continue;
     }
@@ -413,11 +428,12 @@ List<_PendingRangeReplacement> _resolvePendingRanges(
       _PendingRangeReplacement(
         startElement: startElement,
         endElement: endElement,
-        between: children.sublist(startIndex + 1, endIndex),
+        between: siblings.sublist(startIndex + 1, endIndex),
         text: range.text,
         startOffset: range.startOffset,
         endOffset: range.endOffset,
-        startBlockIndex: range.startBlockIndex,
+        parent: parent,
+        documentOrder: orderByKey[entry.key]!,
       ),
     );
   }
@@ -427,9 +443,10 @@ List<_PendingRangeReplacement> _resolvePendingRanges(
 /// Aplica un reemplazo cruzado entre párrafos: P1 conserva su prefijo, P2 su
 /// sufijo, los `<w:p>` intermedios se eliminan, y el texto partido por `\n`
 /// se reparte entre P1, clones intermedios y P2. Ver [DocxRangeReplacement].
-void _applyRangeReplacement(XmlElement body, _PendingRangeReplacement pending) {
+void _applyRangeReplacement(_PendingRangeReplacement pending) {
+  final container = pending.parent;
   for (final element in pending.between) {
-    body.children.remove(element);
+    container.children.remove(element);
   }
 
   final startNodes = _splitParagraphChunks(
@@ -466,7 +483,7 @@ void _applyRangeReplacement(XmlElement body, _PendingRangeReplacement pending) {
       end: startPlainLen,
       text: lines.first + suffix,
     );
-    body.children.remove(pending.endElement);
+    container.children.remove(pending.endElement);
     return;
   }
 
@@ -483,11 +500,11 @@ void _applyRangeReplacement(XmlElement body, _PendingRangeReplacement pending) {
     text: lines.last,
   );
 
-  final insertAt = body.children.indexOf(pending.endElement);
+  final insertAt = container.children.indexOf(pending.endElement);
   if (insertAt >= 0) {
     var index = insertAt;
     for (final middle in lines.sublist(1, lines.length - 1)) {
-      body.children.insert(
+      container.children.insert(
         index,
         _cloneListParagraph(pending.startElement, middle),
       );
@@ -624,6 +641,7 @@ void _walkTable(
   XmlElement table, {
   required int rootBlockIndex,
   required Map<String, List<DocxTextReplacement>> byPath,
+  required Map<String, XmlElement> elementByPathKey,
 }) {
   var rowIndex = 0;
   for (final row in table.childElements) {
@@ -644,7 +662,7 @@ void _walkTable(
           continue;
         }
         final chunks = _splitParagraphChunks(child);
-        for (final chunk in chunks) {
+        for (final (chunkIndex, chunk) in chunks.indexed) {
           final steps = <ExportPathStep>[
             ExportPathStep.rootBlock(blockIndex: rootBlockIndex),
             ExportPathStep.cellBlock(
@@ -654,6 +672,9 @@ void _walkTable(
             ),
           ];
           final key = _pathKey(steps);
+          if (chunkIndex == 0) {
+            elementByPathKey[key] = child;
+          }
           final pathReplacements = byPath[key];
           if (pathReplacements != null && pathReplacements.isNotEmpty) {
             _applyToTextNodes(chunk.nodes, pathReplacements);
@@ -1196,7 +1217,8 @@ final class _PendingRangeReplacement {
     required this.text,
     required this.startOffset,
     required this.endOffset,
-    required this.startBlockIndex,
+    required this.parent,
+    required this.documentOrder,
   });
 
   final XmlElement startElement;
@@ -1205,5 +1227,11 @@ final class _PendingRangeReplacement {
   final String text;
   final int startOffset;
   final int endOffset;
-  final int startBlockIndex;
+
+  /// Contenedor común de ambos extremos: el body o una celda `<w:tc>`.
+  final XmlElement parent;
+
+  /// Posición del párrafo inicial en el recorrido, para aplicar de atrás
+  /// hacia adelante.
+  final int documentOrder;
 }

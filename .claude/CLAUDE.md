@@ -128,7 +128,8 @@ de runs conserva texto/formato (no volcar todo al primer `<w:t>`).
   vacía los siguientes y **elimina los gaps intermedios** del XML.
 - Tipos: `DocxTextReplacement` (en sitio), `DocxListReplacement` (campo de lista: rango por
   `w:numId`, una línea por párrafo clonando el primero), `DocxRangeReplacement` (rango entre
-  párrafos, solo nivel raíz). Listas y rangos se aplican **al final**, en orden inverso de
+  párrafos hermanos del nivel raíz o de una misma celda; otros rangos se marcan
+  inválidos). Listas y rangos se aplican **al final**, en orden inverso de
   `blockIndex`.
 - `ExportPlaceholder` (`features/export/domain`) es el tipo agnóstico al mapeo; `routing` lo
   construye desde `FieldAssignment`. `paragraphSpan` sigue en `ExportPlaceholder`/
@@ -261,7 +262,7 @@ si cambiaron `.md`/`.yaml`/imágenes pide antes la extracción semántica. Skill
     `updated`; con archivo sin cambios y encabezados ya desfasados el diálogo reaparece siempre,
     parsea el archivo dos veces y pregunta aun con cero asignaciones.
   - `DatasourceResourceCard` (asistente) refresca/reemplaza **sin** `*ConfirmingHeaders`.
-- Tablas más altas que una página no se parten (atómicas); rangos y listas solo a nivel raíz.
+- Tablas más altas que una página no se parten (atómicas); listas solo a nivel raíz; rangos solo entre párrafos de un mismo contenedor (raíz o celda).
 - `Isolate.run`/`compute` solo desde funciones **de nivel superior** que reciben datos simples: una
   función anónima dentro de un método captura `this` (y con él la ventana) y falla con «object is
   unsendable» (`DocxExportCommand` lo sufrió: fallaban todos los lotes de exportación).

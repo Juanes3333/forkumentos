@@ -309,14 +309,14 @@ void main() {
     expect('<w:p>'.allMatches(documentXml).length, 1);
   });
 
-  test('un placeholder con endBlockIndex construye un rango cruzado: '
+  test('un placeholder con endSteps construye un rango cruzado: '
       'preserva el prefijo del párrafo de inicio y el sufijo del de fin, '
       'partiendo el valor por líneas', () async {
     final template = _buildDocxBytes(
-      documentXml: _documentWithBody(
-        '<w:p><w:r><w:t>Estimado: </w:t></w:r></w:p>'
-        '<w:p><w:r><w:t>Fin de carta.</w:t></w:r></w:p>',
-      ),
+      documentXml: _documentWithBody('''
+<w:p><w:r><w:t>Estimado: </w:t></w:r></w:p>
+<w:p><w:r><w:t>Fin de carta.</w:t></w:r></w:p>
+'''),
     );
 
     final command = DocxExportCommand(
@@ -332,7 +332,7 @@ void main() {
           startOffset: 10,
           endOffset: 0,
           fieldIndex: 0,
-          endBlockIndex: 1,
+          endSteps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 1)],
         ),
       ],
       headers: const <String>['mensaje'],

@@ -67,7 +67,7 @@ void main() {
     });
 
     test(
-      'needle con \\n cruza párrafos y preserva prefijo/sufijo en endPath',
+      r'needle con \n cruza párrafos y preserva prefijo/sufijo en endPath',
       () {
         final document = _documentWithTexts(<String>[
           'Estimado Ana Pérez,',
@@ -158,7 +158,7 @@ void main() {
       expect(occurrences.first.matchedText, 'Ana');
     });
 
-    test('needle sin \\n dentro de un solo párrafo deja endPath en null', () {
+    test(r'needle sin \n dentro de un solo párrafo deja endPath en null', () {
       final document = _documentWithTexts(<String>['Hola Ana', 'Ana Pérez']);
 
       final occurrences = findExactTextOccurrences(

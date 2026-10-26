@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.1
+
+### Fixed
+- Un campo que abarca dos párrafos dentro de una celda de tabla se exportaba con texto del original pegado al nuevo; ahora se reemplaza completo. Los rangos que cruzan de una celda a otra se marcan como inválidos en la revisión en vez de exportarse mal.
+
 ## 1.9.0
 
 ### Added

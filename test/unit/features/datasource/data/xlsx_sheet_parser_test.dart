@@ -124,10 +124,7 @@ void main() {
         final poisoned = _withBuiltinNumFmtOverride(_workbookBytes());
 
         // Documenta el bug del paquete `excel` 4.0.6 que estamos sorteando.
-        expect(
-          () => Excel.decodeBytes(poisoned),
-          throwsA(anything),
-        );
+        expect(() => Excel.decodeBytes(poisoned), throwsA(anything));
 
         final workbook = XlsxSheetParser.decodeWorkbook(poisoned);
         expect(workbook.tables, isNotEmpty);
@@ -146,10 +143,7 @@ void main() {
 List<int> _workbookBytes() {
   final excel = Excel.createExcel();
   final sheet = excel[excel.getDefaultSheet()!]
-    ..appendRow(<CellValue?>[
-      TextCellValue('nombre'),
-      TextCellValue('monto'),
-    ])
+    ..appendRow(<CellValue?>[TextCellValue('nombre'), TextCellValue('monto')])
     ..appendRow(<CellValue?>[
       TextCellValue('Ana'),
       const IntCellValue(12345670),

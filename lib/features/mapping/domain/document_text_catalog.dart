@@ -233,16 +233,7 @@ String _normalizeForMatching(String text) {
 }
 
 bool _isQuote(String char) {
-  return const {
-    '"',
-    "'",
-    '“',
-    '”',
-    '‘',
-    '’',
-    '«',
-    '»',
-  }.contains(char);
+  return const {'"', "'", '“', '”', '‘', '’', '«', '»'}.contains(char);
 }
 
 FieldAssignment? findOverlappingAssignment({

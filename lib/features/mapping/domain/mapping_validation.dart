@@ -164,5 +164,51 @@ bool assignmentStillMatchesDocument(
   final endParagraphText = documentTexts[endPath];
   return endParagraphText != null &&
       assignment.endOffset >= 0 &&
-      assignment.endOffset <= endParagraphText.length;
+      assignment.endOffset <= endParagraphText.length &&
+      _isForwardRangeInSameContainer(assignment.path, endPath);
+}
+
+/// El exportador solo aplica rangos entre párrafos hermanos (mismo nivel raíz
+/// o misma celda de tabla) y con el fin después del inicio; cualquier otro se
+/// descartaría sin aviso al exportar.
+bool _isForwardRangeInSameContainer(
+  DocumentTextPath start,
+  DocumentTextPath end,
+) {
+  final startSteps = start.steps;
+  final endSteps = end.steps;
+  if (start.region != end.region ||
+      startSteps.isEmpty ||
+      startSteps.length != endSteps.length) {
+    return false;
+  }
+  final last = startSteps.length - 1;
+  for (var i = 0; i < last; i++) {
+    if (startSteps[i] != endSteps[i]) {
+      return false;
+    }
+  }
+  final startLast = startSteps[last];
+  final endLast = endSteps[last];
+  return switch ((startLast, endLast)) {
+    (
+      RootDocumentBlockStep(blockIndex: final a),
+      RootDocumentBlockStep(blockIndex: final b),
+    ) =>
+      b > a,
+    (
+      DocumentTableCellBlockStep(
+        rowIndex: final r1,
+        cellIndex: final c1,
+        blockIndex: final a,
+      ),
+      DocumentTableCellBlockStep(
+        rowIndex: final r2,
+        cellIndex: final c2,
+        blockIndex: final b,
+      ),
+    ) =>
+      r1 == r2 && c1 == c2 && b > a,
+    _ => false,
+  };
 }

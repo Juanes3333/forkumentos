@@ -66,7 +66,7 @@ void main() {
       startOffset: 10,
       endOffset: 0,
       fieldIndex: 3,
-      endBlockIndex: 6,
+      endSteps: <ExportPathStep>[ExportPathStep.rootBlock(blockIndex: 6)],
     ),
   ];
 
