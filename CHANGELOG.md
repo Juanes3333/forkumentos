@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.9.0
+
+### Added
+- Varias plantillas por proyecto: pestañas bajo el ribbon para añadir, seleccionar y quitar plantillas, y exportar el paquete completo (una carpeta por plantilla) por cada fila. El `.fork` pasa al formato v2.
+- El Excel de cada proyecto vive en una carpeta gestionada por la app: avisa si cambió, permite abrirlo, restaurar una copia anterior y guarda su huella en el proyecto.
+- Crear campos nuevos desde el texto seleccionado en el documento: la columna se agrega al Excel en el orden del documento.
+- Proyectos solo con el Word: los campos se guardan como borrador y el Excel se genera después.
+- Los campos se reubican por nombre cuando cambian las columnas del Excel, con un diálogo para resolver los que quedan sin columna.
+
+### Changed
+- El visor reparte en páginas las tablas que Word abre en una página nueva.
+- El cuadro «Asignar campo» se coloca midiendo su tamaño real y ya no tapa el texto seleccionado.
+- El actualizador es más estricto y evita perder cambios al actualizar.
+
+### Fixed
+- La exportación fallaba con «object is unsendable» al generar el lote de DOCX.
+- Un logo flotante colocado fuera de la hoja aparecía duplicado en el pie.
+- Sin Excel no se podía seleccionar texto del documento.
+- Un campo sin columna ya no bloquea la revisión del mapeo; el caché de filas XLSX se invalida al editar el archivo.
+
 ## 1.8.0
 
 ### Added
