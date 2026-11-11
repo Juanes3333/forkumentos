@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.3
+
+### Changed
+- Al exportar varias plantillas a la vez, el aviso de «campos sin asignar» solo lista las columnas que ninguna de las plantillas marcadas usa, y se actualiza al marcar o desmarcar plantillas. Antes comparaba solo con la plantilla activa.
+
 ## 1.9.2
 
 ### Fixed

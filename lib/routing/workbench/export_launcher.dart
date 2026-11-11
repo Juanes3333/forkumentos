@@ -120,13 +120,23 @@ Future<void> launchExport(
   final templateChoices = project.templates.length > 1
       ? <ExportTemplateChoice>[
           for (final entry in project.templates)
-            (
+            ExportTemplateChoice(
               id: entry.id,
               name: p.basenameWithoutExtension(
                 entry.id == project.activeTemplateId
                     ? template.fileName
                     : entry.fileName,
               ),
+              mappedHeaders: entry.id == project.activeTemplateId
+                  ? _mappedHeaders(
+                      ref.read(activeMappingProvider).state.assignments,
+                    )
+                  : <String>{
+                      ...?others
+                          .where((o) => o.id == entry.id)
+                          .firstOrNull
+                          ?.mappedHeaders,
+                    },
             ),
         ]
       : const <ExportTemplateChoice>[];
@@ -262,7 +272,15 @@ typedef _ParkedTemplate = ({
   String path,
   List<ExportPlaceholder> placeholders,
   List<String> orphanHeaders,
+  Set<String> mappedHeaders,
 });
+
+/// Encabezados de las columnas que usan [assignments] (sin los campos sin
+/// columna).
+Set<String> _mappedHeaders(List<FieldAssignment> assignments) => <String>{
+  for (final assignment in assignments)
+    if (assignment.fieldIndex >= 0) assignment.fieldHeader,
+};
 
 List<_ParkedTemplate> _otherTemplates(Project project, List<String> headers) {
   return <_ParkedTemplate>[
@@ -280,6 +298,7 @@ List<_ParkedTemplate> _otherTemplates(Project project, List<String> headers) {
             path: entry.embeddedPath!,
             placeholders: remapped.assignments.map(_toPlaceholder).toList(),
             orphanHeaders: remapped.orphanHeaders,
+            mappedHeaders: _mappedHeaders(remapped.assignments),
           );
         }(),
   ];

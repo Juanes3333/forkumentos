@@ -63,8 +63,16 @@ void main() {
 
   group('selector de plantillas', () {
     const choices = <ExportTemplateChoice>[
-      (id: 't1', name: 'Contrato'),
-      (id: 't2', name: 'Paz y salvo'),
+      ExportTemplateChoice(
+        id: 't1',
+        name: 'Contrato',
+        mappedHeaders: <String>{'Nombre'},
+      ),
+      ExportTemplateChoice(
+        id: 't2',
+        name: 'Paz y salvo',
+        mappedHeaders: <String>{'Nombre'},
+      ),
     ];
 
     testWidgets('con varias plantillas aparecen marcadas y el resultado lleva '
@@ -112,13 +120,76 @@ void main() {
       await _pumpDialog(
         tester,
         templateChoices: const <ExportTemplateChoice>[
-          (id: 't1', name: 'Contrato'),
+          ExportTemplateChoice(id: 't1', name: 'Contrato'),
         ],
       );
       await tester.tap(find.text('abrir'));
       await tester.pumpAndSettle();
 
       expect(find.text('Plantillas a exportar'), findsNothing);
+    });
+
+    group('campos sin asignar entre todas las plantillas marcadas', () {
+      const mapped = <ExportTemplateChoice>[
+        ExportTemplateChoice(
+          id: 't1',
+          name: 'Contrato',
+          mappedHeaders: <String>{'nombre', 'cédula'},
+        ),
+        ExportTemplateChoice(
+          id: 't2',
+          name: 'Paz y salvo',
+          mappedHeaders: <String>{'nombre', 'fecha'},
+        ),
+      ];
+      const headers = <String>['nombre', 'cédula', 'fecha', 'correo'];
+
+      testWidgets('solo avisa de las columnas que ninguna plantilla usa', (
+        tester,
+      ) async {
+        await _pumpDialog(
+          tester,
+          headers: headers,
+          templateChoices: mapped,
+          // Lo que calcularía la revisión de una sola plantilla: se ignora.
+          missingFieldHeaders: const <String>['fecha', 'correo'],
+        );
+        await tester.tap(find.text('abrir'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('Hay campos sin asignar: correo.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('el aviso cambia al desmarcar una plantilla', (tester) async {
+        await _pumpDialog(tester, headers: headers, templateChoices: mapped);
+        await tester.tap(find.text('abrir'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.widgetWithText(CheckboxListTile, 'Contrato'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('Hay campos sin asignar: cédula, correo.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('si juntas cubren todas las columnas no avisa', (
+        tester,
+      ) async {
+        await _pumpDialog(
+          tester,
+          headers: const <String>['nombre', 'cédula', 'fecha'],
+          templateChoices: mapped,
+        );
+        await tester.tap(find.text('abrir'));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('Hay campos sin asignar'), findsNothing);
+      });
     });
   });
 

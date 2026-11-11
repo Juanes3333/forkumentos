@@ -21,7 +21,20 @@ final class ExportDialogResult {
 }
 
 /// Una plantilla que se puede elegir en el diálogo de exportación.
-typedef ExportTemplateChoice = ({String id, String name});
+final class ExportTemplateChoice {
+  const ExportTemplateChoice({
+    required this.id,
+    required this.name,
+    this.mappedHeaders = const <String>{},
+  });
+
+  final String id;
+  final String name;
+
+  /// Encabezados de las columnas que esta plantilla usa. Con varias plantillas
+  /// una columna solo está "sin asignar" si ninguna de las marcadas la usa.
+  final Set<String> mappedHeaders;
+}
 
 /// Loads datasource values for the given row indexes (used to pre-fill the
 /// manual filename fields with what the automatic pattern would produce).
@@ -136,7 +149,23 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
     super.dispose();
   }
 
-  bool get _hasMissingWarning => widget.missingFieldHeaders.isNotEmpty;
+  /// Columnas que ninguna de las plantillas marcadas usa. Con una sola
+  /// plantilla es la lista que calculó la revisión.
+  List<String> get _missingHeaders {
+    if (widget.templateChoices.length < 2) {
+      return widget.missingFieldHeaders;
+    }
+    final used = <String>{
+      for (final choice in widget.templateChoices)
+        if (_selectedTemplates.contains(choice.id)) ...choice.mappedHeaders,
+    };
+    return <String>[
+      for (final header in widget.headers)
+        if (!used.contains(header)) header,
+    ];
+  }
+
+  bool get _hasMissingWarning => _missingHeaders.isNotEmpty;
 
   bool get _hasOrphanWarning => widget.orphanFieldHeaders.isNotEmpty;
 
@@ -284,7 +313,7 @@ final class _ExportDialogState extends ConsumerState<ExportDialog> {
                       children: <Widget>[
                         Text(
                           'Hay campos sin asignar: '
-                          '${widget.missingFieldHeaders.join(', ')}. '
+                          '${_missingHeaders.join(', ')}. '
                           'Las regiones sin mapear conservan el texto '
                           'original de la plantilla.',
                         ),
